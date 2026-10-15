@@ -33,11 +33,11 @@ def _draw_label(draw: ImageDraw.ImageDraw, lines: list[str], fill, y: int = 24) 
         y += 30
 
 
-def make_photo(item_id: str, colour: tuple[int, int, int], fmt: str, date_label: str) -> bytes:
+def make_photo(item_id: str, colour: tuple[int, int, int], fmt: str, date_label: str, size: tuple[int, int] = PHOTO_SIZE) -> bytes:
     """A solid-colour image with a contrasting frame and the ID written on it."""
-    img = Image.new("RGB", PHOTO_SIZE, colour)
+    img = Image.new("RGB", size, colour)
     draw = ImageDraw.Draw(img)
-    w, h = PHOTO_SIZE
+    w, h = size
     frame = tuple(255 - c for c in colour)
     draw.rectangle([8, 8, w - 9, h - 9], outline=frame, width=6)
     _draw_label(draw, ["Memories Rescue fixture", item_id, date_label, "no EXIF on purpose"], frame)
@@ -51,9 +51,9 @@ def make_photo(item_id: str, colour: tuple[int, int, int], fmt: str, date_label:
     return out.getvalue()
 
 
-def make_overlay(item_id: str, caption: str) -> bytes:
+def make_overlay(item_id: str, caption: str, size: tuple[int, int] = PHOTO_SIZE) -> bytes:
     """A transparent PNG with a caption bar and a round 'sticker'."""
-    w, h = PHOTO_SIZE
+    w, h = size
     img = Image.new("RGBA", (w, h), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
     # Caption bar across the lower third, semi-transparent.

@@ -598,3 +598,7 @@ BUILDERS = {
     "small-legacy": build_small_legacy,
     "weird-json": build_weird_json,
 }
+
+from fixtures_m1 import BUILDERS_M1  # noqa: E402  (M1 fixtures share the helpers above)
+
+BUILDERS.update(BUILDERS_M1)
