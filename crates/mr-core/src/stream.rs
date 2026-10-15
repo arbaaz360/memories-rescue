@@ -664,7 +664,11 @@ mod tests {
                     (i % 28) + 1,
                     i % 60,
                     (i / 60) % 60,
-                    if i % 3 == 0 { "Video" } else { "Image" },
+                    if i.is_multiple_of(3) {
+                        "Video"
+                    } else {
+                        "Image"
+                    },
                     40 + i % 10,
                     i % 1000,
                     i % 777,

@@ -81,10 +81,8 @@ pub fn parse_filename(name: &str) -> Option<ParsedName> {
         (FileKind::Main, c)
     } else if let Some(c) = OVERLAY.captures(name) {
         (FileKind::Overlay, c)
-    } else if let Some(c) = NO_SUFFIX.captures(name) {
-        (FileKind::MainNoSuffix, c)
     } else {
-        return None;
+        (FileKind::MainNoSuffix, NO_SUFFIX.captures(name)?)
     };
     let date = NaiveDate::parse_from_str(&caps[1], "%Y-%m-%d").ok()?;
     let id = caps[2].to_string();
