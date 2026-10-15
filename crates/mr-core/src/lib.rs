@@ -14,17 +14,30 @@
 
 #![forbid(unsafe_code)]
 
+pub mod discover;
 pub mod entry;
 pub mod fields;
 pub mod filename;
+pub mod index;
+pub mod issue;
+pub mod matcher;
 pub mod stream;
 pub mod zipindex;
 
+pub use discover::{Discovery, Export, Part, PartEntry, discover};
 pub use entry::{ParsedEntry, RawEntry, Summary, Warning};
 pub use fields::{
     CaptureDate, DateField, DatePrecision, Location, LocationParse, MediaType, MediaTypeHint,
     UrlTokens,
 };
 pub use filename::{FileKind, ParsedName};
+pub use index::{
+    EntryRef, ExportSummary, JsonLoad, MediaFile, MergedIndex, Profile, build_index, load_json,
+    summarize,
+};
+pub use issue::{Code, Issue};
+pub use matcher::{
+    Confidence, Item, ItemStatus, LocationDecision, MatchOptions, MatchReport, match_export,
+};
 pub use stream::{SavedMediaReader, StreamError};
 pub use zipindex::{CrcCheck, EntryInfo, Integrity, UnsafeReason, ZipIndex, ZipIndexError};
