@@ -208,6 +208,9 @@ pub struct Summary {
     pub with_instant: usize,
     pub with_location: usize,
     pub with_url: usize,
+    /// Entries whose URL carries usable `sid`/`mid` parameters (the `2026a`
+    /// exact-matching path of SRS v0.2 section 3.6).
+    pub with_tokens: usize,
     pub with_warnings: usize,
 }
 
@@ -227,6 +230,9 @@ impl Summary {
         }
         if entry.has_url() {
             self.with_url += 1;
+            if !entry.url_tokens().is_empty() {
+                self.with_tokens += 1;
+            }
         }
         if !entry.warnings.is_empty() {
             self.with_warnings += 1;
@@ -377,6 +383,7 @@ mod tests {
                 with_instant: 1,
                 with_location: 1,
                 with_url: 1,
+                with_tokens: 0,
                 with_warnings: 2,
             }
         );

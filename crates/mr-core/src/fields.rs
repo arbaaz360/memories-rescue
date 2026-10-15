@@ -268,9 +268,9 @@ pub fn parse_url(raw: Option<&str>) -> Option<&str> {
 /// Item identifiers that a legacy `Download Link` carries in its query string.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct UrlTokens {
-    /// `sid=` query value, when it is UUID-shaped.
+    /// `sid=` query value, upper-cased, when it is hex-and-dashes.
     pub sid: Option<String>,
-    /// `mid=` query value, when it is UUID-shaped.
+    /// `mid=` query value, upper-cased, when it is hex-and-dashes.
     pub mid: Option<String>,
 }
 
@@ -280,8 +280,10 @@ impl UrlTokens {
     }
 }
 
-/// Pull `sid` and `mid` UUIDs out of a URL's query string (keys compared
-/// case-insensitively; values must be UUID-shaped, kept as written).
+/// Pull `sid` and `mid` out of a URL's query string per SRS v0.2 section 3.6
+/// step 1: the value must match `[A-Fa-f0-9-]+` and is stored upper-cased so
+/// it compares directly with the upper-cased filename ID. Keys are compared
+/// case-insensitively; the first occurrence of each wins.
 pub fn extract_url_tokens(url: &str) -> UrlTokens {
     let mut tokens = UrlTokens::default();
     let Some((_, query)) = url.split_once('?') else {
@@ -292,13 +294,13 @@ pub fn extract_url_tokens(url: &str) -> UrlTokens {
         let Some((key, value)) = pair.split_once('=') else {
             continue;
         };
-        if !is_uuid(value) {
+        if value.is_empty() || !value.bytes().all(|b| b.is_ascii_hexdigit() || b == b'-') {
             continue;
         }
         if key.eq_ignore_ascii_case("sid") {
-            tokens.sid.get_or_insert_with(|| value.to_string());
+            tokens.sid.get_or_insert_with(|| value.to_ascii_uppercase());
         } else if key.eq_ignore_ascii_case("mid") {
-            tokens.mid.get_or_insert_with(|| value.to_string());
+            tokens.mid.get_or_insert_with(|| value.to_ascii_uppercase());
         }
     }
     tokens
@@ -549,10 +551,18 @@ mod tests {
         );
         assert_eq!(
             t.mid.as_deref(),
-            Some("a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d")
+            Some("A1B2C3D4-E5F6-4A7B-8C9D-0E1F2A3B4C5D"),
+            "values are upper-cased"
         );
         assert!(extract_url_tokens("https://example.invalid/no/query").is_empty());
-        assert!(extract_url_tokens("https://example.invalid/?sid=notauuid&mid=").is_empty());
+        assert!(extract_url_tokens("https://example.invalid/?sid=notahexid&mid=").is_empty());
+        // Any hex-and-dash value counts, not only full UUIDs (SRS 3.6 step 1).
+        let t = extract_url_tokens("https://example.invalid/?sid=a81b&mid=A81B-4c2d");
+        assert_eq!(t.sid.as_deref(), Some("A81B"));
+        assert_eq!(t.mid.as_deref(), Some("A81B-4C2D"));
+        // First occurrence wins.
+        let t = extract_url_tokens("https://example.invalid/?sid=AA&sid=BB");
+        assert_eq!(t.sid.as_deref(), Some("AA"));
         let t = extract_url_tokens(
             "https://example.invalid/?SID=3F2A9C1E-5B7D-4E1F-9A2B-0C3D4E5F6A7B#frag",
         );

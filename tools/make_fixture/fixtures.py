@@ -1,5 +1,5 @@
-"""The fixture definitions (SRS §11.2): F-01 small-2026, F-02 small-legacy,
-F-10 weird-json. Each writes <out>/<name>/<zip> and <out>/<name>/truth.json.
+"""The fixture definitions (SRS v0.2 §11.2): F-01 small-2026b, F-15 small-2026a,
+F-02 small-legacy, F-10 weird-json. Each writes <out>/<name>/<zip> and <out>/<name>/truth.json.
 
 truth.json layout (schema 1):
 
@@ -68,11 +68,21 @@ def _colour(rng) -> tuple[int, int, int]:
 # F-01 small-2026
 # ---------------------------------------------------------------------------
 
-def build_small_2026(ctx: Context) -> dict:
+def build_small_2026(ctx: Context, profile: str) -> dict:
     """50 items, 1 part, 30 photos / 20 videos, 15 overlays (30%), 35 with GPS
-    (70%), URL fields empty / N/A / missing. Media bundled under memories/."""
-    name = "small-2026"
-    rng = ctx.rng(name)
+    (70%), media bundled under memories/. Two profiles (SRS v0.2 section 3.3):
+
+    * ``2026b`` (F-01 ``small-2026b``): URL fields empty, ``N/A`` or absent.
+    * ``2026a`` (F-15 ``small-2026a``): ``Download Link`` present on a synthetic
+      host, carrying ``sid`` and ``mid`` equal to the filename UUID.
+    """
+    if profile == "2026b":
+        name, srs_id = "small-2026b", "F-01"
+    elif profile == "2026a":
+        name, srs_id = "small-2026a", "F-15"
+    else:
+        raise ValueError(profile)
+    rng = ctx.rng("small-2026")  # same items in both profiles, only the URL fields differ
     out = ctx.out_dir / name
     reset_dir(out)
 
@@ -95,13 +105,15 @@ def build_small_2026(ctx: Context) -> dict:
         )
     drafts.sort(key=lambda d: d["when"], reverse=True)  # newest first, like the export
 
-    url_variants = [
+    url_variants_2026b = [
         {"Download Link": "", "Media Download Url": "N/A"},
         {"Download Link": "N/A", "Media Download Url": ""},
         {"Media Download Url": ""},
         {"Download Link": ""},
         {},
     ]
+    uid = new_id(rng, upper=False)
+    ts = int(dt.datetime(2026, 5, 1, tzinfo=UTC).timestamp())
 
     zipb = ZipBuilder()
     entries = []
@@ -119,7 +131,17 @@ def build_small_2026(ctx: Context) -> dict:
             "Media Type": media_type_field(d["kind"]),
             "Location": loc_field,
         }
-        entry.update(url_variants[i % len(url_variants)])
+        if profile == "2026b":
+            entry.update(url_variants_2026b[i % len(url_variants_2026b)])
+            sid = mid = None
+        else:
+            sid = mid = d["id"]
+            sig = hashlib.sha1(f"{d['id']}{ctx.seed}".encode()).hexdigest()
+            entry["Download Link"] = (
+                f"https://app.example.invalid/dmd/memories?uid={uid}&sid={sid}&mid={mid}&ts={ts}&sig={sig}"
+            )
+            if i % 2 == 0:
+                entry["Media Download Url"] = "N/A"
         entries.append(entry)
 
         main_skipped = None
@@ -151,6 +173,8 @@ def build_small_2026(ctx: Context) -> dict:
                 "location_field": loc_field,
                 "download_link_field": entry.get("Download Link"),
                 "media_download_url_field": entry.get("Media Download Url"),
+                "sid": sid,
+                "mid": mid,
                 "zip_index_main": None,
                 "zip_index_overlay": None,
             }
@@ -171,8 +195,8 @@ def build_small_2026(ctx: Context) -> dict:
     truth = {
         "schema": TRUTH_SCHEMA,
         "fixture": name,
-        "srs_id": "F-01",
-        "format": "2026",
+        "srs_id": srs_id,
+        "format": profile,
         "generator": _generator_block(ctx),
         "parts": [{"file": zip_path.name, "role": "primary", "entries": order}],
         "json": {"bom": False, "crlf": False, "indent": 2, "top_level_keys_before": [], "top_level_keys_after": []},
@@ -183,7 +207,8 @@ def build_small_2026(ctx: Context) -> dict:
             "videos": sum(1 for d in drafts if d["kind"] == "video"),
             "overlays": sum(1 for d in drafts if d["overlay"]),
             "with_location": sum(1 for d in drafts if d["gps"]),
-            "with_url": 0,
+            "with_url": n if profile == "2026a" else 0,
+            "with_tokens": n if profile == "2026a" else 0,
             "media_files": len(zipb.media),
             "main_files": len(zipb.media) - sum(1 for d in drafts if d["overlay"]),
             "main_files_skipped": skipped,
@@ -193,6 +218,14 @@ def build_small_2026(ctx: Context) -> dict:
     write_truth(out / "truth.json", truth)
     ctx.log(f"{name}: {zip_path.name} with {len(order)} entries, {skipped} video mains skipped")
     return truth
+
+
+def build_small_2026b(ctx: Context) -> dict:
+    return build_small_2026(ctx, "2026b")
+
+
+def build_small_2026a(ctx: Context) -> dict:
+    return build_small_2026(ctx, "2026a")
 
 
 # ---------------------------------------------------------------------------
@@ -560,7 +593,8 @@ def build_weird_json(ctx: Context) -> dict:
 
 
 BUILDERS = {
-    "small-2026": build_small_2026,
+    "small-2026b": build_small_2026b,
+    "small-2026a": build_small_2026a,
     "small-legacy": build_small_legacy,
     "weird-json": build_weird_json,
 }

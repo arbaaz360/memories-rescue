@@ -1,6 +1,7 @@
-//! Fixture integration tests (SRS §11.2): run the M0 parsers over F-01
-//! `small-2026`, F-02 `small-legacy` and F-10 `weird-json` and compare every
-//! count and parsed value with the generator's `truth.json`.
+//! Fixture integration tests (SRS v0.2 §11.2): run the M0 parsers over
+//! F-01 `small-2026b`, F-15 `small-2026a`, F-02 `small-legacy` and F-10
+//! `weird-json` and compare every count and parsed value with the generator's
+//! `truth.json`.
 //!
 //! The fixtures live in `<repo>/fixtures/` (gitignored). If any is missing,
 //! the first test to run generates all of them by calling
@@ -23,7 +24,7 @@ use serde::Deserialize;
 use serde_json::Value;
 use zip::ZipArchive;
 
-const FIXTURES: [&str; 3] = ["small-2026", "small-legacy", "weird-json"];
+const FIXTURES: [&str; 4] = ["small-2026b", "small-2026a", "small-legacy", "weird-json"];
 const JSON_ENTRY: &str = "json/memories_history.json";
 
 // ---------------------------------------------------------------------------
@@ -76,6 +77,8 @@ struct Counts {
     #[serde(default)]
     with_instant: usize,
     with_url: usize,
+    #[serde(default)]
+    with_tokens: usize,
     media_files: usize,
     main_files: usize,
     main_files_skipped: usize,
@@ -99,6 +102,10 @@ struct Item2026 {
     main_skipped: Option<String>,
     overlay: Option<String>,
     location: Option<Loc>,
+    #[serde(default)]
+    sid: Option<String>,
+    #[serde(default)]
+    mid: Option<String>,
     zip_index_main: Option<usize>,
     zip_index_overlay: Option<usize>,
 }
@@ -309,14 +316,18 @@ fn sorted(v: &[String]) -> BTreeSet<&str> {
     v.iter().map(String::as_str).collect()
 }
 
+fn upper(s: &Option<String>) -> Option<String> {
+    s.as_ref().map(|s| s.to_ascii_uppercase())
+}
+
 // ---------------------------------------------------------------------------
-// F-01 small-2026
+// F-01 small-2026b and F-15 small-2026a share their checks
 // ---------------------------------------------------------------------------
 
-#[test]
-fn f01_small_2026_json_entries_match_truth() {
-    let fx = load("small-2026");
-    assert_eq!(fx.truth.format, "2026");
+/// JSON-side checks for a bundled-media fixture. `profile` is `2026a` or `2026b`.
+fn check_2026_json(name: &str, profile: &str) {
+    let fx = load(name);
+    assert_eq!(fx.truth.format, profile);
     assert_eq!(fx.truth.generator.json_order, "newest_first");
     let (skipped, raws) = fx.stream_json();
     assert!(skipped.is_empty());
@@ -330,17 +341,26 @@ fn f01_small_2026_json_entries_match_truth() {
     assert_eq!(summary.unknown_type, 0);
     assert_eq!(summary.with_location, fx.truth.counts.with_location);
     assert_eq!(summary.with_url, fx.truth.counts.with_url);
+    assert_eq!(summary.with_tokens, fx.truth.counts.with_tokens);
     assert_eq!(summary.with_instant, fx.truth.counts.items);
     assert_eq!(
         summary.with_warnings, 0,
         "a clean 2026 export parses without warnings"
     );
+    match profile {
+        "2026a" => assert_eq!(
+            summary.with_tokens, fx.truth.counts.items,
+            "every 2026a entry has sid/mid"
+        ),
+        "2026b" => assert_eq!(summary.with_url, 0, "2026b entries carry no URLs"),
+        other => panic!("unknown profile {other}"),
+    }
 
     let items: Vec<Item2026> = fx.items();
     assert_eq!(items.len(), parsed.len());
     let mut previous: Option<DateTime<Utc>> = None;
     for (item, entry) in items.iter().zip(&parsed) {
-        let context = format!("item {} ({})", item.json_index, item.id);
+        let context = format!("{name} item {} ({})", item.json_index, item.id);
         assert_eq!(entry.index, item.json_index);
         let want = rfc3339(&item.date_utc);
         assert_eq!(
@@ -364,14 +384,36 @@ fn f01_small_2026_json_entries_match_truth() {
             "{context}: media type"
         );
         assert_location(entry, item.location, &context);
-        assert!(!entry.has_url(), "{context}: 2026 entries carry no URLs");
-        assert!(entry.url_tokens().is_empty(), "{context}");
+        let tokens = entry.url_tokens();
+        assert_eq!(tokens.sid, upper(&item.sid), "{context}: sid");
+        assert_eq!(tokens.mid, upper(&item.mid), "{context}: mid");
+        if profile == "2026a" {
+            // The exact-matching precondition of SRS v0.2 §3.6 step 1: the
+            // upper-cased token equals the upper-cased filename ID.
+            if let Some(file) = item.main.as_deref().or(item.overlay.as_deref()) {
+                let (_, file_id) = parse_entry_path(file).expect("recognised name").pair_key();
+                assert_eq!(
+                    tokens.sid.as_deref(),
+                    Some(file_id.as_str()),
+                    "{context}: sid == filename id"
+                );
+                assert_eq!(
+                    tokens.mid.as_deref(),
+                    Some(file_id.as_str()),
+                    "{context}: mid == filename id"
+                );
+            }
+            assert!(
+                !format!("{:?}", raws[item.json_index]).contains("sig="),
+                "{context}: Debug leaks"
+            );
+        }
     }
 }
 
-#[test]
-fn f01_small_2026_media_filenames_match_truth() {
-    let fx = load("small-2026");
+/// ZIP-side checks for a bundled-media fixture.
+fn check_2026_media(name: &str) {
+    let fx = load(name);
     let names = fx.entry_names();
     assert_eq!(
         names, fx.truth.parts[0].entries,
@@ -409,7 +451,7 @@ fn f01_small_2026_media_filenames_match_truth() {
     let mut skipped = 0;
     let mut main_positions: Vec<(usize, usize)> = Vec::new(); // (zip index, json index)
     for item in &items {
-        let context = format!("item {} ({})", item.json_index, item.id);
+        let context = format!("{name} item {} ({})", item.json_index, item.id);
         match (&item.main, &item.main_skipped) {
             (Some(main), None) => {
                 let p = parse_entry_path(main).unwrap_or_else(|| panic!("{context}: {main}"));
@@ -462,7 +504,8 @@ fn f01_small_2026_media_filenames_match_truth() {
 
     // The §3.6 ordinal-matching assumption: ZIP entry order follows JSON order.
     // truth.json records whether this fixture honours it, so a shuffled run
-    // can be told apart from a bug.
+    // can be told apart from a bug. Passing here proves nothing about real
+    // exports: the generator encodes the assumption (SRS v0.2 §11.3).
     let json_order_in_zip: Vec<usize> = {
         let mut v = main_positions.clone();
         v.sort_by_key(|(zip, _)| *zip);
@@ -480,6 +523,26 @@ fn f01_small_2026_media_filenames_match_truth() {
         ),
         other => panic!("unknown zip_order {other:?}"),
     }
+}
+
+#[test]
+fn f01_small_2026b_json_entries_match_truth() {
+    check_2026_json("small-2026b", "2026b");
+}
+
+#[test]
+fn f01_small_2026b_media_filenames_match_truth() {
+    check_2026_media("small-2026b");
+}
+
+#[test]
+fn f15_small_2026a_json_entries_and_tokens_match_truth() {
+    check_2026_json("small-2026a", "2026a");
+}
+
+#[test]
+fn f15_small_2026a_media_filenames_match_truth() {
+    check_2026_media("small-2026a");
 }
 
 // ---------------------------------------------------------------------------
@@ -540,12 +603,12 @@ fn f02_small_legacy_matches_truth() {
         let tokens = entry.url_tokens();
         assert_eq!(
             tokens.sid.as_deref(),
-            Some(item.sid.as_str()),
+            Some(item.sid.to_ascii_uppercase().as_str()),
             "{context}: sid"
         );
         assert_eq!(
             tokens.mid.as_deref(),
-            Some(item.mid.as_str()),
+            Some(item.mid.to_ascii_uppercase().as_str()),
             "{context}: mid"
         );
         let redacted = redact_url(&item.download_link);
@@ -662,8 +725,8 @@ fn f10_weird_json_matches_truth() {
             "{context}: media url"
         );
         let tokens = entry.url_tokens();
-        assert_eq!(tokens.sid, want.sid, "{context}: sid");
-        assert_eq!(tokens.mid, want.mid, "{context}: mid");
+        assert_eq!(tokens.sid, upper(&want.sid), "{context}: sid");
+        assert_eq!(tokens.mid, upper(&want.mid), "{context}: mid");
 
         assert_eq!(
             sorted(&raw.unknown_fields),
