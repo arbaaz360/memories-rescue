@@ -17,6 +17,11 @@ npm-debug.log*
 # Generated test fixtures (python tools/make_fixture)
 /fixtures/
 
+# Third-party sidecar binaries (python tools/sidecars.py fetch); the README is tracked
+/third_party/*
+!/third_party/README.md
+/src-tauri/binaries/
+
 # Python
 __pycache__/
 *.pyc
