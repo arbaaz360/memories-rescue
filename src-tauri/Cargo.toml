@@ -17,4 +17,6 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
+serde.workspace = true
 tauri = { version = "2", features = [] }
+tauri-plugin-shell = "2"

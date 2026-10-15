@@ -1,0 +1,18 @@
+[package]
+name = "mr-meta"
+description = "Metadata writers for Memories Rescue: exiftool stay_open driver, native JPEG/MP4 writers, Q-02 benchmark"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+chrono.workspace = true
+little_exif = "0.6"
+serde_json.workspace = true
+thiserror.workspace = true
+
+[[bin]]
+name = "q02-bench"
+path = "src/bin/q02_bench.rs"

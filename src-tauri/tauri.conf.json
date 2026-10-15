@@ -26,8 +26,28 @@
     }
   },
   "bundle": {
-    "active": false,
-    "targets": "all",
+    "active": true,
+    "targets": [
+      "nsis",
+      "msi"
+    ],
+    "publisher": "NovaByteWorks",
+    "externalBin": [
+      "binaries/ffmpeg",
+      "binaries/exiftool"
+    ],
+    "resources": {
+      "binaries/exiftool_files/": "exiftool_files/"
+    },
+    "windows": {
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper",
+        "silent": true
+      },
+      "nsis": {
+        "installMode": "currentUser"
+      }
+    },
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

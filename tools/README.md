@@ -129,3 +129,20 @@ Add a builder to `fixtures.py` or `fixtures_m1.py` and register it in the
 fields, and document them above. Still to come: F-03 mixed-format, F-07
 rotation, F-08 clips, F-09 codecs, F-11 tz-edge, F-12 unicode paths, F-13
 free-limit, F-16 uncertain-location (M2+).
+
+## sidecars.py: ffmpeg and exiftool binaries
+
+`python tools/sidecars.py fetch` downloads the pinned archives (URL, size and
+SHA-256 in the script), verifies them, extracts into `third_party/` and stages
+`src-tauri/binaries/<name>-<target triple>.exe` plus `exiftool_files/` for
+Tauri's `bundle.externalBin` and `bundle.resources`. `placeholders` writes empty
+files instead (CI); `verify` re-hashes what is staged. Details and licenses:
+`third_party/README.md`.
+
+## bench_corpus.py: Q-02 benchmark corpus
+
+`python tools/bench_corpus.py` writes `fixtures/bench/` (gitignored): 500 JPEGs
+and 100 MP4s copied from the F-01 fixture, and 500 phone-sized (~0.9 MB) JPEGs
+plus 100 ten-second 1080x1920 H.264 clips (~4.6 MB, alternating moov-first and
+moov-last). `cargo run --release -p mr-meta --bin q02-bench` measures the
+metadata writers on it; see `docs/decisions/Q-02-metadata-writer.md`.

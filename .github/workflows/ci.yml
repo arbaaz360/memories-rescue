@@ -48,6 +48,12 @@ jobs:
       - name: Generate fixtures
         run: python tools/make_fixture --all
 
+      # The runners have neither ffmpeg nor exiftool and the binaries are not
+      # committed. tauri-build fails on a missing `bundle.externalBin` file, so
+      # empty placeholders stand in; the sidecar tests see them and skip.
+      - name: Sidecar placeholders
+        run: python tools/sidecars.py placeholders
+
       - name: npm ci
         run: npm ci
 
