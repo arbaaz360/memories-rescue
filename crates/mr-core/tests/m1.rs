@@ -308,7 +308,17 @@ fn check_small(name: &str, profile: Profile, confidence: Confidence) {
         run.report.missing_media().count(),
         truth.counts.main_files_skipped
     );
-    assert!(run.report.orphan_overlays.is_empty());
+    // Overlays of skipped videos have no main to pair with: they are orphans.
+    let expected_orphans = truth
+        .items
+        .iter()
+        .filter(|v| v["main"].is_null() && !v["overlay"].is_null())
+        .count();
+    assert_eq!(
+        run.report.orphan_overlays.len(),
+        expected_orphans,
+        "{name}: orphan overlays"
+    );
     assert_eq!(run.report.token_disagreements, 0);
     // Overlays are paired.
     let with_overlay = run
