@@ -1,0 +1,509 @@
+//! `mr-cli`: run the M1 core over export files from a terminal.
+//!
+//! * `mr-cli index <inputs...> [--json]`: discovery, merged index, the FR-07
+//!   summary and the per-item match table.
+//! * `mr-cli order-check <inputs...> [--json]`: on a `2026a` export, where
+//!   `sid`/`mid` give ground truth, measure per day how often ZIP entry order
+//!   agrees with JSON order. This is the Q-03 check for a real export.
+
+use std::path::PathBuf;
+use std::process::ExitCode;
+
+use clap::{Parser, Subcommand};
+use mr_core::discover::{Discovery, Export, discover};
+use mr_core::fields::{DatePrecision, MediaType};
+use mr_core::index::{ExportSummary, MergedIndex, build_index, load_json, summarize};
+use mr_core::matcher::{
+    Item, MatchOptions, MatchReport, OrderAgreement, OrderVerdict, match_export, order_agreement,
+};
+use serde_json::{Value, json};
+
+#[derive(Parser)]
+#[command(
+    name = "mr-cli",
+    version,
+    about = "Memories Rescue core, from the command line"
+)]
+struct Cli {
+    #[command(subcommand)]
+    command: Command,
+}
+
+#[derive(Subcommand)]
+enum Command {
+    /// Index export ZIPs or folders: FR-07 summary and per-item match table.
+    Index {
+        /// Export ZIP files and/or extracted folders.
+        #[arg(required = true)]
+        inputs: Vec<PathBuf>,
+        /// Print JSON instead of text.
+        #[arg(long)]
+        json: bool,
+        /// The "Apply uncertain locations" setting (default off).
+        #[arg(long)]
+        apply_uncertain_locations: bool,
+        /// Limit the item table to the first N rows (text mode).
+        #[arg(long, default_value_t = 50)]
+        limit: usize,
+    },
+    /// Measure, per day, whether ZIP entry order agrees with JSON order on a
+    /// 2026a export (sid/mid give the ground truth). Validates the ordinal
+    /// matching assumption of SRS section 3.6 (Q-03).
+    OrderCheck {
+        #[arg(required = true)]
+        inputs: Vec<PathBuf>,
+        #[arg(long)]
+        json: bool,
+    },
+}
+
+struct Run<'a> {
+    export: &'a Export,
+    summary: ExportSummary,
+    report: MatchReport,
+}
+
+fn run_export<'a>(d: &'a Discovery, export: &'a Export, opts: &MatchOptions) -> Run<'a> {
+    let index: MergedIndex = build_index(d, export);
+    let json = load_json(d, &index);
+    let summary = summarize(d, export, &index, json.as_ref());
+    let entries = json.as_ref().map(|j| j.entries.as_slice()).unwrap_or(&[]);
+    let report = match_export(entries, &index, opts);
+    Run {
+        export,
+        summary,
+        report,
+    }
+}
+
+fn main() -> ExitCode {
+    let cli = Cli::parse();
+    match cli.command {
+        Command::Index {
+            inputs,
+            json,
+            apply_uncertain_locations,
+            limit,
+        } => {
+            let d = discover(&inputs);
+            let opts = MatchOptions {
+                apply_uncertain_locations,
+            };
+            let runs: Vec<Run<'_>> = d.exports.iter().map(|e| run_export(&d, e, &opts)).collect();
+            if json {
+                let value = json!({
+                    "ignored": d.ignored.iter().map(|i| json!({"path": i.path, "detail": i.detail})).collect::<Vec<_>>(),
+                    "exports": runs.iter().map(|r| export_json(&d, r)).collect::<Vec<_>>(),
+                });
+                println!("{}", serde_json::to_string_pretty(&value).expect("json"));
+            } else {
+                print_index_text(&d, &runs, limit);
+            }
+            if runs.is_empty() {
+                ExitCode::FAILURE
+            } else {
+                ExitCode::SUCCESS
+            }
+        }
+        Command::OrderCheck { inputs, json } => {
+            let d = discover(&inputs);
+            let opts = MatchOptions::default();
+            let runs: Vec<Run<'_>> = d.exports.iter().map(|e| run_export(&d, e, &opts)).collect();
+            let checks: Vec<(OrderAgreement, OrderVerdict)> = runs
+                .iter()
+                .map(|r| {
+                    let a = order_agreement(&r.report);
+                    let v = a.verdict(r.report.order.violations);
+                    (a, v)
+                })
+                .collect();
+            if json {
+                let value = json!({
+                    "exports": runs.iter().zip(&checks).map(|(r, (a, v))| order_json(r, a, *v)).collect::<Vec<_>>()
+                });
+                println!("{}", serde_json::to_string_pretty(&value).expect("json"));
+            } else {
+                for (run, (a, v)) in runs.iter().zip(&checks) {
+                    print_order_text(run, a, *v);
+                }
+            }
+            let measured = checks.iter().any(|(_, v)| *v != OrderVerdict::Unmeasurable);
+            if runs.is_empty() || !measured {
+                ExitCode::FAILURE
+            } else {
+                ExitCode::SUCCESS
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// index
+// ---------------------------------------------------------------------------
+
+fn human_bytes(n: u64) -> String {
+    const UNITS: [&str; 5] = ["B", "KB", "MB", "GB", "TB"];
+    let mut value = n as f64;
+    let mut unit = 0;
+    while value >= 1024.0 && unit < UNITS.len() - 1 {
+        value /= 1024.0;
+        unit += 1;
+    }
+    if unit == 0 {
+        format!("{n} B")
+    } else {
+        format!("{value:.1} {}", UNITS[unit])
+    }
+}
+
+fn part_label(d: &Discovery, id: usize) -> String {
+    let p = d.part(id);
+    match p.number() {
+        Some(n) => format!("{} (part {n})", p.label),
+        None => p.label.clone(),
+    }
+}
+
+fn media_type_name(m: Option<MediaType>) -> &'static str {
+    match m {
+        Some(MediaType::Photo) => "photo",
+        Some(MediaType::Video) => "video",
+        None => "?",
+    }
+}
+
+fn print_index_text(d: &Discovery, runs: &[Run<'_>], limit: usize) {
+    println!(
+        "Inputs: {} part(s) recognised, {} ignored",
+        d.parts.len(),
+        d.ignored.len()
+    );
+    for i in &d.ignored {
+        println!("  ignored {}: {}", i.path.display(), i.detail);
+    }
+    if runs.is_empty() {
+        println!("No export found.");
+        return;
+    }
+    for run in runs {
+        let s = &run.summary;
+        let e = run.export;
+        println!();
+        println!(
+            "Export {}: {}",
+            e.id + 1,
+            e.base.as_deref().unwrap_or("(unnamed)")
+        );
+        let parts: Vec<String> = d.parts_of(e).map(|p| part_label(d, p.id)).collect();
+        println!("  Parts ({}): {}", s.parts, parts.join(", "));
+        if !s.missing_parts.is_empty() {
+            println!("  Missing parts: {:?}", s.missing_parts);
+        }
+        if s.truncated_parts > 0 {
+            println!("  Truncated parts: {}", s.truncated_parts);
+        }
+        println!(
+            "  Profile: {}   paths: exact {}, ordinal {}, metadata-only {}",
+            s.profile.as_str(),
+            s.profile_counts.exact,
+            s.profile_counts.ordinal,
+            s.profile_counts.metadata_only
+        );
+        println!(
+            "  JSON entries {}; main files {} ({} photos, {} videos); overlays {}; unrecognised {}; refused {}; duplicates {}",
+            s.json_entries,
+            s.main_files,
+            s.photos,
+            s.videos,
+            s.overlays,
+            s.unrecognised,
+            s.refused,
+            s.duplicates
+        );
+        match s.date_range {
+            Some((lo, hi)) => println!(
+                "  Date range: {} to {}; entries with location: {}",
+                lo.format("%Y-%m-%d %H:%M:%S UTC"),
+                hi.format("%Y-%m-%d %H:%M:%S UTC"),
+                s.with_location
+            ),
+            None => println!(
+                "  Date range: none; entries with location: {}",
+                s.with_location
+            ),
+        }
+        println!(
+            "  Size: total {}, media {}; entry order: {}",
+            human_bytes(s.total_bytes),
+            human_bytes(s.media_bytes),
+            if s.ordered {
+                "yes (ZIP)"
+            } else {
+                "no (folder input)"
+            }
+        );
+        for issue in &s.issues {
+            println!("  ! {issue}");
+        }
+        let r = &run.report;
+        println!(
+            "  Match: exact {}, ordinal {}, none {}; location applied {}, none {}, uncertain {}; metadata_partial {}; missing media {}; orphan overlays {}; duplicate mains {}; token disagreements {}",
+            r.counts.exact,
+            r.counts.ordinal,
+            r.counts.none,
+            r.counts.location_applied,
+            r.counts.location_none,
+            r.counts.location_uncertain,
+            r.counts.metadata_partial,
+            r.missing_media().count(),
+            r.orphan_overlays.len(),
+            r.duplicate_mains.len(),
+            r.token_disagreements
+        );
+        let o = &r.order;
+        println!(
+            "  ZIP order check: {} ({} day-crossing pairs, {} violations; JSON {})",
+            if !o.applicable {
+                "not applicable"
+            } else if o.is_monotone() {
+                "consistent with JSON order"
+            } else {
+                "NOT consistent with JSON order: positional matching refused"
+            },
+            o.checked,
+            o.violations,
+            if o.newest_first {
+                "newest first"
+            } else {
+                "oldest first"
+            }
+        );
+        println!();
+        println!(
+            "  {:>5}  {:<7}  {:<19}  {:<4}  {:<9}  {:<18}  {:<8}  {:<4}  main [part]",
+            "json#", "conf", "capture (UTC)", "prec", "location", "status", "id", "ovl"
+        );
+        for item in r.items.iter().take(limit) {
+            println!("  {}", item_row(d, item));
+        }
+        if r.items.len() > limit {
+            println!(
+                "  ... {} more items (use --limit or --json)",
+                r.items.len() - limit
+            );
+        }
+        if !r.unmatched.is_empty() {
+            println!(
+                "  Unmatched JSON entries: {} (first: {:?})",
+                r.unmatched.len(),
+                r.unmatched
+                    .iter()
+                    .take(5)
+                    .map(|u| (u.json_index, u.reason))
+                    .collect::<Vec<_>>()
+            );
+        }
+    }
+}
+
+fn item_row(d: &Discovery, item: &Item) -> String {
+    let prec = match item.date.precision {
+        DatePrecision::Second => "sec",
+        DatePrecision::Day => "day",
+    };
+    format!(
+        "{:>5}  {:<7}  {:<19}  {:<4}  {:<9}  {:<18}  {:<8}  {:<4}  {} [{}]",
+        item.json_index
+            .map(|i| i.to_string())
+            .unwrap_or_else(|| "-".into()),
+        item.confidence.as_str(),
+        item.date.utc.format("%Y-%m-%d %H:%M:%S"),
+        prec,
+        item.location_decision.as_str(),
+        item.status.as_str(),
+        &item.id[..item.id.len().min(8)],
+        if item.overlay.is_some() { "yes" } else { "no" },
+        item.main.name,
+        d.part(item.main.part).label
+    )
+}
+
+fn export_json(d: &Discovery, run: &Run<'_>) -> Value {
+    let s = &run.summary;
+    let r = &run.report;
+    json!({
+        "base": run.export.base,
+        "parts": d.parts_of(run.export).map(|p| json!({
+            "label": p.label,
+            "path": p.path,
+            "number": p.number(),
+            "primary": p.has_json,
+            "zip": p.is_zip(),
+            "truncated": p.is_truncated(),
+            "media_count": p.media_count,
+            "attached_by_content": run.export.attached_by_content.contains(&p.id),
+        })).collect::<Vec<_>>(),
+        "summary": {
+            "profile": s.profile.as_str(),
+            "paths": {"exact": s.profile_counts.exact, "ordinal": s.profile_counts.ordinal, "metadata_only": s.profile_counts.metadata_only},
+            "parts": s.parts,
+            "missing_parts": s.missing_parts,
+            "truncated_parts": s.truncated_parts,
+            "json_entries": s.json_entries,
+            "main_files": s.main_files,
+            "photos": s.photos,
+            "videos": s.videos,
+            "overlays": s.overlays,
+            "unrecognised": s.unrecognised,
+            "refused": s.refused,
+            "duplicates": s.duplicates,
+            "date_range": s.date_range.map(|(lo, hi)| json!([lo.to_rfc3339(), hi.to_rfc3339()])),
+            "with_location": s.with_location,
+            "total_bytes": s.total_bytes,
+            "media_bytes": s.media_bytes,
+            "ordered": s.ordered,
+            "issues": s.issues.iter().map(|i| json!({"code": i.code.as_str(), "detail": i.detail})).collect::<Vec<_>>(),
+        },
+        "match": {
+            "counts": {
+                "exact": r.counts.exact, "ordinal": r.counts.ordinal, "none": r.counts.none,
+                "location_applied": r.counts.location_applied, "location_none": r.counts.location_none,
+                "location_uncertain": r.counts.location_uncertain, "metadata_partial": r.counts.metadata_partial,
+                "missing_media": r.missing_media().count(), "orphan_overlays": r.orphan_overlays.len(),
+                "duplicate_mains": r.duplicate_mains.len(), "token_disagreements": r.token_disagreements,
+            },
+            "order": {"applicable": r.order.applicable, "monotone": r.order.is_monotone(), "newest_first": r.order.newest_first, "checked": r.order.checked, "violations": r.order.violations},
+            "items": r.items.iter().map(|i| json!({
+                "json_index": i.json_index,
+                "id": i.id,
+                "main": {"part": d.part(i.main.part).label, "entry": i.main.index, "name": i.main.name, "size": i.main.size},
+                "overlay": i.overlay.as_ref().map(|o| json!({"part": d.part(o.part).label, "entry": o.index, "name": o.name})),
+                "media_type": media_type_name(i.media_type),
+                "capture_utc": i.date.utc.to_rfc3339(),
+                "time_precision": match i.date.precision { DatePrecision::Second => "second", DatePrecision::Day => "day" },
+                "location": i.location.map(|l| json!({"lat": l.lat, "lon": l.lon})),
+                "location_decision": i.location_decision.as_str(),
+                "confidence": i.confidence.as_str(),
+                "reason": i.reason.to_string(),
+                "status": i.status.as_str(),
+            })).collect::<Vec<_>>(),
+            "unmatched": r.unmatched.iter().map(|u| json!({"json_index": u.json_index, "reason": format!("{:?}", u.reason)})).collect::<Vec<_>>(),
+            "orphan_overlays": r.orphan_overlays.iter().map(|o| &o.name).collect::<Vec<_>>(),
+        }
+    })
+}
+
+// ---------------------------------------------------------------------------
+// order-check
+// ---------------------------------------------------------------------------
+
+fn verdict_text(v: OrderVerdict) -> &'static str {
+    match v {
+        OrderVerdict::Unmeasurable => {
+            "UNMEASURABLE: no day with two or more exactly matched items."
+        }
+        OrderVerdict::Holds => "HOLDS: ZIP entry order follows JSON order on every day measured.",
+        OrderVerdict::MostlyHolds => {
+            "MOSTLY HOLDS: a few days disagree; ordinal matching would be wrong for those items."
+        }
+        OrderVerdict::Fails => {
+            "FAILS: ZIP entry order does not follow JSON order; ordinal matching must not be used."
+        }
+    }
+}
+
+fn order_json(run: &Run<'_>, a: &OrderAgreement, v: OrderVerdict) -> Value {
+    json!({
+        "base": run.export.base,
+        "profile": run.summary.profile.as_str(),
+        "verdict": format!("{v:?}"),
+        "exact_items": a.exact_items,
+        "total_items": run.report.items.len(),
+        "json_newest_first": run.report.order.newest_first,
+        "cross_day_pairs": run.report.order.checked,
+        "cross_day_violations": run.report.order.violations,
+        "days_checked": a.days_checked,
+        "days_agreeing": a.days_agreeing,
+        "items_in_checked_days": a.items_in_checked_days,
+        "adjacent_pairs": a.adjacent_pairs,
+        "adjacent_agreeing": a.adjacent_agreeing,
+        "days": a.days.iter().map(|d| json!({
+            "day": format!("{}/{}", d.date, media_type_name(d.media_type)),
+            "items": d.items, "agrees": d.agrees,
+            "adjacent_pairs": d.adjacent_pairs, "adjacent_agreeing": d.adjacent_agreeing,
+            "json_order": d.json_order, "zip_order": d.zip_order,
+        })).collect::<Vec<_>>(),
+    })
+}
+
+fn print_order_text(run: &Run<'_>, a: &OrderAgreement, v: OrderVerdict) {
+    let s = &run.summary;
+    let o = &run.report.order;
+    println!(
+        "Export: {} ({} parts, profile {})",
+        run.export.base.as_deref().unwrap_or("(unnamed)"),
+        s.parts,
+        s.profile.as_str()
+    );
+    println!(
+        "  Exact (sid/mid) items: {} of {}",
+        a.exact_items,
+        run.report.items.len()
+    );
+    if a.exact_items == 0 {
+        println!("  Cannot measure: no entry carries sid/mid, so there is no ground truth here.");
+        println!("  This check needs a 2026a export (Download Link present).");
+        return;
+    }
+    println!(
+        "  JSON array order: {}",
+        if o.newest_first {
+            "newest first"
+        } else {
+            "oldest first"
+        }
+    );
+    println!(
+        "  Across days: {} day-crossing adjacent file pairs, {} against the JSON direction",
+        o.checked, o.violations
+    );
+    if a.days_checked == 0 {
+        println!(
+            "  Within days: no day has two or more exact items, so the within-day order cannot be measured."
+        );
+        println!("  Verdict: {}", verdict_text(v));
+        return;
+    }
+    let pct = |x: usize, y: usize| {
+        if y == 0 {
+            100.0
+        } else {
+            x as f64 * 100.0 / y as f64
+        }
+    };
+    println!(
+        "  Within days: {} of {} multi-item days agree exactly ({:.1}%); {} of {} adjacent pairs in ZIP order ({:.1}%); {} items involved",
+        a.days_agreeing,
+        a.days_checked,
+        pct(a.days_agreeing, a.days_checked),
+        a.adjacent_agreeing,
+        a.adjacent_pairs,
+        pct(a.adjacent_agreeing, a.adjacent_pairs),
+        a.items_in_checked_days
+    );
+    println!("  Verdict (SRS 3.6 step 2 assumption): {}", verdict_text(v));
+    let disagreeing: Vec<_> = a.days.iter().filter(|d| !d.agrees).collect();
+    if !disagreeing.is_empty() {
+        println!("  Disagreeing days (first 20):");
+        for d in disagreeing.iter().take(20) {
+            println!(
+                "    {}/{}: {} items; JSON {:?} vs ZIP {:?}",
+                d.date,
+                media_type_name(d.media_type),
+                d.items,
+                d.json_order,
+                d.zip_order
+            );
+        }
+    }
+}
