@@ -58,7 +58,9 @@ generator         name, version, seed, zip_order, json_order, ffmpeg{available, 
 parts[]           {file, role, entries[]}   entries = ZIP entry names in archive order
 json              {bom, crlf, indent, top_level_keys_before[], top_level_keys_after[]}
 counts            json_entries, items, photos, videos, (unknown_type), overlays, with_location,
-                  (with_instant), with_url, media_files, main_files, main_files_skipped
+                  (with_instant), with_url, media_files (all files under memories/),
+                  main_files (main files present), main_files_skipped (items whose video
+                  could not be rendered; main_files + main_files_skipped == items)
 items[]           one object per JSON entry, keyed by json_index
 ```
 

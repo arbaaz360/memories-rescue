@@ -395,9 +395,12 @@ fn f01_small_2026_media_filenames_match_truth() {
             FileKind::MainNoSuffix => panic!("{name}: fixture writes -main names only"),
         }
     }
+    // `main_files` counts the main files actually in the ZIP; videos that the
+    // generator could not render (no ffmpeg) are in `main_files_skipped`.
+    assert_eq!(mains, fx.truth.counts.main_files);
     assert_eq!(
-        mains,
-        fx.truth.counts.main_files - fx.truth.counts.main_files_skipped
+        fx.truth.counts.main_files + fx.truth.counts.main_files_skipped,
+        fx.truth.counts.items
     );
     assert_eq!(overlays, fx.truth.counts.overlays);
 
