@@ -81,9 +81,6 @@ impl Issue {
 
 impl fmt::Display for Issue {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.part {
-            Some(part) => write!(f, "{} (part #{}): {}", self.code, part, self.detail),
-            None => write!(f, "{}: {}", self.code, self.detail),
-        }
+        write!(f, "{}: {}", self.code, self.detail)
     }
 }

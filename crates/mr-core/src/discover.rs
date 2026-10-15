@@ -154,6 +154,9 @@ pub struct Part {
     pub issues: Vec<Issue>,
     /// Set when this part is a byte-for-byte copy of another input.
     pub duplicate_of: Option<usize>,
+    /// Part number given to a renamed extra part from where its media dates
+    /// fall among the numbered parts (exports are written newest first).
+    pub assigned_number: Option<u32>,
 }
 
 impl Part {
@@ -178,8 +181,15 @@ impl Part {
         match self.name.as_ref().and_then(|n| n.number) {
             Some(n) => Some(n),
             None if self.has_json => Some(1),
-            None => None,
+            None => self.assigned_number,
         }
+    }
+
+    /// Oldest and newest filename dates of the recognised media.
+    pub fn date_range(&self) -> Option<(NaiveDate, NaiveDate)> {
+        let mut it = self.media_keys.iter().map(|(d, _)| *d);
+        let first = it.next()?;
+        Some(it.fold((first, first), |(lo, hi), d| (lo.min(d), hi.max(d))))
     }
 
     pub fn entries(&self) -> Vec<PartEntry> {
@@ -423,6 +433,7 @@ fn add_part(d: &mut Discovery, path: &Path, source: Source, name: Option<PartNam
         media_keys: HashSet::new(),
         issues: Vec::new(),
         duplicate_of: None,
+        assigned_number: None,
     };
     let entries = part.entries();
     let mut any_export_shape = false;
@@ -464,7 +475,10 @@ fn add_part(d: &mut Discovery, path: &Path, source: Source, name: Option<PartNam
             part.issues.push(Issue::for_part(
                 Code::PartTruncated,
                 id,
-                format!("central directory unreadable; {readable} entries recovered{partial}"),
+                format!(
+                    "{}: central directory unreadable; {readable} entries recovered{partial}",
+                    part.label
+                ),
             ));
         }
         let refused = z.unsafe_entries().count();
@@ -472,7 +486,7 @@ fn add_part(d: &mut Discovery, path: &Path, source: Source, name: Option<PartNam
             part.issues.push(Issue::for_part(
                 Code::EntryRefused,
                 id,
-                format!("{refused} entries refused for unsafe names"),
+                format!("{}: {refused} entries refused for unsafe names", part.label),
             ));
         }
     }
@@ -578,7 +592,65 @@ fn group_exports(d: &mut Discovery) {
             }
         }
     }
-    // 3. Order parts, find the primary and the gaps.
+    // 3. Give renamed extra parts a number from their media dates: parts are
+    //    written newest first, so a part's date range places it among the
+    //    numbered ones; the first free number in that window is taken.
+    let mut assignments: Vec<(usize, u32)> = Vec::new();
+    for export in &d.exports {
+        let mut numbered: Vec<(u32, usize)> = export
+            .parts
+            .iter()
+            .filter_map(|&id| d.parts[id].number().map(|n| (n, id)))
+            .collect();
+        let unnumbered: Vec<usize> = export
+            .parts
+            .iter()
+            .copied()
+            .filter(|&id| d.parts[id].number().is_none())
+            .collect();
+        for id in unnumbered {
+            let max = numbered.iter().map(|(n, _)| *n).max().unwrap_or(1);
+            let free: Vec<u32> = (1..=max + 1)
+                .filter(|n| !numbered.iter().any(|(m, _)| m == n))
+                .collect();
+            let chosen = match d.parts[id].date_range() {
+                Some((lo, hi)) => {
+                    let after_newer = numbered
+                        .iter()
+                        .filter(|(_, other)| {
+                            d.parts[*other]
+                                .date_range()
+                                .is_some_and(|(olo, _)| olo >= hi)
+                        })
+                        .map(|(n, _)| n + 1)
+                        .max()
+                        .unwrap_or(1);
+                    let before_older = numbered
+                        .iter()
+                        .filter(|(_, other)| {
+                            d.parts[*other]
+                                .date_range()
+                                .is_some_and(|(_, ohi)| ohi <= lo)
+                        })
+                        .map(|(n, _)| n - 1)
+                        .min()
+                        .unwrap_or(u32::MAX);
+                    free.iter()
+                        .copied()
+                        .find(|n| *n >= after_newer && *n <= before_older)
+                        .or_else(|| free.first().copied())
+                }
+                None => free.first().copied(),
+            }
+            .unwrap_or(max + 1);
+            numbered.push((chosen, id));
+            assignments.push((id, chosen));
+        }
+    }
+    for (id, number) in assignments {
+        d.parts[id].assigned_number = Some(number);
+    }
+    // 4. Order parts, find the primary and the gaps.
     for export in &mut d.exports {
         export.parts.sort_by_key(|&id| {
             let p = &d.parts[id];
@@ -783,7 +855,10 @@ mod tests {
             .unwrap();
         assert_eq!(e.parts.len(), 2);
         assert_eq!(e.attached_by_content.len(), 1);
-        assert_eq!(d.parts[e.attached_by_content[0]].label, "mydata (1).zip");
+        let renamed = &d.parts[e.attached_by_content[0]];
+        assert_eq!(renamed.label, "mydata (1).zip");
+        assert_eq!(renamed.number(), Some(2), "takes the first free number");
+        assert!(e.missing_numbers.is_empty());
         let other = d
             .exports
             .iter()
@@ -882,7 +957,7 @@ mod tests {
         let p2 = zip_bytes(&[("memories/2021-12-24_B2-main.jpg", b"b")]);
         fs::write(dir.join("mydata~1729000000000.zip"), &primary).unwrap();
         fs::write(dir.join("mydata~1729000000000-2.zip"), &p2).unwrap();
-        let d = discover(&[dir.clone()]);
+        let d = discover(std::slice::from_ref(&dir));
         assert_eq!(d.exports.len(), 1);
         assert_eq!(d.exports[0].parts.len(), 2);
     }

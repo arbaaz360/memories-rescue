@@ -308,21 +308,27 @@ impl Profile {
     }
 }
 
+/// Export-level profile. A legacy link carries `sid`/`mid` too, so an
+/// entry alone cannot tell `2026a` from `legacy`: without any bundled media,
+/// URL-bearing entries mean links only.
 pub fn classify(counts: ProfileCounts, media_present: bool) -> Profile {
     let ProfileCounts {
         exact,
         ordinal,
         metadata_only,
     } = counts;
+    let urls = exact + metadata_only;
+    if urls == 0 && ordinal == 0 {
+        return Profile::Unknown;
+    }
+    if !media_present && urls > 0 {
+        return if ordinal > 0 {
+            Profile::Mixed
+        } else {
+            Profile::Legacy
+        };
+    }
     match (exact > 0, ordinal > 0, metadata_only > 0) {
-        (false, false, false) => Profile::Unknown,
-        (false, false, true) => {
-            if media_present {
-                Profile::Mixed
-            } else {
-                Profile::Legacy
-            }
-        }
         (true, false, false) => Profile::P2026a,
         (false, true, false) => Profile::P2026b,
         _ => Profile::Mixed,
@@ -360,9 +366,17 @@ pub fn summarize(
     json: Option<&JsonLoad>,
 ) -> ExportSummary {
     let mut issues = export.issues.clone();
-    let profile_counts = json.map(|j| j.profile_counts).unwrap_or_default();
+    let mut profile_counts = json.map(|j| j.profile_counts).unwrap_or_default();
     let media_present = !index.mains.is_empty();
     let profile = classify(profile_counts, media_present);
+    if profile == Profile::Legacy {
+        // Links only: every entry is metadata-only whatever its URL carries.
+        profile_counts = ProfileCounts {
+            exact: 0,
+            ordinal: 0,
+            metadata_only: profile_counts.total(),
+        };
+    }
     match json {
         None => issues.push(Issue::new(
             Code::JsonMissing,
@@ -502,6 +516,16 @@ mod tests {
         assert_eq!(classify(c(50, 0, 0), true), Profile::P2026a);
         assert_eq!(classify(c(0, 50, 0), true), Profile::P2026b);
         assert_eq!(classify(c(0, 0, 50), false), Profile::Legacy);
+        assert_eq!(
+            classify(c(50, 0, 0), false),
+            Profile::Legacy,
+            "sid/mid links without media"
+        );
+        assert_eq!(
+            classify(c(0, 50, 0), false),
+            Profile::P2026b,
+            "media simply absent"
+        );
         assert_eq!(classify(c(0, 0, 50), true), Profile::Mixed, "F-03 shape");
         assert_eq!(classify(c(10, 40, 0), true), Profile::Mixed);
         assert_eq!(classify(c(10, 0, 5), true), Profile::Mixed);

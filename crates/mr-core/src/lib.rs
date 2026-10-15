@@ -37,7 +37,8 @@ pub use index::{
 };
 pub use issue::{Code, Issue};
 pub use matcher::{
-    Confidence, Item, ItemStatus, LocationDecision, MatchOptions, MatchReport, match_export,
+    Confidence, Item, ItemStatus, LocationDecision, MatchOptions, MatchReport, OrderAgreement,
+    OrderVerdict, match_export, order_agreement,
 };
 pub use stream::{SavedMediaReader, StreamError};
 pub use zipindex::{CrcCheck, EntryInfo, Integrity, UnsafeReason, ZipIndex, ZipIndexError};

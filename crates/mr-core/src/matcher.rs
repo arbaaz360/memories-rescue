@@ -131,6 +131,9 @@ pub struct Item {
     pub key: (NaiveDate, String),
     pub main: EntryRef,
     pub overlay: Option<EntryRef>,
+    /// ZIP entry order of the main file (part number, entry index); `None`
+    /// for folder input.
+    pub main_order: Option<(u32, usize)>,
     pub media_type: Option<MediaType>,
     pub json_index: Option<usize>,
     pub date: CaptureDate,
@@ -655,6 +658,7 @@ fn matched_item(
         key: (date_key, id_key),
         main: file.entry.clone(),
         overlay,
+        main_order: file.order,
         media_type: file
             .media_type()
             .or(resolve_media_type(entry.media_type, Some(&file.parsed.ext))),
@@ -678,6 +682,7 @@ fn unmatched_item(file: &MediaFile, overlay: Option<EntryRef>, reason: MatchReas
         key: file.key(),
         main: file.entry.clone(),
         overlay,
+        main_order: file.order,
         media_type: file.media_type(),
         json_index: None,
         date: resolve_date(None, Some(file.parsed.date)).expect("filename date"),
@@ -687,6 +692,127 @@ fn unmatched_item(file: &MediaFile, overlay: Option<EntryRef>, reason: MatchReas
         reason,
         status: ItemStatus::MetadataPartial,
     }
+}
+
+// ---------------------------------------------------------------------------
+// Order agreement (Q-03): measure the ordinal assumption where ground truth exists
+// ---------------------------------------------------------------------------
+
+/// One `(UTC day, media type)` group of exactly matched items, JSON order
+/// against ZIP order.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DayAgreement {
+    pub date: NaiveDate,
+    pub media_type: Option<MediaType>,
+    pub items: usize,
+    /// The two orders are identical.
+    pub agrees: bool,
+    pub adjacent_pairs: usize,
+    pub adjacent_agreeing: usize,
+    /// Short IDs in JSON order.
+    pub json_order: Vec<String>,
+    /// The same IDs in ZIP order.
+    pub zip_order: Vec<String>,
+}
+
+/// How often ZIP entry order agrees with JSON order within a day, measured
+/// on exactly matched items (`sid`/`mid` give the ground truth). This is the
+/// check SRS v0.2 asks for before M1 (Q-03, FR-11 AC3) on a real export.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct OrderAgreement {
+    pub exact_items: usize,
+    pub days_checked: usize,
+    pub days_agreeing: usize,
+    pub items_in_checked_days: usize,
+    pub adjacent_pairs: usize,
+    pub adjacent_agreeing: usize,
+    pub days: Vec<DayAgreement>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OrderVerdict {
+    /// No exact items, or no day with two of them.
+    Unmeasurable,
+    /// Every measured day agrees and no cross-day pair runs backwards.
+    Holds,
+    /// At least 95% of adjacent pairs agree and no cross-day pair runs backwards.
+    MostlyHolds,
+    Fails,
+}
+
+impl OrderAgreement {
+    pub fn verdict(&self, cross_day_violations: usize) -> OrderVerdict {
+        if self.exact_items == 0 || self.days_checked == 0 {
+            OrderVerdict::Unmeasurable
+        } else if self.days_agreeing == self.days_checked && cross_day_violations == 0 {
+            OrderVerdict::Holds
+        } else if self.adjacent_agreeing * 100 >= self.adjacent_pairs * 95
+            && cross_day_violations == 0
+        {
+            OrderVerdict::MostlyHolds
+        } else {
+            OrderVerdict::Fails
+        }
+    }
+}
+
+fn short_id(id: &str) -> String {
+    id[..id.len().min(8)].to_string()
+}
+
+/// Compare JSON order with ZIP order on every day that has two or more
+/// exactly matched items.
+pub fn order_agreement(report: &MatchReport) -> OrderAgreement {
+    let exact: Vec<&Item> = report
+        .items
+        .iter()
+        .filter(|i| i.confidence == Confidence::Exact && i.main_order.is_some())
+        .collect();
+    let mut groups: BTreeMap<(NaiveDate, Option<MediaType>), Vec<&Item>> = BTreeMap::new();
+    for item in &exact {
+        groups
+            .entry((item.key.0, item.media_type))
+            .or_default()
+            .push(item);
+    }
+    let mut agreement = OrderAgreement {
+        exact_items: exact.len(),
+        ..OrderAgreement::default()
+    };
+    for ((date, media_type), mut items) in groups {
+        if items.len() < 2 {
+            continue;
+        }
+        items.sort_by_key(|i| i.json_index);
+        let json_order: Vec<String> = items.iter().map(|i| short_id(&i.id)).collect();
+        let mut by_zip = items.clone();
+        by_zip.sort_by_key(|i| i.main_order);
+        let zip_order: Vec<String> = by_zip.iter().map(|i| short_id(&i.id)).collect();
+        let agrees = json_order == zip_order;
+        let adjacent_pairs = items.len() - 1;
+        let adjacent_agreeing = items
+            .windows(2)
+            .filter(|pair| pair[0].main_order < pair[1].main_order)
+            .count();
+        agreement.days_checked += 1;
+        agreement.items_in_checked_days += items.len();
+        agreement.adjacent_pairs += adjacent_pairs;
+        agreement.adjacent_agreeing += adjacent_agreeing;
+        if agrees {
+            agreement.days_agreeing += 1;
+        }
+        agreement.days.push(DayAgreement {
+            date,
+            media_type,
+            items: items.len(),
+            agrees,
+            adjacent_pairs,
+            adjacent_agreeing,
+            json_order,
+            zip_order,
+        });
+    }
+    agreement
 }
 
 #[cfg(test)]
