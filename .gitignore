@@ -1,0 +1,30 @@
+# Rust
+/target/
+**/*.rs.bk
+*.pdb
+
+# Node / Vite
+node_modules/
+/dist/
+*.local
+npm-debug.log*
+
+# Tauri
+/src-tauri/target/
+/src-tauri/gen/schemas/
+/src-tauri/WixTools/
+
+# Generated test fixtures (python tools/make_fixture)
+/fixtures/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Editors / OS
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
