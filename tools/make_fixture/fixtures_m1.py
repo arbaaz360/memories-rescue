@@ -62,10 +62,27 @@ def _distance_m(a, b) -> float:
     return 2 * r * math.asin(math.sqrt(h))
 
 
+_TINY_MP4_CACHE: dict[int, bytes | None] = {}
+
+
 def _placeholder_video(rng, item_id: str) -> bytes:
-    head = b"\x00\x00\x00\x18ftypmp42\x00\x00\x00\x00mp42isom"
+    """A real tiny MP4 (from crates/mr-meta/tests/data, alternating moov-first
+    and moov-last layouts) so the metadata writer can process it; a bare
+    ftyp stub if those files are not present."""
+    from pathlib import Path
+
+    which = rng.randrange(2)
+    if which not in _TINY_MP4_CACHE:
+        root = Path(__file__).resolve().parents[2]
+        name = ["tiny-moov-first.mp4", "tiny-moov-last.mp4"][which]
+        path = root / "crates" / "mr-meta" / "tests" / "data" / name
+        _TINY_MP4_CACHE[which] = path.read_bytes() if path.is_file() else None
+    clip = _TINY_MP4_CACHE[which]
+    if clip is not None:
+        return clip
+    head = bytes([0, 0, 0, 0x18]) + b"ftypmp42" + bytes(4) + b"mp42isom"
     body = rng.randbytes(4096 + rng.randrange(2048))
-    return head + b"placeholder " + item_id.encode() + b"\x00" + body
+    return head + b"placeholder " + item_id.encode() + bytes(1) + body
 
 
 def _generator_block(ctx: Context, extra: dict | None = None) -> dict:

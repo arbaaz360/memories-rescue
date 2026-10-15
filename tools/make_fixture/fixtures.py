@@ -600,5 +600,7 @@ BUILDERS = {
 }
 
 from fixtures_m1 import BUILDERS_M1  # noqa: E402  (M1 fixtures share the helpers above)
+from fixtures_m2 import BUILDERS_M2  # noqa: E402
 
 BUILDERS.update(BUILDERS_M1)
+BUILDERS.update(BUILDERS_M2)

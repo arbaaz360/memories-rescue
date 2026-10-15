@@ -7,7 +7,7 @@ use std::process::Command;
 use std::sync::Once;
 
 /// Every fixture `tools/make_fixture --all` produces.
-pub const ALL_FIXTURES: [&str; 8] = [
+pub const ALL_FIXTURES: [&str; 11] = [
     "small-2026b",
     "small-2026a",
     "small-legacy",
@@ -16,6 +16,9 @@ pub const ALL_FIXTURES: [&str; 8] = [
     "missing-part",
     "truncated",
     "zipslip",
+    "tz-edge",
+    "unicode-paths",
+    "free-limit",
 ];
 
 pub fn repo_root() -> PathBuf {

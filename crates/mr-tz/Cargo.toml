@@ -1,0 +1,19 @@
+[package]
+name = "mr-tz"
+description = "Local UTC offset for a capture: GPS to time zone with an offline boundary dataset, DST through a bundled tzdb, home-zone fallback (SRS FR-19)"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+chrono.workspace = true
+chrono-tz = "0.10"
+iana-time-zone = "0.1"
+thiserror.workspace = true
+tzf-rs = { version = "2", default-features = false, features = ["bundled"] }
+
+[dev-dependencies]
+serde.workspace = true
+serde_json.workspace = true
