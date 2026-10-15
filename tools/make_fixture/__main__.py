@@ -33,6 +33,12 @@ def main(argv: list[str] | None = None) -> int:
         help="order of memories/ entries inside the ZIP: following the JSON array (default) or shuffled, to break the ordinal-matching assumption",
     )
     parser.add_argument("--no-video", action="store_true", help="skip video files even if ffmpeg is present")
+    parser.add_argument(
+        "--multipart-profile",
+        choices=["2026b", "2026a"],
+        default="2026b",
+        help="profile of the multipart family (F-04/F-05/F-06): 2026b (default) or 2026a with sid/mid in Download Link, which gives order-check its ground truth",
+    )
     parser.add_argument("--quiet", action="store_true")
     args = parser.parse_args(argv)
 
@@ -41,7 +47,7 @@ def main(argv: list[str] | None = None) -> int:
         parser.error("choose --all or at least one --fixture")
 
     ffmpeg = None if args.no_video else detect_ffmpeg()
-    ctx = Context(out_dir=args.out, seed=args.seed, zip_order=args.zip_order, ffmpeg=ffmpeg, quiet=args.quiet)
+    ctx = Context(out_dir=args.out, seed=args.seed, zip_order=args.zip_order, ffmpeg=ffmpeg, quiet=args.quiet, multipart_profile=args.multipart_profile)
     if not args.quiet:
         if ffmpeg:
             print(f"ffmpeg: {ffmpeg.path} ({ffmpeg.encoder})")

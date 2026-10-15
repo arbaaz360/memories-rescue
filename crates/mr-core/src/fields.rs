@@ -146,7 +146,7 @@ const NOON: NaiveTime = match NaiveTime::from_hms_opt(12, 0, 0) {
 // ---------------------------------------------------------------------------
 
 /// The resolved kind of an item.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum MediaType {
     Photo,
     Video,

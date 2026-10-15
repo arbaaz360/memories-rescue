@@ -1,0 +1,18 @@
+[package]
+name = "mr-cli"
+description = "Memories Rescue core from the command line: index exports and check the ZIP-order assumption"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "mr-cli"
+path = "src/main.rs"
+
+[dependencies]
+chrono.workspace = true
+clap.workspace = true
+mr-core = { path = "../mr-core" }
+serde_json.workspace = true

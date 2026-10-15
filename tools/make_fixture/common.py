@@ -7,6 +7,7 @@ Standard library only; Pillow and ffmpeg are used from media.py.
 from __future__ import annotations
 
 import datetime as dt
+import io
 import json
 import random
 import shutil
@@ -58,7 +59,9 @@ class Context:
     zip_order: str  # "json" | "shuffled"
     ffmpeg: FfmpegInfo | None
     quiet: bool = False
+    multipart_profile: str = "2026b"  # or "2026a": Download Link with sid/mid in the multipart family
     notes: list[str] = field(default_factory=list)
+    cache: dict = field(default_factory=dict)
 
     def rng(self, salt: str) -> random.Random:
         """A fresh generator per fixture so fixtures do not perturb each other."""
@@ -145,21 +148,27 @@ class ZipBuilder:
     def add_media(self, name: str, data: bytes) -> None:
         self.media.append((name, data))
 
-    def write(self, path: Path, order: str, rng: random.Random) -> list[str]:
+    def to_bytes(self, order: str, rng: random.Random) -> tuple[bytes, list[str]]:
         media = list(self.media)
         if order == "shuffled":
             rng.shuffle(media)
         elif order != "json":
             raise ValueError(f"unknown zip order {order!r}")
         entries = self.header + media
-        path.parent.mkdir(parents=True, exist_ok=True)
-        with zipfile.ZipFile(path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w", compression=zipfile.ZIP_DEFLATED) as zf:
             for name, data in entries:
                 info = zipfile.ZipInfo(name, date_time=ZIP_ENTRY_TIME)
                 info.compress_type = zipfile.ZIP_STORED if _is_compressed_media(name) else zipfile.ZIP_DEFLATED
                 info.external_attr = 0o644 << 16
                 zf.writestr(info, data)
-        return [name for name, _ in entries]
+        return buf.getvalue(), [name for name, _ in entries]
+
+    def write(self, path: Path, order: str, rng: random.Random) -> list[str]:
+        data, names = self.to_bytes(order, rng)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(data)
+        return names
 
 
 def _is_compressed_media(name: str) -> bool:

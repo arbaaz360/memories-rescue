@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/mr-core", "crates/mr-meta", "src-tauri"]
+members = ["crates/mr-cli", "crates/mr-core", "crates/mr-meta", "src-tauri"]
 
 [workspace.package]
 version = "0.1.0"
@@ -17,6 +17,9 @@ chrono = { version = "0.4", default-features = false, features = ["std", "alloc"
 thiserror = "2"
 proptest = "1"
 zip = { version = "9", default-features = false, features = ["deflate"] }
+flate2 = "1"
+crc32fast = "1"
+clap = { version = "4", features = ["derive"] }
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
 [profile.release]
