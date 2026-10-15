@@ -94,7 +94,6 @@ pub enum Warning {
     MediaTypeUnknown,
     LocationMissing,
     LocationUnrecognised,
-    LocationNullIsland,
     LocationOutOfRange,
 }
 
@@ -179,10 +178,8 @@ pub fn parse_entry(raw: &RawEntry) -> ParsedEntry {
             warnings.push(Warning::LocationUnrecognised);
             None
         }
-        LocationParse::NullIsland => {
-            warnings.push(Warning::LocationNullIsland);
-            None
-        }
+        // `0.0, 0.0` is how the export says "no GPS": not worth a warning.
+        LocationParse::NullIsland => None,
         LocationParse::OutOfRange => {
             warnings.push(Warning::LocationOutOfRange);
             None
@@ -326,7 +323,6 @@ mod tests {
     #[test]
     fn location_warnings() {
         for (text, want) in [
-            ("Latitude, Longitude: 0.0, 0.0", Warning::LocationNullIsland),
             ("Latitude, Longitude: 95, 0", Warning::LocationOutOfRange),
             ("somewhere", Warning::LocationUnrecognised),
             ("", Warning::LocationMissing),
@@ -335,6 +331,17 @@ mod tests {
             assert!(e.location.is_none());
             assert!(e.warnings.contains(&want), "{text:?}: {:?}", e.warnings);
         }
+    }
+
+    #[test]
+    fn null_island_is_no_location_but_not_a_warning() {
+        let e = parse_entry(&raw(json!({
+            "Date": "2021-12-25 18:42:07 UTC",
+            "Media Type": "Image",
+            "Location": "Latitude, Longitude: 0.0, 0.0"
+        })));
+        assert!(e.location.is_none());
+        assert!(e.warnings.is_empty(), "{:?}", e.warnings);
     }
 
     #[test]
