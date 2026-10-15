@@ -1893,6 +1893,8 @@ name = "mr-core"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "crc32fast",
+ "flate2",
  "proptest",
  "regex",
  "serde",

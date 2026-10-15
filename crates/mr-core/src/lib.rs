@@ -18,6 +18,7 @@ pub mod entry;
 pub mod fields;
 pub mod filename;
 pub mod stream;
+pub mod zipindex;
 
 pub use entry::{ParsedEntry, RawEntry, Summary, Warning};
 pub use fields::{
@@ -26,3 +27,4 @@ pub use fields::{
 };
 pub use filename::{FileKind, ParsedName};
 pub use stream::{SavedMediaReader, StreamError};
+pub use zipindex::{CrcCheck, EntryInfo, Integrity, UnsafeReason, ZipIndex, ZipIndexError};
