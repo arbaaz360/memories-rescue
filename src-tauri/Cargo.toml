@@ -1,0 +1,20 @@
+[package]
+name = "memories-rescue"
+description = "Repairs a Snapchat Memories export on your own computer"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[lib]
+# The `_lib` suffix keeps the library name distinct from the binary name,
+# which matters on Windows (https://github.com/rust-lang/cargo/issues/8519).
+name = "memories_rescue_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
