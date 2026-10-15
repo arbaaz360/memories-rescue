@@ -258,20 +258,33 @@ pub fn locate(repo_root: &Path) -> Option<PathBuf> {
     if bundled.is_file() {
         return Some(bundled);
     }
-    which("exiftool")
+    which("exiftool", "-ver")
 }
 
-pub(crate) fn which(name: &str) -> Option<PathBuf> {
+/// First `name` on `PATH` that actually runs `name <probe_arg>` successfully.
+/// A bare file-name match is not enough: the GitHub Windows runner carries an
+/// `exiftool.exe` that is not a Win32 executable (error 193), so a candidate
+/// is executed once before it is trusted.
+pub(crate) fn which(name: &str, probe_arg: &str) -> Option<PathBuf> {
     let exe = if cfg!(windows) {
         format!("{name}.exe")
     } else {
         name.to_string()
     };
-    std::env::var_os("PATH").and_then(|paths| {
-        std::env::split_paths(&paths)
-            .map(|d| d.join(&exe))
-            .find(|p| p.is_file())
-    })
+    let paths = std::env::var_os("PATH")?;
+    std::env::split_paths(&paths)
+        .map(|d| d.join(&exe))
+        .filter(|p| p.is_file())
+        .find(|p| {
+            Command::new(p)
+                .arg(probe_arg)
+                .stdin(Stdio::null())
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status()
+                .map(|s| s.success())
+                .unwrap_or(false)
+        })
 }
 
 #[cfg(test)]

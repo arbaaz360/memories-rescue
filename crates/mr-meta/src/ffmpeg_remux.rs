@@ -66,7 +66,7 @@ pub fn locate(repo_root: &Path, name: &str) -> Option<PathBuf> {
     if bundled.is_file() {
         return Some(bundled);
     }
-    crate::exiftool::which(name)
+    crate::exiftool::which(name, "-version")
 }
 
 /// `ffprobe -show_format -show_streams -of json` parsed.
