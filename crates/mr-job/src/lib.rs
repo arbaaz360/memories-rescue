@@ -35,6 +35,8 @@ pub use error::{JobError, Result};
 pub use fingerprint::InputChange;
 pub use job::{Job, JobSummary, Outcome, Replanned, RunStats, find_job_for_output, list_jobs};
 pub use options::{ClipRejoin, FREE_TIER_ITEMS, Options, OverlayMode, TestHooks};
-pub use plan::{ExtraKind, ExtraRow, Plan, PlannedItem, Precision, SourceRef, Warning, plan};
+pub use plan::{
+    ExtraKind, ExtraRow, Plan, PlannedItem, Precision, SourceRef, Warning, plan, plan_for,
+};
 pub use space::{SpaceAction, SpaceEstimate, SpaceOption};
 pub use state::{ItemRow, JournalEvent};

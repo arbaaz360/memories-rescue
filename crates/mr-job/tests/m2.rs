@@ -829,36 +829,69 @@ fn fr34_pause_resume_and_cancel() {
     o.test_hooks.delay_ms = 30;
     o.workers = Some(2);
     let mut job = Job::create(&e.state, &zips_in(&fixture_dir("small-2026b")), o).unwrap();
+    // Pause and cancel are triggered by finished items, not by timers, so
+    // the test does not depend on machine speed.
+    struct After {
+        n: usize,
+        seen: Mutex<usize>,
+        control: Control,
+        cancel: bool,
+        inner: CollectingSink,
+    }
+    impl ProgressSink for After {
+        fn progress(&self, p: &Progress) {
+            self.inner.progress(p);
+        }
+        fn item(&self, o: &ItemOutcome) {
+            let mut seen = self.seen.lock().unwrap();
+            *seen += 1;
+            if *seen == self.n {
+                if self.cancel {
+                    self.control.cancel();
+                } else {
+                    self.control.pause();
+                }
+            }
+            self.inner.item(o);
+        }
+        fn issue(&self, c: &str, d: &str) {
+            self.inner.issue(c, d);
+        }
+    }
     let control = Control::new();
-    let c = control.clone();
-    let pauser = std::thread::spawn(move || {
-        std::thread::sleep(Duration::from_millis(300));
-        c.pause();
-    });
-    let sink = CollectingSink::default();
+    let sink = After {
+        n: 5,
+        seen: Mutex::new(0),
+        control: control.clone(),
+        cancel: false,
+        inner: CollectingSink::default(),
+    };
     let outcome = job.run(&sink, &control).unwrap();
-    pauser.join().unwrap();
     let mr_job::Outcome::Paused(stats) = &outcome else {
         panic!("{outcome:?}")
     };
     assert!(stats.done > 0 && stats.done < f01_items(), "{stats:?}");
     assert!(
-        !sink.progress.lock().unwrap().is_empty(),
-        "progress at least once per second"
+        !sink.inner.progress.lock().unwrap().is_empty(),
+        "progress reported"
     );
     // Resume.
     control.resume();
-    let c = control.clone();
-    let canceller = std::thread::spawn(move || {
-        std::thread::sleep(Duration::from_millis(300));
-        c.cancel();
-    });
-    let outcome = job.run(&CollectingSink::default(), &control).unwrap();
-    canceller.join().unwrap();
+    let sink = After {
+        n: 5,
+        seen: Mutex::new(0),
+        control: control.clone(),
+        cancel: true,
+        inner: CollectingSink::default(),
+    };
+    let outcome = job.run(&sink, &control).unwrap();
     let mr_job::Outcome::Cancelled(stats2) = &outcome else {
         panic!("{outcome:?}")
     };
-    assert!(stats2.done > stats.done, "resumed work was kept");
+    assert!(
+        stats2.done >= stats.done + 5,
+        "resumed work was kept: {stats2:?} after {stats:?}"
+    );
     assert!(
         !job.output_root().join(".memories-rescue/tmp").exists(),
         "temp removed on cancel"
@@ -1420,4 +1453,46 @@ fn an_output_the_user_edited_is_never_overwritten_or_removed() {
     // Untouched outputs were replaced in place, not duplicated.
     let files = files_under(job.output_root());
     assert_eq!(files.keys().filter(|k| k.contains("_2.")).count(), 1);
+}
+
+#[test]
+fn composite_pending_warning_and_note_follow_the_compositor() {
+    let inputs = zips_in(&fixture_dir("small-2026b"));
+    let e = env("pending-note");
+    let o = options(&e.dest);
+    let codes = |p: &mr_job::Plan| {
+        p.warnings
+            .iter()
+            .map(|w| w.code.clone())
+            .collect::<Vec<_>>()
+    };
+    let pass = plan(&inputs, &o).unwrap();
+    assert!(codes(&pass).contains(&"COMPOSITE_PENDING".to_string()));
+    let real = mr_job::plan_for(&inputs, &o, &CopyCompositor).unwrap();
+    assert!(!codes(&real).contains(&"COMPOSITE_PENDING".to_string()));
+    assert_eq!(
+        mr_job::plan_for(&inputs, &o, &mr_job::PassThrough)
+            .unwrap()
+            .warnings,
+        pass.warnings
+    );
+    // The report note reflects what happened.
+    let note = |job: &Job| {
+        job.report_data()
+            .unwrap()
+            .notes
+            .iter()
+            .any(|n| n.contains("overlay saved next to the file"))
+    };
+    let mut job = Job::create(&e.state, &inputs, o.clone()).unwrap();
+    run(&mut job);
+    assert!(note(&job), "pass-through leaves overlays beside the files");
+    let e2 = env("composited-note");
+    let mut job2 = Job::create(&e2.state, &inputs, options(&e2.dest)).unwrap();
+    job2.set_compositor(Arc::new(CopyCompositor));
+    run(&mut job2);
+    assert!(
+        !note(&job2),
+        "nothing pending once every overlay was burned in"
+    );
 }

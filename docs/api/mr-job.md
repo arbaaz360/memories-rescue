@@ -57,8 +57,11 @@ as JSON.
 let p: Plan = mr_job::plan(&inputs, &options)?;
 ```
 
-Writes nothing. `Plan` holds everything the Check & Summary and Preview
-screens (S2, S4) show:
+Writes nothing. When the job will use a real compositor, call
+`mr_job::plan_for(&inputs, &options, &compositor)` instead (or
+`plan.adjust_for_compositor(&compositor)`): `COMPOSITE_PENDING` (overlays saved
+beside the files) is only warned about with the pass-through. `Plan` holds
+everything the Check & Summary and Preview screens (S2, S4) show:
 
 | Field | What |
 |---|---|

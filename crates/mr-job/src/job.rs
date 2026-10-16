@@ -1382,13 +1382,26 @@ impl Job {
                 truncated: p.truncated,
             })
             .collect();
+        // The composite note reflects what happened, not what the plan
+        // expected: none when every overlay was burned in.
+        let pending = self
+            .db
+            .items()?
+            .iter()
+            .filter(|i| i.composite_pending)
+            .count();
         let mut notes: Vec<String> = self
             .row
             .warnings
             .iter()
-            .filter(|w| w.code != "PART_MISSING")
+            .filter(|w| w.code != "PART_MISSING" && w.code != crate::plan::COMPOSITE_PENDING)
             .map(|w| w.detail.clone())
             .collect();
+        if pending > 0 {
+            notes.push(format!(
+                "{pending} items have their overlay saved next to the file; burning it in needs the overlay component."
+            ));
+        }
         if let Some(why) = &self.rebuilt {
             notes.push(format!("Saved progress was rebuilt: {why}."));
         }
