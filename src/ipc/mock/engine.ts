@@ -91,13 +91,18 @@ const COST = {
 };
 
 /** Items that fail the first time (fault removed on retry), by chronological index. 2944 sits in part 3. */
-const FAILURE_INDICES: readonly number[] = [37, 813, 1702, 2944];
-const PHOTO_FAILURES: readonly IpcError["code"][] = ["ZIP_ENTRY_CRC", "MEDIA_DECODE", "METADATA_WRITE"];
+const FAILURES: ReadonlyMap<number, IpcError["code"]> = new Map([
+  [37, "ZIP_ENTRY_CRC"],
+  [813, "FFMPEG_FAIL"],
+  [1702, "METADATA_WRITE"],
+  [2944, "MEDIA_DECODE"],
+]);
 
 function failureCode(index: number, it: FakeItem): IpcError["code"] | undefined {
-  const k = FAILURE_INDICES.indexOf(index);
-  if (k < 0) return undefined;
-  return it.media_type === "video" ? "FFMPEG_FAIL" : PHOTO_FAILURES[k % PHOTO_FAILURES.length];
+  const code = FAILURES.get(index);
+  // ffmpeg only touches videos; a photo at that index fails to decode instead.
+  if (code === "FFMPEG_FAIL" && it.media_type === "photo") return "MEDIA_DECODE";
+  return code;
 }
 
 function err(code: IpcError["code"], message: string, detail: string | null = null): IpcError {

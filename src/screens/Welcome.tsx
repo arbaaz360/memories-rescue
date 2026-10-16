@@ -1,7 +1,7 @@
 import { Rich, useI18n } from "../i18n/context";
 import { useStore } from "../state/context";
 import { formatInstant } from "../format/format";
-import { ActionBar, Button, Callout, ScreenTitle } from "../ui/components";
+import { Button, Callout, ScreenTitle } from "../ui/components";
 import { GuideArt, IconMail, IconPlay } from "../ui/icons";
 
 /** S0: value statement, disclaimer, the FR-49 export guide, Resume previous job. */
@@ -24,6 +24,12 @@ export function Welcome() {
         <li>{t("welcome-value-private")}</li>
       </ul>
 
+      <div class="hero-actions">
+        <Button variant="primary" class="btn-lg" onClick={() => store.getStarted()}>
+          {t("welcome-get-started")}
+        </Button>
+      </div>
+
       {previous ? (
         <section class="card resume-card" aria-labelledby="resume-title">
           <h2 id="resume-title" class="card-title">
@@ -43,12 +49,6 @@ export function Welcome() {
           </Button>
         </section>
       ) : null}
-
-      <ActionBar>
-        <Button variant="primary" onClick={() => store.getStarted()}>
-          {t("welcome-get-started")}
-        </Button>
-      </ActionBar>
 
       <section class="guide" aria-labelledby="guide-title">
         <h2 id="guide-title">{t("guide-title")}</h2>

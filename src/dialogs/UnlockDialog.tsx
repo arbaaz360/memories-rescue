@@ -92,6 +92,7 @@ export function UnlockDialog() {
               type="text"
               value={key}
               autoComplete="off"
+              autofocus
               spellcheck={false}
               autoCapitalize="characters"
               aria-invalid={error ? "true" : undefined}

@@ -83,7 +83,10 @@ export function Processing() {
             }
           />
           <Stat label={t("processing-time-left")} value={etaText} />
-          <Stat label={t("processing-speed")} value={t("processing-rate", { rate: i18n.num(rate.value, { maximumFractionDigits: rate.digits, minimumFractionDigits: rate.digits }) })} />
+          <Stat
+            label={t("processing-speed")}
+            value={running && p ? t("processing-rate", { rate: i18n.num(rate.value, { maximumFractionDigits: rate.digits, minimumFractionDigits: rate.digits }) }) : "–"}
+          />
         </dl>
         <p class="chips">
           <Badge tone={p && p.warnings > 0 ? "warning" : "neutral"}>{t("processing-warnings", { count: p?.warnings ?? 0 })}</Badge>

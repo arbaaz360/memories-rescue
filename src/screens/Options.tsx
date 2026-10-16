@@ -7,6 +7,7 @@ import { ActionBar, Button, Callout, Checkbox, ErrorCallout, RadioGroup, ScreenT
 import { IconArrowBack, IconFolder } from "../ui/icons";
 
 const OVERLAY_MODES: readonly OverlayMode[] = ["burn_in_keep_originals", "burn_in_only", "separate_file", "ignore"];
+const SPACE_MARGIN = 1.1;
 
 export function timeZones(current: string): string[] {
   let zones: string[] = [];
@@ -94,7 +95,9 @@ export function Options() {
   const burnIn = burnsIn(o);
 
   const usedPct = volume && volume.total_bytes > 0 ? ((volume.total_bytes - volume.free_bytes) / volume.total_bytes) * 100 : 0;
-  const needPct = volume && space && volume.total_bytes > 0 ? (space.total_bytes / volume.total_bytes) * 100 : 0;
+  // FR-28: the job may start when free space is at least the estimate plus 10%.
+  const needWithMargin = space ? space.total_bytes * SPACE_MARGIN : 0;
+  const needPct = volume && space && volume.total_bytes > 0 ? (needWithMargin / volume.total_bytes) * 100 : 0;
 
   return (
     <div class="screen">
@@ -121,7 +124,7 @@ export function Options() {
               usedPct={usedPct}
               needPct={needPct}
               sufficient={space.sufficient}
-              valueText={t("options-space-text", { need: bytes(space.total_bytes), free: bytes(space.free_bytes), volume: space.volume })}
+              valueText={t("options-space-text", { need: bytes(needWithMargin), free: bytes(space.free_bytes), volume: space.volume })}
               describedBy={meterDesc}
             />
             <p id={meterDesc} class="meter-legend">
@@ -133,7 +136,7 @@ export function Options() {
                 <span class="swatch swatch-need" aria-hidden="true" />
                 {t("options-space-need")}
               </span>
-              <span>{t("options-space-text", { need: bytes(space.total_bytes), free: bytes(space.free_bytes), volume: space.volume })}</span>
+              <span>{t("options-space-text", { need: bytes(needWithMargin), free: bytes(space.free_bytes), volume: space.volume })}</span>
             </p>
             <details class="space-details">
               <summary>{t("options-space-breakdown")}</summary>
@@ -146,6 +149,8 @@ export function Options() {
                 <dd>{bytes(space.temp_bytes)}</dd>
                 <dt>{t("options-space-zip")}</dt>
                 <dd>{bytes(space.zip_bytes)}</dd>
+                <dt>{t("options-space-margin")}</dt>
+                <dd>{bytes(needWithMargin - space.total_bytes)}</dd>
               </dl>
             </details>
             {!space.sufficient ? (

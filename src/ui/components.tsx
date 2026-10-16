@@ -1,5 +1,5 @@
 import type { ButtonHTMLAttributes, ComponentChildren, JSX } from "preact";
-import { useEffect, useId, useRef } from "preact/hooks";
+import { useEffect, useId, useLayoutEffect, useRef } from "preact/hooks";
 import { useI18n, useT } from "../i18n/context";
 import { errorMessageId } from "../i18n/l10n";
 import type { IpcError } from "../ipc/types";
@@ -12,10 +12,22 @@ type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   disabled?: boolean;
 };
 
-export function Button({ variant = "secondary", busy, children, class: cls, disabled, ...rest }: ButtonProps) {
-  const classes = ["btn", `btn-${variant}`, cls].filter(Boolean).join(" ");
+/**
+ * While `busy`, the button stays focusable (aria-disabled, clicks ignored):
+ * a real `disabled` would drop keyboard focus to the page mid-action.
+ */
+export function Button({ variant = "secondary", busy, children, class: cls, disabled, onClick, ...rest }: ButtonProps) {
+  const classes = ["btn", `btn-${variant}`, busy ? "btn-busy" : null, cls].filter(Boolean).join(" ");
   return (
-    <button type="button" class={classes} disabled={disabled || busy} aria-busy={busy ? "true" : undefined} {...rest}>
+    <button
+      type="button"
+      class={classes}
+      disabled={disabled}
+      aria-disabled={busy ? "true" : undefined}
+      aria-busy={busy ? "true" : undefined}
+      onClick={busy ? undefined : onClick}
+      {...rest}
+    >
       {busy ? <Spinner /> : null}
       {children}
     </button>
@@ -29,7 +41,9 @@ export function Spinner() {
 /** The screen title. Takes focus when the screen opens, so screen readers announce where the user is. */
 export function ScreenTitle(props: { children: ComponentChildren; lede?: ComponentChildren; eyebrow?: ComponentChildren }) {
   const ref = useRef<HTMLHeadingElement>(null);
-  useEffect(() => {
+  // Layout effect: focus lands before the first paint of the screen, so neither
+  // a screen reader nor a fast Tab press ever sees the previous focus.
+  useLayoutEffect(() => {
     ref.current?.focus({ preventScroll: false });
   }, []);
   return (

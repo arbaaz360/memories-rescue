@@ -1,9 +1,11 @@
-//! Tauri shell for Memories Rescue. M1 spike: ffmpeg and exiftool ship as
-//! sidecars (`bundle.externalBin` in `tauri.conf.json`) and are reached through
-//! the shell plugin. The capability in `capabilities/default.json` lets the
-//! webview run exactly those two binaries with fixed arguments; the Rust side
-//! below is what the app actually uses. The processing core lives in
-//! `crates/mr-core` and `crates/mr-meta`.
+//! Tauri shell for Memories Rescue. ffmpeg and exiftool ship as sidecars
+//! (`bundle.externalBin` in `tauri.conf.json`) and are run from Rust through
+//! the shell plugin; the window cannot run them. The window uses the dialog
+//! (file and folder pickers), opener (allowlisted URLs) and notification
+//! plugins directly, exactly as `capabilities/default.json` allows, and talks
+//! to the engine through the commands in `docs/ipc-contract.md`. Until the
+//! engine is wired, only `sidecar_versions` exists here and the window runs
+//! on its built-in mock engine. The processing core lives in `crates/`.
 
 use tauri::AppHandle;
 use tauri_plugin_shell::ShellExt;
@@ -56,6 +58,9 @@ async fn first_line(app: &AppHandle, name: &str, args: &[&str]) -> Result<String
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_notification::init())
         .invoke_handler(tauri::generate_handler![sidecar_versions])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

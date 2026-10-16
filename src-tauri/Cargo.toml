@@ -18,5 +18,10 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 serde.workspace = true
-tauri = { version = "2", features = [] }
+# protocol-asset: the window loads engine-written thumbnails through the asset
+# protocol, scoped in tauri.conf.json to the app cache's thumbnails folder.
+tauri = { version = "2", features = ["protocol-asset"] }
 tauri-plugin-shell = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-opener = "2"
+tauri-plugin-notification = "2"
