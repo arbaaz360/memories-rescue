@@ -18,9 +18,12 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 serde.workspace = true
-# protocol-asset: the window loads engine-written thumbnails through the asset
-# protocol, scoped in tauri.conf.json to the app cache's thumbnails folder.
-tauri = { version = "2", features = ["protocol-asset"] }
+# No asset protocol: the window loads no file from disk (thumbnails are data:
+# URLs made by the engine), so a picker or a drop cannot widen what it reads.
+tauri = { version = "2", features = [] }
+# In-memory preview thumbnails (already in the tree through mr-composite).
+image = { version = "0.25", default-features = false, features = ["jpeg", "png"] }
+base64 = "0.22"
 tauri-plugin-shell = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-opener = "2"

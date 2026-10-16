@@ -19,6 +19,7 @@ import {
   type JobOptions,
   type JobReport,
   type LicenseStatus,
+  type LinkName,
   type PlanPreview,
   type ProgressEvent,
   type ResumableJob,
@@ -607,6 +608,15 @@ export class AppStore {
     if (path) await this.openPath(path);
   }
 
+  /** Opens one of the app's own outside addresses, by name (`open_link`). */
+  async openLink(link: LinkName): Promise<void> {
+    try {
+      await this.backend.call("open_link", { link });
+    } catch (e) {
+      this.jobError.value = toIpcError(e);
+    }
+  }
+
   async openPath(path: string): Promise<void> {
     try {
       await this.backend.call("open_path", { path });
@@ -715,8 +725,7 @@ export class AppStore {
   }
 
   async buy(): Promise<void> {
-    const url = this.license.value?.product_url;
-    if (url) await this.host.openUrl(url);
+    await this.openLink("purchase");
   }
 
   async activate(key: string): Promise<boolean> {

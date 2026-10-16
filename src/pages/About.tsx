@@ -58,19 +58,19 @@ export function AboutPage() {
                 <IconFile size={18} />
                 {t("about-notices")}
               </Button>
-              <Button onClick={() => void store.host.openUrl(info.ffmpeg_source_url)}>
+              <Button onClick={() => void store.openLink("ffmpeg_source")}>
                 <IconExternal size={18} />
                 {t("about-ffmpeg-source")}
               </Button>
-              <Button onClick={() => void store.host.openUrl(info.privacy_policy_url)}>
+              <Button onClick={() => void store.openLink("privacy")}>
                 <IconExternal size={18} />
                 {t("about-privacy")}
               </Button>
-              <Button onClick={() => void store.host.openUrl(info.terms_url)}>
+              <Button onClick={() => void store.openLink("terms")}>
                 <IconExternal size={18} />
                 {t("about-terms")}
               </Button>
-              <Button onClick={() => void store.host.openUrl(info.faq_url)}>
+              <Button onClick={() => void store.openLink("faq")}>
                 <IconExternal size={18} />
                 {t("about-faq")}
               </Button>
@@ -83,11 +83,11 @@ export function AboutPage() {
             </h2>
             <p>{t("about-support-body")}</p>
             <div class="row-actions">
-              <Button onClick={() => void store.host.openUrl(`mailto:${info.support_email}`)}>
+              <Button onClick={() => void store.openLink("support")}>
                 <IconMail size={18} />
                 {info.support_email}
               </Button>
-              <Button variant="ghost" onClick={() => void store.host.openUrl(info.website_url)}>
+              <Button variant="ghost" onClick={() => void store.openLink("website")}>
                 <IconExternal size={18} />
                 {t("about-website")}
               </Button>

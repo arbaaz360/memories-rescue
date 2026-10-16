@@ -1,12 +1,14 @@
 {
-  "_comment": "Pinned release sidecars (SRS 10.4). The ffmpeg session fills in sha256 after publishing the minimal build as release `release` of `repo`; a null sha256 means not yet published. Read by tools/release/stage_sidecars.py.",
+  "_comment": "Pinned release sidecars (SRS 10.4): the minimal LGPL ffmpeg built by third_party/ffmpeg/build.sh, published as release `release` of `repo` by the owner (docs/release/README.md, 'Sidecar release'). sha256 null = not built yet. Read by tools/release/stage_sidecars.py.",
   "repo": "arbaaz360/memories-rescue-releases",
   "release": "sidecars-ffmpeg-9.0.2",
   "ffmpeg_version": "9.0.2",
   "targets": {
     "x86_64-pc-windows-msvc": {
       "asset": "ffmpeg-x86_64-pc-windows-msvc.exe",
-      "sha256": null
+      "sha256": "f17252176a50b04338cd8b41a8a4fe03b06d72e8aa6f18ca5054c392ba966977",
+      "size": 9453568,
+      "version_line": "ffmpeg version 9.0.2 Copyright (c) 2000-2026 the FFmpeg developers"
     },
     "universal-apple-darwin": {
       "asset": "ffmpeg-universal-apple-darwin",

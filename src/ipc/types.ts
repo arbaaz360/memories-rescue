@@ -238,8 +238,8 @@ export interface PlanItem {
   match_confidence: MatchConfidence;
   location_decision: LocationDecision;
   has_overlay: boolean;
-  /** Absolute path of a small JPEG/PNG under the app cache dir, served through the asset protocol; null when none. */
-  thumbnail_path: string | null;
+  /** A small JPEG preview as a `data:image/jpeg;base64,...` URL, made in memory; null for videos and unreadable photos. The window loads no file from disk. */
+  thumbnail: string | null;
 }
 
 export interface ClipGroup {
@@ -586,12 +586,17 @@ export interface Commands {
   activate: { args: { key: string }; result: LicenseStatus };
   deactivate: { args: Record<string, never>; result: LicenseStatus };
   open_path: { args: { path: string }; result: null };
+  open_link: { args: { link: LinkName }; result: null };
   export_diagnostics: { args: Record<string, never>; result: string };
   app_info: { args: Record<string, never>; result: AppInfo };
   sidecar_versions: { args: Record<string, never>; result: SidecarVersions };
 }
 
 export type CommandName = keyof Commands;
+
+/** The outside addresses the window may open, by name: Rust looks the address up (src/config/links.json, or the build's Gumroad product URL for `purchase`). */
+export type LinkName = "website" | "privacy" | "terms" | "faq" | "ffmpeg_source" | "support" | "purchase";
+export const LINK_NAMES: readonly LinkName[] = ["website", "privacy", "terms", "faq", "ffmpeg_source", "support", "purchase"];
 
 export const COMMAND_NAMES: readonly CommandName[] = [
   "add_inputs",
@@ -618,6 +623,7 @@ export const COMMAND_NAMES: readonly CommandName[] = [
   "activate",
   "deactivate",
   "open_path",
+  "open_link",
   "export_diagnostics",
   "app_info",
   "sidecar_versions",

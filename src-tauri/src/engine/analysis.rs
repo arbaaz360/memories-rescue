@@ -184,7 +184,7 @@ impl Engine {
         let plan = self.plan_for(&inputs, &opts)?;
         let plan_id = uuid::Uuid::new_v4().to_string();
         let samples = pick_samples(&plan);
-        let thumbs = self.write_thumbnails(&plan_id, &inputs, &samples);
+        let thumbs = thumbnails(&inputs, &samples);
         // Captions are burned in by the real compositor. Without one (no
         // sidecar) they are saved beside the files and the preview says so;
         // without a working video encoder only the videos' captions are.
@@ -330,47 +330,8 @@ impl Engine {
             .and_then(|mut f| f.write_all(html.as_bytes()))
             .map_err(|e| io_error(&tmp, &e))?;
         std::fs::rename(&tmp, &path).map_err(|e| io_error(&path, &e))?;
+        self.issue_path(&path);
         Ok(path.to_string_lossy().into_owned())
-    }
-
-    /// Small preview images for sample photos, copied out of the export into
-    /// the app cache (the asset protocol scope). Videos get none.
-    fn write_thumbnails(
-        &self,
-        plan_id: &str,
-        inputs: &[PathBuf],
-        samples: &[&PlannedItem],
-    ) -> Vec<Option<String>> {
-        let dir = self.paths.cache_dir.join("thumbnails").join(plan_id);
-        if std::fs::create_dir_all(&dir).is_err() {
-            return vec![None; samples.len()];
-        }
-        prune_thumbnails(&self.paths.cache_dir.join("thumbnails"), plan_id);
-        let d = mr_core::discover(inputs);
-        samples
-            .iter()
-            .map(|it| {
-                if it.kind != MediaKind::Photo {
-                    return None;
-                }
-                let part = d
-                    .parts
-                    .iter()
-                    .find(|p| p.path.to_string_lossy() == it.main.part_path)?;
-                let entry = part.find(&it.main.entry_name)?;
-                if entry.size > 25_000_000 {
-                    return None;
-                }
-                let out = dir.join(format!("{}.{}", it.key, it.ext));
-                part.read_entry(&entry, |r| {
-                    let mut f = std::fs::File::create(&out)?;
-                    std::io::copy(r, &mut f)?;
-                    Ok(())
-                })
-                .ok()?;
-                Some(out.to_string_lossy().into_owned())
-            })
-            .collect()
     }
 
     pub fn volume_info(&self, path: &str) -> IpcResult<VolumeInfo> {
@@ -394,20 +355,82 @@ impl Engine {
     }
 }
 
-/// Keeps the five newest preview folders.
-fn prune_thumbnails(root: &Path, keep: &str) {
-    let Ok(rd) = std::fs::read_dir(root) else {
-        return;
-    };
-    let mut dirs: Vec<(std::time::SystemTime, PathBuf)> = rd
-        .flatten()
-        .filter(|e| e.file_name().to_string_lossy() != keep)
-        .filter_map(|e| Some((e.metadata().ok()?.modified().ok()?, e.path())))
+/// Longest side of a preview thumbnail: the window shows 64 x 53, this is
+/// enough for a 2x display.
+pub const THUMB_PX: u32 = 160;
+/// Photos larger than this get no thumbnail (decoding would cost too much).
+const THUMB_MAX_BYTES: u64 = 25_000_000;
+/// Thumbnails decoded at once.
+const THUMB_THREADS: usize = 4;
+
+/// Small preview images for the sample photos, made in memory and sent as
+/// `data:` URLs: nothing is written to disk and the window loads no file
+/// (the asset protocol is off). Videos, and photos that cannot be decoded,
+/// get none.
+fn thumbnails(inputs: &[PathBuf], samples: &[&PlannedItem]) -> Vec<Option<String>> {
+    let d = mr_core::discover(inputs);
+    let bytes: Vec<Option<Vec<u8>>> = samples
+        .iter()
+        .map(|it| {
+            if it.kind != MediaKind::Photo {
+                return None;
+            }
+            let part = d
+                .parts
+                .iter()
+                .find(|p| p.path.to_string_lossy() == it.main.part_path)?;
+            let entry = part.find(&it.main.entry_name)?;
+            if entry.size > THUMB_MAX_BYTES {
+                return None;
+            }
+            part.read_entry(&entry, |r| {
+                let mut v = Vec::with_capacity(entry.size as usize);
+                std::io::Read::read_to_end(r, &mut v)?;
+                Ok(v)
+            })
+            .ok()
+        })
         .collect();
-    dirs.sort_by_key(|d| std::cmp::Reverse(d.0));
-    for (_, d) in dirs.into_iter().skip(4) {
-        let _ = std::fs::remove_dir_all(d);
+    let mut out = Vec::with_capacity(bytes.len());
+    for chunk in bytes.chunks(THUMB_THREADS) {
+        std::thread::scope(|s| {
+            let handles: Vec<_> = chunk
+                .iter()
+                .map(|b| s.spawn(move || b.as_deref().and_then(thumbnail_data_url)))
+                .collect();
+            out.extend(handles.into_iter().map(|h| h.join().ok().flatten()));
+        });
     }
+    out
+}
+
+/// A JPEG of at most [`THUMB_PX`] on its longest side, EXIF orientation
+/// applied, as a `data:image/jpeg;base64,...` URL.
+pub fn thumbnail_data_url(bytes: &[u8]) -> Option<String> {
+    use base64::Engine as _;
+    use image::ImageDecoder as _;
+    let mut decoder = image::ImageReader::new(std::io::Cursor::new(bytes))
+        .with_guessed_format()
+        .ok()?
+        .into_decoder()
+        .ok()?;
+    let orientation = decoder
+        .orientation()
+        .unwrap_or(image::metadata::Orientation::NoTransforms);
+    let mut img = image::DynamicImage::from_decoder(decoder).ok()?;
+    img.apply_orientation(orientation);
+    let small = image::DynamicImage::ImageRgb8(img.thumbnail(THUMB_PX, THUMB_PX).to_rgb8());
+    let mut jpeg = Vec::new();
+    small
+        .write_to(
+            &mut std::io::Cursor::new(&mut jpeg),
+            image::ImageFormat::Jpeg,
+        )
+        .ok()?;
+    Some(format!(
+        "data:image/jpeg;base64,{}",
+        base64::engine::general_purpose::STANDARD.encode(&jpeg)
+    ))
 }
 
 pub fn existing_ancestor(p: &Path) -> Option<PathBuf> {
@@ -632,7 +655,7 @@ fn plan_item(it: &PlannedItem, thumbnail: Option<String>) -> PlanItem {
             _ => LocationDecision::None,
         },
         has_overlay: it.overlay.is_some(),
-        thumbnail_path: thumbnail,
+        thumbnail,
     }
 }
 

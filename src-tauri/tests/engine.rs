@@ -7,6 +7,7 @@ use std::io::{BufRead, BufReader, Read, Write};
 use std::net::TcpListener;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, Once};
 use std::time::{Duration, Instant};
 
@@ -283,16 +284,28 @@ fn plan_preview_is_consistent_and_writes_only_thumbnails() {
         .collect();
     assert!(!photo_thumbs.is_empty());
     for s in &photo_thumbs {
-        let thumb = s
-            .thumbnail_path
-            .as_ref()
-            .expect("photo samples get a thumbnail");
-        assert!(
-            Path::new(thumb).starts_with(env.root.join("cache").join("thumbnails")),
-            "{thumb}"
-        );
-        assert!(std::fs::metadata(thumb).unwrap().len() > 0);
+        let thumb = s.thumbnail.as_ref().expect("photo samples get a thumbnail");
+        // A small JPEG in memory, never a file the window would load from disk.
+        let b64 = thumb
+            .strip_prefix("data:image/jpeg;base64,")
+            .unwrap_or_else(|| panic!("{}", &thumb[..40.min(thumb.len())]));
+        use base64::Engine as _;
+        let jpeg = base64::engine::general_purpose::STANDARD
+            .decode(b64)
+            .unwrap();
+        let img = image::load_from_memory(&jpeg).unwrap();
+        assert!(img.width().max(img.height()) <= 160);
     }
+    assert!(
+        p.samples
+            .iter()
+            .filter(|s| s.media_type == MediaType::Video)
+            .all(|s| s.thumbnail.is_none())
+    );
+    assert!(
+        !env.root.join("cache").join("thumbnails").exists(),
+        "no thumbnail files on disk"
+    );
     let months: u64 = p
         .tree
         .children
@@ -428,9 +441,10 @@ fn free_tier_stops_at_100_and_later_finishes_partial() {
 }
 
 /// A loopback stand-in for Gumroad's verify endpoint: `GOOD-KEY` is valid
-/// and used once, `LIMIT-KEY` is valid and already used 5 times, anything
-/// else is unknown. Records every request body.
-fn fake_gumroad() -> (String, Arc<Mutex<Vec<String>>>) {
+/// and used once, `LIMIT-KEY` is valid and already used 5 times,
+/// `FLAKY-KEY` is valid unless the returned switch is set, anything else is
+/// unknown. Records every request body.
+fn fake_gumroad() -> (String, Arc<Mutex<Vec<String>>>, Arc<AtomicBool>) {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let url = format!(
         "http://{}/v2/licenses/verify",
@@ -438,6 +452,8 @@ fn fake_gumroad() -> (String, Arc<Mutex<Vec<String>>>) {
     );
     let bodies = Arc::new(Mutex::new(Vec::new()));
     let seen = bodies.clone();
+    let revoked = Arc::new(AtomicBool::new(false));
+    let flaky_revoked = revoked.clone();
     std::thread::spawn(move || {
         for stream in listener.incoming().flatten() {
             let mut reader = BufReader::new(stream.try_clone().unwrap());
@@ -456,7 +472,9 @@ fn fake_gumroad() -> (String, Arc<Mutex<Vec<String>>>) {
             let _ = reader.read_exact(&mut body);
             let body = String::from_utf8_lossy(&body).into_owned();
             let limit = body.contains("license_key=LIMIT-KEY");
-            let good = limit || body.contains("license_key=GOOD-KEY");
+            let flaky =
+                body.contains("license_key=FLAKY-KEY") && !flaky_revoked.load(Ordering::SeqCst);
+            let good = limit || flaky || body.contains("license_key=GOOD-KEY");
             seen.lock().unwrap().push(body);
             let json = if limit {
                 r#"{"success":true,"uses":5,"purchase":{"refunded":false,"chargebacked":false}}"#
@@ -474,12 +492,12 @@ fn fake_gumroad() -> (String, Arc<Mutex<Vec<String>>>) {
             );
         }
     });
-    (url, bodies)
+    (url, bodies, revoked)
 }
 
 #[test]
 fn activation_unlocks_the_rest_and_only_activation_counts_a_use() {
-    let (url, bodies) = fake_gumroad();
+    let (url, bodies, _) = fake_gumroad();
     let env = env_with(GumroadConfig {
         product_id: Some("prod-123".into()),
         verify_url: url,
@@ -589,7 +607,7 @@ fn activation_unlocks_the_rest_and_only_activation_counts_a_use() {
 
 #[test]
 fn adding_the_missing_part_processes_only_its_items() {
-    let (url, _) = fake_gumroad();
+    let (url, _, _) = fake_gumroad();
     let env = env_with(GumroadConfig {
         product_id: Some("p".into()),
         verify_url: url,
@@ -693,6 +711,20 @@ fn settings_persist_and_diagnostics_hold_no_export_content() {
         )
         .unwrap();
     }
+    // A line an older version wrote without today's rules: the export redacts it again.
+    {
+        use std::io::Write as _;
+        let mut f = std::fs::OpenOptions::new()
+            .append(true)
+            .open(env.engine.paths.log_dir.join("memories-rescue.log"))
+            .unwrap();
+        writeln!(
+            f,
+            "INFO legacy line {home} and {:?}",
+            Path::new(&home).join("Pictures")
+        )
+        .unwrap();
+    }
     // Shown before saving: exactly what the ZIP will hold.
     let preview = env.engine.diagnostics_preview();
     assert!(preview.destination.ends_with(".zip"));
@@ -721,7 +753,20 @@ fn settings_persist_and_diagnostics_hold_no_export_content() {
             !text.contains("SECRET") && !text.contains("sc-cdn"),
             "{name}: a URL"
         );
-        assert!(!text.contains(&home), "{name}: the home folder");
+        // The home folder in every spelling: as is, either separator, the
+        // escaped form JSON and `{:?}` write, and in any case.
+        let lower = text.to_lowercase();
+        for spelling in [
+            home.clone(),
+            home.replace('\\', "/"),
+            home.replace('\\', "\\\\"),
+            home.replace('/', "\\"),
+        ] {
+            assert!(
+                !lower.contains(&spelling.to_lowercase()),
+                "{name}: the home folder as {spelling}"
+            );
+        }
         assert!(!text.to_lowercase().contains("telemetry"), "{name}");
         if name.starts_with("journal-") {
             // Items by number, never by key (capture date + export file ID).
@@ -738,4 +783,175 @@ fn settings_persist_and_diagnostics_hold_no_export_content() {
     assert!(info.terms_url.starts_with("https://novabyteworks.com/"));
     assert!(info.faq_url.starts_with("https://novabyteworks.com/"));
     assert!(!env.engine.any_job_running());
+}
+
+#[test]
+fn open_path_opens_only_what_the_engine_handed_out() {
+    let env = env();
+    let inputs = env
+        .engine
+        .add_inputs(&zips(&fixture("small-2026b")))
+        .unwrap();
+    let ids = usable_ids(&inputs);
+    let o = options(&env);
+    let plan = env.engine.plan(&ids, &o).unwrap();
+    let preview = env.engine.export_preview_report(&plan.plan_id).unwrap();
+    let job = env.engine.start(&ids, &o).unwrap();
+    wait_state(
+        &env,
+        &job,
+        0,
+        &[
+            JobState::Done,
+            JobState::Partial,
+            JobState::FreeLimitReached,
+        ],
+    );
+    let r = env.engine.get_report(&job).unwrap();
+    std::fs::create_dir_all(&env.engine.paths.log_dir).unwrap();
+
+    // Handed out by the engine: opens.
+    for ok in [
+        r.output_path.clone(),
+        r.report_html_path.clone().unwrap(),
+        preview,
+        env.engine.paths.log_dir.to_string_lossy().into_owned(),
+    ] {
+        assert!(env.engine.openable(&ok).is_ok(), "{ok}");
+    }
+
+    // Anything else: refused, even inside the output folder.
+    let root = PathBuf::from(&r.output_path);
+    let planted = root.join("run-me.bat");
+    std::fs::write(&planted, "echo hi").unwrap();
+    // A saved memory is not opened by path either (the window never asks for one).
+    fn first_media(dir: &Path) -> Option<PathBuf> {
+        for e in std::fs::read_dir(dir).ok()?.flatten() {
+            let p = e.path();
+            if p.is_dir() {
+                if let Some(f) = first_media(&p) {
+                    return Some(f);
+                }
+            } else if p
+                .extension()
+                .is_some_and(|x| x == "jpg" || x == "mp4" || x == "png")
+            {
+                return Some(p);
+            }
+        }
+        None
+    }
+    let photo = first_media(&root);
+    assert!(photo.is_some());
+    let escaped = format!("{}/../{}", r.output_path, "Memories Rescue/run-me.bat");
+    let outside = repo().join("Cargo.toml");
+    for bad in [
+        planted.to_string_lossy().into_owned(),
+        escaped,
+        outside.to_string_lossy().into_owned(),
+        env.dest.to_string_lossy().into_owned(),
+        env.engine.paths.state_dir.to_string_lossy().into_owned(),
+    ]
+    .into_iter()
+    .chain(photo.map(|p| p.to_string_lossy().into_owned()))
+    {
+        let e = env.engine.openable(&bad).unwrap_err();
+        assert_eq!(e.code, ErrorCode::Unknown, "{bad}");
+        assert!(
+            e.message.contains("only opens its own"),
+            "{bad}: {}",
+            e.message
+        );
+    }
+    assert_eq!(
+        env.engine
+            .openable(&root.join("nope.txt").to_string_lossy())
+            .unwrap_err()
+            .code,
+        ErrorCode::PartMissing
+    );
+}
+
+#[test]
+fn a_licence_in_its_grace_period_is_checked_again_and_restored() {
+    let (url, bodies, revoked) = fake_gumroad();
+    let env = env_with(GumroadConfig {
+        product_id: Some("p".into()),
+        verify_url: url,
+        product_url: "u".into(),
+        price_display: None,
+        activation_limit: DEFAULT_ACTIVATION_LIMIT,
+    });
+    let lic = &env.engine.license;
+    assert_eq!(
+        lic.activate("FLAKY-KEY").unwrap().tier,
+        LicenseTier::Licensed
+    );
+
+    // One "not valid" from Gumroad: the grace period starts.
+    revoked.store(true, Ordering::SeqCst);
+    assert!(lic.recheck_now(), "a revocation is reported once");
+    let grace = lic.status();
+    assert_eq!(grace.tier, LicenseTier::Grace);
+    let until = grace.grace_until.clone().expect("grace end");
+    assert!(lic.unlocked(), "still unlocked during the grace period");
+
+    // Checked again in grace (daily, not monthly): a further rejection keeps the end date.
+    assert!(!lic.recheck_now());
+    assert_eq!(lic.status().tier, LicenseTier::Grace);
+    assert_eq!(lic.status().grace_until.as_deref(), Some(until.as_str()));
+
+    // Gumroad says valid again: the licence is restored.
+    revoked.store(false, Ordering::SeqCst);
+    assert!(!lic.recheck_now());
+    let back = lic.status();
+    assert_eq!(back.tier, LicenseTier::Licensed);
+    assert_eq!(back.grace_until, None);
+    assert!(
+        bodies
+            .lock()
+            .unwrap()
+            .iter()
+            .skip(2)
+            .all(|b| b.contains("increment_uses_count=false")),
+        "re-checks never count a use"
+    );
+}
+
+#[test]
+fn open_link_opens_only_the_apps_own_addresses() {
+    let env = env_with(GumroadConfig {
+        product_id: None,
+        verify_url: String::new(),
+        product_url: "https://novabyteworks.gumroad.com/l/memories-rescue".into(),
+        price_display: None,
+        activation_limit: DEFAULT_ACTIVATION_LIMIT,
+    });
+    let info = env.engine.app_info();
+    let want = [
+        (LinkName::Website, info.website_url.clone()),
+        (LinkName::Privacy, info.privacy_policy_url.clone()),
+        (LinkName::Terms, info.terms_url.clone()),
+        (LinkName::Faq, info.faq_url.clone()),
+        (LinkName::FfmpegSource, info.ffmpeg_source_url.clone()),
+        (LinkName::Support, format!("mailto:{}", info.support_email)),
+        (
+            LinkName::Purchase,
+            "https://novabyteworks.gumroad.com/l/memories-rescue".to_string(),
+        ),
+    ];
+    for (link, url) in want {
+        assert_eq!(env.engine.link_url(link).unwrap(), url, "{link:?}");
+    }
+    // A build whose purchase URL is not https gets no purchase link at all.
+    let bad = env_with(GumroadConfig {
+        product_id: None,
+        verify_url: String::new(),
+        product_url: "file:///C:/Windows/System32/calc.exe".into(),
+        price_display: None,
+        activation_limit: DEFAULT_ACTIVATION_LIMIT,
+    });
+    assert!(bad.engine.link_url(LinkName::Purchase).is_err());
+    // The window can only name a link: anything else does not deserialise.
+    assert!(serde_json::from_str::<LinkName>("\"https://evil.example\"").is_err());
 }

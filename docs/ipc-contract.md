@@ -82,7 +82,8 @@ surface as `PART_TRUNCATED` or `UNKNOWN` at this boundary).
 | `license_status` | – | `LicenseStatus` | Never touches the network. |
 | `activate` | `key` | `LicenseStatus` | §9: one online check with Gumroad (`increment_uses_count` only here). `LICENSE_INVALID` for a wrong or disabled key, `LICENSE_OFFLINE` when the check could not be made. The key goes to the OS keychain. Q-06: a key already used on `activation_limit` computers is refused with `LICENSE_INVALID` and detail `activation_limit:<n>` (checked first without incrementing, so a refused attempt costs nothing). Deactivation is local only: Gumroad's decrement needs the seller's token. |
 | `deactivate` | – | `LicenseStatus` | Forgets the key on this device. |
-| `open_path` | `path` | `null` | Opens a file or folder with the OS (output folder, `report.html`, the licence files). The engine checks the path exists. |
+| `open_path` | `path` | `null` | Opens a file or folder with the OS. Only paths the engine handed out: a known job's output folder, its report files and recorded joined videos, a preview report or diagnostics ZIP written this session, the licence and notices files, the app's log folder (compared after resolving links and `..`). Anything else is refused with `UNKNOWN`; a missing path is `PART_MISSING`. |
+| `open_link` | `link`: `website`, `privacy`, `terms`, `faq`, `ffmpeg_source`, `support`, `purchase` | `null` | Opens one of the app's own outside addresses in the browser or mail app. Rust looks the address up (`src/config/links.json`; `purchase` is the build's Gumroad product URL), so the window names a link and cannot open any other address: it has no opener permission. |
 | `export_diagnostics` | – | `string` (ZIP path) | FR-41: the files `diagnostics_preview` listed: the rotating logs (home folder as `~`, no URLs or query strings), app facts, settings without the key, job summaries and journals. No media and no JSON content. Written to the user's Desktop (or Downloads). |
 | `app_info` | – | `AppInfo` | Version, OS family, paths of the licence files and third-party notices, and the outside addresses from `src/config/links.json` (privacy, terms, FAQ, ffmpeg source, website, support email). |
 | `sidecar_versions` | – | `SidecarVersions` | Runs `ffmpeg -version` and, when bundled, `exiftool -ver` (`exiftool: null` otherwise: release builds ship ffmpeg only, Q-02); also the window's smoke probe at startup. Fails only when ffmpeg does not answer. |
@@ -153,7 +154,7 @@ PlanItem { item_id, media_type: "photo"|"video", source_name, planned_path,
            latitude | null, longitude | null,
            match_confidence: "exact"|"ordinal"|"none",
            location_decision: "applied"|"none"|"uncertain",
-           has_overlay, thumbnail_path | null }
+           has_overlay, thumbnail | null }   // a `data:image/jpeg;base64,...` URL
 
 JobReport {
   job_id, state, output_path, report_html_path | null, report_csv_path | null,
@@ -185,12 +186,11 @@ UpdateInfo { version, current_version, date | null, notes | null, channel: "stab
 DiagnosticsPreview { destination, files: { name, bytes, kind: "logs"|"app"|"settings"|"jobs"|"journal" }[] }
 ```
 
-Thumbnails: `thumbnail_path` is an absolute path to an image the engine
-writes under the app cache directory (`$APPCACHE/thumbnails/<plan_id>/…`). The
-window loads it through Tauri's asset protocol (`convertFileSrc`), which
-`tauri.conf.json` scopes to `$APPCACHE/thumbnails/**` and nothing else. Today
-the engine copies the photo itself out of the export (the web view scales it)
-and sends `null` for videos; the five newest preview folders are kept.
+Thumbnails: `thumbnail` is a small JPEG (at most 160 px on its longest side,
+EXIF orientation applied) as a `data:` URL, made in memory from the photo in
+the export; `null` for videos and for photos that cannot be decoded. Nothing
+is written to disk and the asset protocol is off, so the window can load no
+file at all: a picker or a drop never widens what it can read.
 
 As built today: `clip_groups` is empty until clip detection lands in mr-job
 (FR-27); `estimated_seconds` uses the NFR-PERF-03 rates (20 photos/s, 5
@@ -293,10 +293,11 @@ the engine emits one `warning` with code `LICENSE_INVALID`.
 
 These are not commands; the window uses Tauri plugins directly and the mock
 replaces them in a plain browser: file and folder pickers (`tauri-plugin-dialog`,
-`open` only), drag-and-drop (`getCurrentWebview().onDragDropEvent`), opening
-URLs (`tauri-plugin-opener`, allowlisted URLs only), the completion notification
-(`tauri-plugin-notification`), and thumbnail URLs (`convertFileSrc`). The
-capability file lists exactly these.
+`open` only), drag-and-drop (`getCurrentWebview().onDragDropEvent`) and the
+completion notification (`tauri-plugin-notification`). The capability file lists
+exactly these. Opening files and links is not among them: `open_path` and
+`open_link` do it from Rust. Release builds use a CSP without the dev server's
+`ws://localhost:1420` (`devCsp` keeps it for `tauri dev`).
 
 ## Backend selection at startup
 

@@ -356,7 +356,8 @@ pub struct PlanItem {
     pub match_confidence: MatchConfidence,
     pub location_decision: LocationDecision,
     pub has_overlay: bool,
-    pub thumbnail_path: Option<String>,
+    /// A small JPEG as a `data:image/jpeg;base64,...` URL; `None` for videos.
+    pub thumbnail: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -699,6 +700,19 @@ pub struct DiagnosticsFile {
 pub struct DiagnosticsPreview {
     pub destination: String,
     pub files: Vec<DiagnosticsFile>,
+}
+
+/// The outside addresses the window may open, by name (`open_link`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LinkName {
+    Website,
+    Privacy,
+    Terms,
+    Faq,
+    FfmpegSource,
+    Support,
+    Purchase,
 }
 
 /// What `sidecar_versions` returns to the window.

@@ -6,8 +6,8 @@
     ],
     "resources": {
       "binaries/exiftool_files/": null,
-      "../docs/release/releases-repo/ffmpeg/COPYING.LGPLv2.1": "COPYING.LGPLv2.1",
-      "../docs/release/releases-repo/ffmpeg/SOURCE_OFFER.txt": "SOURCE_OFFER.txt"
+      "../third_party/ffmpeg/COPYING.LGPLv2.1": "COPYING.LGPLv2.1",
+      "../third_party/ffmpeg/SOURCE_OFFER.txt": "SOURCE_OFFER.txt"
     },
     "windows": {
       "signCommand": {

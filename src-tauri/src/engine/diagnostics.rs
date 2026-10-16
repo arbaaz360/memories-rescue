@@ -43,12 +43,36 @@ impl Entry {
     }
 }
 
+/// Values are redacted before they are serialised: once serde_json has
+/// escaped a Windows path (`C:\\Users\\...`), text-level redaction would
+/// have to know every escaped spelling.
 fn text(name: impl Into<String>, kind: &'static str, value: &impl serde::Serialize) -> Entry {
-    let json = serde_json::to_string_pretty(value).unwrap_or_default();
+    let mut value = serde_json::to_value(value).unwrap_or_default();
+    redact_json(&mut value);
+    let json = serde_json::to_string_pretty(&value).unwrap_or_default();
     Entry {
         name: name.into(),
         kind,
-        content: Content::Text(redact_home(&json)),
+        content: Content::Text(json),
+    }
+}
+
+/// Every string value through the log's redactor. Object keys are the app's
+/// own field names; a job's `id` stays, because it is random and names its
+/// journal file.
+pub fn redact_json(value: &mut serde_json::Value) {
+    use serde_json::Value;
+    match value {
+        Value::String(s) => *s = redact_home(s),
+        Value::Array(items) => items.iter_mut().for_each(redact_json),
+        Value::Object(fields) => {
+            for (key, v) in fields.iter_mut() {
+                if key != "id" {
+                    redact_json(v);
+                }
+            }
+        }
+        _ => {}
     }
 }
 
@@ -200,15 +224,28 @@ impl Engine {
                     .write_all(t.as_bytes())
                     .map_err(|e| io_error(&tmp, &e))?,
                 Content::File(p) => {
-                    // The log may be rotating while it is copied: copy what is there.
-                    if let Ok(mut f) = std::fs::File::open(p) {
-                        std::io::copy(&mut f, &mut zip).map_err(|e| io_error(&tmp, &e))?;
+                    // The log may be rotating while it is copied: copy what is
+                    // there, line by line through today's redactor, so lines an
+                    // older version wrote are held to the current rules too.
+                    if let Ok(f) = std::fs::File::open(p) {
+                        let mut reader = std::io::BufReader::new(f);
+                        let mut line = Vec::new();
+                        while std::io::BufRead::read_until(&mut reader, b'\n', &mut line)
+                            .map_err(|e| io_error(p, &e))?
+                            > 0
+                        {
+                            let clean = redact_home(&String::from_utf8_lossy(&line));
+                            zip.write_all(clean.as_bytes())
+                                .map_err(|e| io_error(&tmp, &e))?;
+                            line.clear();
+                        }
                     }
                 }
             }
         }
         zip.finish().map_err(|e| failed(&e))?;
         std::fs::rename(&tmp, &path).map_err(|e| io_error(&path, &e))?;
+        self.issue_path(&path);
         tracing::info!("diagnostics saved");
         Ok(path.to_string_lossy().into_owned())
     }

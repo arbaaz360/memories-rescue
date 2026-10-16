@@ -4,7 +4,6 @@
 //! Top-level parameters are snake_case here; Tauri maps the window's
 //! camelCase keys onto them.
 
-use std::path::PathBuf;
 use std::sync::Arc;
 
 use tauri::{AppHandle, State};
@@ -158,21 +157,23 @@ pub fn deactivate(engine: E<'_>) -> IpcResult<LicenseStatus> {
 }
 
 /// Opens a file or folder with the system (output folder, report, notices).
-/// The window has no open-path permission; this is the only way it opens paths.
+/// The window has no open-path permission; this is the only way it opens
+/// paths, and it opens only paths the engine handed out (`engine/open.rs`).
 #[tauri::command]
-pub fn open_path(app: AppHandle, path: String) -> IpcResult<()> {
-    // Resource paths come back as `\\?\C:\...`; the shell opens plain ones.
-    let path = crate::engine::plain_path(&path);
-    let p = PathBuf::from(&path);
-    if !p.exists() {
-        return Err(IpcError::new(
-            ErrorCode::PartMissing,
-            "That file or folder doesn't exist (any more).",
-        )
-        .with_detail(crate::engine::redact_home(&path)));
-    }
+pub fn open_path(engine: E<'_>, app: AppHandle, path: String) -> IpcResult<()> {
+    let target = engine.openable(&path)?;
     app.opener()
-        .open_path(path, None::<&str>)
+        .open_path(target.to_string_lossy(), None::<&str>)
+        .map_err(|e| IpcError::unknown("The system could not open it.").with_detail(e.to_string()))
+}
+
+/// Opens one of the app's own outside addresses (`engine/open.rs`). The
+/// window has no opener permission: this is the only way it opens a link.
+#[tauri::command]
+pub fn open_link(engine: E<'_>, app: AppHandle, link: LinkName) -> IpcResult<()> {
+    let url = engine.link_url(link)?;
+    app.opener()
+        .open_url(url, None::<&str>)
         .map_err(|e| IpcError::unknown("The system could not open it.").with_detail(e.to_string()))
 }
 

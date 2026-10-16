@@ -46,7 +46,7 @@ ExifTool (Perl Artistic License or GPL) is used as a test oracle during developm
 only and is not part of the released application (see
 `docs/decisions/Q-02-metadata-writer.md`).
 
-## Rust crates (571)
+## Rust crates (570)
 
 Crates that can be compiled into the application on any supported platform.
 
@@ -232,7 +232,6 @@ Crates that can be compiled into the application on any supported platform.
 | http | 1.5.0 | MIT OR Apache-2.0 | <https://github.com/hyperium/http> |
 | http-body | 1.1.0 | MIT | <https://github.com/hyperium/http-body> |
 | http-body-util | 0.1.5 | MIT | <https://github.com/hyperium/http-body> |
-| http-range | 0.1.5 | MIT | <https://github.com/bancek/rust-http-range.git> |
 | httparse | 1.10.1 | MIT OR Apache-2.0 | <https://github.com/seanmonstar/httparse> |
 | hybrid-array | 0.4.15 | MIT OR Apache-2.0 | <https://github.com/RustCrypto/hybrid-array> |
 | hyper | 1.12.0 | MIT | <https://github.com/hyperium/hyper> |
@@ -1552,9 +1551,6 @@ Copyright (c) 2019-2026 Sean McArthur & Hyper Contributors
 
 **http-body-util 0.1.5**  
 Copyright (c) 2019-2026 Sean McArthur & Hyper Contributors  
-
-**http-range 0.1.5**  
-Copyright (c) 2016 Luka Zakrajšek  
 
 **httparse 1.10.1**  
 copyright notice that is included in or attached to the work  
@@ -3774,7 +3770,7 @@ Used by 2 component(s): r-efi 5.3.0, r-efi 6.0.0.
                        Version 2.1, February 1999
 
  Copyright (C) 1991, 1999 Free Software Foundation, Inc.
- <https://fsf.org/>
+ 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  Everyone is permitted to copy and distribute verbatim copies
  of this license document, but changing it is not allowed.
 
@@ -3827,7 +3823,7 @@ modified by someone else and passed on, the recipients should know
 that what they have is not the original version, so that the original
 author's reputation will not be affected by problems that might be
 introduced by others.
-
+
   Finally, software patents pose a constant threat to the existence of
 any free program.  We wish to make sure that a company cannot
 effectively restrict the users of a free program by obtaining a
@@ -3883,7 +3879,7 @@ modification follow.  Pay close attention to the difference between a
 "work based on the library" and a "work that uses the library".  The
 former contains code derived from the library, whereas the latter must
 be combined with the library in order to run.
-
+
                   GNU LESSER GENERAL PUBLIC LICENSE
    TERMS AND CONDITIONS FOR COPYING, DISTRIBUTION AND MODIFICATION
 
@@ -3930,7 +3926,7 @@ Library.
   You may charge a fee for the physical act of transferring a copy,
 and you may at your option offer warranty protection in exchange for a
 fee.
-
+
   2. You may modify your copy or copies of the Library or any portion
 of it, thus forming a work based on the Library, and copy and
 distribute such modifications or work under the terms of Section 1
@@ -3988,7 +3984,7 @@ instead of to this License.  (If a newer version than version 2 of the
 ordinary GNU General Public License has appeared, then you can specify
 that version instead if you wish.)  Do not make any other change in
 these notices.
-
+
   Once this change is made in a given copy, it is irreversible for
 that copy, so the ordinary GNU General Public License applies to all
 subsequent copies and derivative works made from that copy.
@@ -4039,7 +4035,7 @@ Library will still fall under Section 6.)
 distribute the object code for the work under the terms of Section 6.
 Any executables containing that work also fall under Section 6,
 whether or not they are linked directly with the Library itself.
-
+
   6. As an exception to the Sections above, you may also combine or
 link a "work that uses the Library" with the Library to produce a
 work containing portions of the Library, and distribute that work
@@ -4101,7 +4097,7 @@ restrictions of other proprietary libraries that do not normally
 accompany the operating system.  Such a contradiction means you cannot
 use both them and the Library together in an executable that you
 distribute.
-
+
   7. You may place library facilities that are a work based on the
 Library side-by-side in a single library together with other library
 facilities not covered by this License, and distribute such a combined
@@ -4142,7 +4138,7 @@ subject to these terms and conditions.  You may not impose any further
 restrictions on the recipients' exercise of the rights granted herein.
 You are not responsible for enforcing compliance by third parties with
 this License.
-
+
   11. If, as a consequence of a court judgment or allegation of patent
 infringement or for any other reason (not limited to patent issues),
 conditions are imposed on you (whether by court order, agreement or
@@ -4194,7 +4190,7 @@ conditions either of that version or of any later version published by
 the Free Software Foundation.  If the Library does not specify a
 license version number, you may choose any version ever published by
 the Free Software Foundation.
-
+
   14. If you wish to incorporate parts of the Library into other free
 programs whose distribution conditions are incompatible with these,
 write to the author to ask for permission.  For software which is
@@ -4228,7 +4224,7 @@ SUCH HOLDER OR OTHER PARTY HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH
 DAMAGES.
 
                      END OF TERMS AND CONDITIONS
-
+
            How to Apply These Terms to Your New Libraries
 
   If you develop a new library, and you want it to be of the greatest
@@ -4256,7 +4252,8 @@ convey the exclusion of warranty; and each file should have at least the
     Lesser General Public License for more details.
 
     You should have received a copy of the GNU Lesser General Public
-    License along with this library; if not, see <https://www.gnu.org/licenses/>.
+    License along with this library; if not, write to the Free Software
+    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
 Also add information on how to contact you by electronic and paper mail.
 
@@ -4267,8 +4264,8 @@ necessary.  Here is a sample; alter the names:
   Yoyodyne, Inc., hereby disclaims all copyright interest in the
   library `Frob' (a library for tweaking knobs) written by James Random Hacker.
 
-  <signature of Moe Ghoul>, 1 April 1990
-  Moe Ghoul, President of Vice
+  <signature of Ty Coon>, 1 April 1990
+  Ty Coon, President of Vice
 
 That's all there is to it!
 ```
@@ -4305,7 +4302,7 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT
 
-Used by 540 component(s): @preact/signals 2.11.3, @preact/signals-core 1.14.4, @tauri-apps/api 2.12.4, @tauri-apps/plugin-dialog 2.8.3, @tauri-apps/plugin-notification 2.7.0, @tauri-apps/plugin-opener 2.7.2, adler2 2.0.1, aes 0.9.3, aho-corasick 1.1.5, android_system_properties 0.1.6, anyhow 1.0.104, apple-native-keyring-store 1.0.2, async-broadcast 0.7.2, async-channel 2.5.0, async-executor 1.14.0, async-io 2.6.0, async-lock 3.4.2, async-process 2.5.0, async-recursion 1.2.0, async-signal 0.2.14, async-task 4.7.1, async-trait 0.1.92, atk 0.18.2, atk-sys 0.18.2, atomic-waker 1.1.2, autocfg 1.5.1, base64 0.21.7, base64 0.22.1, base64 0.23.1, bit-set 0.8.0, bit-vec 0.8.0, bitflags 1.3.2, bitflags 2.13.2, block-buffer 0.10.4, block-buffer 0.12.1, block-padding 0.4.2, block2 0.6.2, blocking 1.7.0, brotli 8.0.4, brotli 9.0.0, brotli-decompressor 5.0.3, brotli-decompressor 6.0.1, bumpalo 3.20.3, bytemuck 1.25.2, byteorder 1.5.0, byteorder-lite 0.1.0, bytes 1.12.1, cairo-rs 0.18.5, cairo-sys-rs 0.18.2, camino 1.2.6, cargo-platform 0.1.9, cargo_metadata 0.19.2, cargo_toml 1.0.1, cbc 0.2.1, cc 1.8.0, cesu8 1.1.0, cfb 0.14.0, cfg-expr 0.15.8, cfg-if 1.0.5, cfg_aliases 0.2.2, chrono 0.4.45, chrono-tz 0.10.4, cipher 0.5.2, cmov 0.5.4, combine 4.6.9, concurrent-queue 2.5.0, const-oid 0.10.2, cookie 0.18.2, core-foundation 0.10.1, core-foundation 0.9.4, core-foundation-sys 0.8.7, core-graphics 0.25.0, core-graphics-types 0.2.0, core_detect 1.0.0, cpubits 0.1.1, cpufeatures 0.2.17, cpufeatures 0.3.1, crc 3.4.0, crc-catalog 2.5.0, crc32fast 1.5.2, crossbeam-channel 0.5.17, crossbeam-utils 0.8.23, crypto-common 0.1.7, crypto-common 0.2.2, ctor 1.0.13, ctutils 0.4.3, darling 0.24.1, darling_core 0.24.1, darling_macro 0.24.1, dbus 0.9.12, deranged 0.5.9, derive_more 2.1.1, derive_more-impl 2.1.1, digest 0.10.7, digest 0.11.3, dirs 7.0.0, dirs-sys 0.5.0, dispatch2 0.3.1, displaydoc 0.2.7, dlopen2 0.8.2, dlopen2_derive 0.4.3, dom_query 0.28.0, dpi 0.1.2, dtoa 1.0.11, dyn-clone 1.0.20, embed-resource 3.0.12, embed_plist 1.2.2, encoding_rs 0.8.42, endi 1.1.1, enumflags2 0.7.12, enumflags2_derive 0.7.12, equivalent 1.0.3, erased-serde 0.4.10, errno 0.3.14, event-listener 5.4.2, event-listener-strategy 0.5.4, fallible-iterator 0.3.0, fallible-streaming-iterator 0.1.9, fastrand 2.5.0, fdeflate 0.3.7, field-offset 0.3.6, filetime 0.2.29, filetime_creation 0.2.0, find-msvc-tools 0.1.14, flate2 1.1.10, fnv 1.0.7, foreign-types 0.3.2, foreign-types 0.5.0, foreign-types-macros 0.2.4, foreign-types-shared 0.1.1, foreign-types-shared 0.3.1, form_urlencoded 1.2.2, fs4 1.1.0, futures-channel 0.3.34, futures-core 0.3.34, futures-executor 0.3.34, futures-io 0.3.34, futures-lite 2.6.1, futures-macro 0.3.34, futures-sink 0.3.34, futures-task 0.3.34, futures-util 0.3.34, gdk 0.18.2, gdk-pixbuf 0.18.5, gdk-pixbuf-sys 0.18.0, gdk-sys 0.18.2, gdkwayland-sys 0.18.2, gdkx11 0.18.2, gdkx11-sys 0.18.2, generic-array 0.14.7, geometry-rs 0.5.1, getrandom 0.3.4, getrandom 0.4.3, gio 0.18.4, gio-sys 0.18.1, glib 0.18.5, glib-macros 0.18.5, glib-sys 0.18.1, glob 0.3.4, gobject-sys 0.18.0, gtk 0.18.2, gtk-sys 0.18.2, gtk3-macros 0.18.2, hashbrown 0.12.3, hashbrown 0.16.1, hashbrown 0.17.1, hashlink 0.12.2, heck 0.4.1, heck 0.5.0, hermit-abi 0.5.3, hex 0.4.3, hkdf 0.13.0, hmac 0.13.0, html5ever 0.39.0, http 1.5.0, http-body 1.1.0, http-body-util 0.1.5, http-range 0.1.5, httparse 1.10.1, hybrid-array 0.4.15, hyper 1.12.0, hyper-tls 0.6.0, hyper-util 0.1.21, iana-time-zone 0.1.65, iana-time-zone-haiku 0.1.2, ico 0.5.0, ident_case 1.0.1, idna 1.1.0, idna_adapter 1.2.2, image 0.25.10, indexmap 1.9.3, indexmap 2.14.2, infer 0.22.0, inout 0.2.3, ipnet 2.12.2, is-docker 0.2.0, is-wsl 0.4.0, itoa 1.0.18, javascriptcore-rs 1.1.2, javascriptcore-rs-sys 1.1.1, jni 0.21.1, jni-sys 0.3.1, jni-sys 0.4.1, jni-sys-macros 0.4.1, js-sys 0.3.106, json-patch 4.2.0, jsonptr 0.7.1, keyboard-types 0.8.3, keyring 4.2.0, keyring-core 1.0.1, lazy_static 1.5.1, libc 0.2.190, libdbus-sys 0.2.7, libredox 0.1.25, libsqlite3-sys 0.38.2, linux-raw-sys 0.12.1, little_exif 0.6.23, lock_api 0.4.14, log 0.4.34, mac-notification-sys 0.6.15, markup5ever 0.39.0, memchr 2.8.3, memoffset 0.9.1, mime 0.3.17, minisign-verify 0.3.0, miniz_oxide 0.8.9, miniz_oxide 0.9.1, mio 1.2.4, muda 0.20.0, multiversion_no_op 1.0.0, native-tls 0.2.18, ndk 0.9.0, ndk-context 0.1.1, ndk-sys 0.6.0+11769913, new_debug_unreachable 1.0.6, nix 0.31.3, notify-rust 4.18.2, num 0.4.3, num-bigint 0.4.8, num-complex 0.4.6, num-conv 0.2.2, num-integer 0.1.47, num-iter 0.1.46, num-rational 0.4.2, num-traits 0.2.19, num_enum 0.7.6, num_enum_derive 0.7.6, objc2 0.6.5, objc2-app-kit 0.3.2, objc2-cloud-kit 0.3.2, objc2-core-data 0.3.2, objc2-core-foundation 0.3.2, objc2-core-graphics 0.3.2, objc2-core-image 0.3.2, objc2-core-location 0.3.2, objc2-core-text 0.3.2, objc2-encode 4.1.0, objc2-exception-helper 0.1.1, objc2-foundation 0.3.2, objc2-osa-kit 0.3.2, objc2-quartz-core 0.3.2, objc2-ui-kit 0.3.2, objc2-user-notifications 0.3.2, objc2-web-kit 0.3.2, once_cell 1.21.4, open 5.4.4, openssl-macros 0.1.1, openssl-probe 0.2.1, openssl-sys 0.9.117, ordered-stream 0.2.0, os_pipe 1.2.3, osakit 0.3.1, pango 0.18.3, pango-sys 0.18.0, parking 2.2.1, parking_lot 0.12.5, parking_lot_core 0.9.12, paste 1.0.15, percent-encoding 2.3.2, phf 0.12.1, phf 0.13.1, phf_codegen 0.13.1, phf_generator 0.13.1, phf_macros 0.13.1, phf_shared 0.12.1, phf_shared 0.13.1, pin-project-lite 0.2.17, piper 0.2.5, pkg-config 0.3.34, plist 1.10.1, png 0.17.16, png 0.18.1, polling 3.11.0, powerfmt 0.2.1, ppv-lite86 0.2.21, pqueue 0.1.0, preact 11.0.1, precomputed-hash 0.1.1, proc-macro-crate 1.3.1, proc-macro-crate 2.0.2, proc-macro-crate 3.5.0, proc-macro-error 1.0.4, proc-macro-error-attr 1.0.4, proc-macro2 1.0.107, quick-xml 0.37.5, quick-xml 0.42.0, quote 1.0.47, r-efi 5.3.0, r-efi 6.0.0, rand 0.9.5, rand_chacha 0.9.0, rand_core 0.9.5, raw-window-handle 0.6.2, redox_syscall 0.5.18, redox_users 0.5.3, regex 1.13.1, regex-automata 0.4.18, regex-syntax 0.8.11, reqwest 0.13.5, rfd 0.16.0, rsqlite-vfs 0.1.1, rtree_rs 0.1.4, rusqlite 0.40.2, rustc-hash 2.1.3, rustc_version 0.4.1, rustix 1.1.5, rustls-pki-types 1.15.1, rustversion 1.0.23, same-file 1.0.6, schannel 0.1.29, schemars 0.8.22, schemars_derive 0.8.22, scopeguard 1.2.0, secret-service 5.2.0, security-framework 3.7.0, security-framework-sys 2.17.0, semver 1.0.28, serde 1.0.229, serde-untagged 0.1.9, serde_core 1.0.229, serde_derive 1.0.229, serde_derive_internals 0.29.1, serde_json 1.0.154, serde_repr 0.1.21, serde_spanned 0.6.9, serde_spanned 1.1.2, serde_urlencoded 0.7.1, serde_with 3.24.0, serde_with_macros 3.24.0, serialize-to-javascript 0.1.2, serialize-to-javascript-impl 0.1.2, servo_arc 0.4.3, sha2 0.10.9, sha2 0.11.1, sharded-slab 0.1.7, shared_child 1.1.2, shlex 2.0.1, signal-hook-registry 1.4.8, simd-adler32 0.3.10, simdutf8 0.1.5, siphasher 1.0.4, slab 0.4.12, smallvec 1.16.3, socket2 0.6.5, softbuffer 0.4.8, soup3 0.5.0, soup3-sys 0.5.0, sqlite-wasm-rs 0.5.5, stable_deref_trait 1.2.1, static_vcruntime 3.0.0, string_cache 0.9.0, string_cache_codegen 0.6.1, strsim 0.11.1, swift-rs 1.0.9, syn 1.0.109, syn 2.0.119, syn 3.0.9, synstructure 0.14.0, system-configuration 0.7.0, system-configuration-sys 0.6.0, system-deps 6.2.2, tao-macros 0.1.4, tar 0.4.46, tauri 2.12.4, tauri-build 2.7.3, tauri-codegen 2.7.3, tauri-macros 2.7.3, tauri-plugin 2.7.2, tauri-plugin-dialog 2.8.3, tauri-plugin-fs 2.7.1, tauri-plugin-notification 2.7.0, tauri-plugin-opener 2.7.2, tauri-plugin-shell 2.5.0, tauri-plugin-updater 2.14.0, tauri-runtime 2.12.2, tauri-runtime-wry 2.12.2, tauri-utils 2.10.2, tauri-winres 0.3.6, tauri-winrt-notification 0.8.1, tempfile 3.27.0, tendril 0.5.1, thiserror 1.0.69, thiserror 2.0.21, thiserror-impl 1.0.69, thiserror-impl 2.0.21, thread_local 1.1.10, time 0.3.55, time-core 0.1.9, time-macros 0.2.32, tinyvec 1.13.3, tokio 1.53.3, tokio-native-tls 0.3.1, tokio-util 0.7.20, toml 0.8.2, toml 1.1.8+spec-1.1.0, toml_datetime 0.6.3, toml_datetime 1.1.2+spec-1.1.0, toml_edit 0.19.15, toml_edit 0.20.2, toml_edit 0.25.17+spec-1.1.0, toml_parser 1.1.5+spec-1.1.0, toml_writer 1.1.3+spec-1.1.0, tower 0.5.3, tower-http 0.6.11, tower-layer 0.3.3, tower-service 0.3.3, tracing 0.1.44, tracing-attributes 0.1.31, tracing-core 0.1.36, tracing-log 0.2.0, tracing-subscriber 0.3.23, try-lock 0.2.5, typed-path 0.12.3, typeid 1.0.3, typenum 1.20.1, tzf-dist 0.0.2026-e, tzf-rs 2.1.3, uds_windows 1.2.1, unicode-ident 1.0.27, unicode-normalization 0.1.25, unicode-segmentation 1.13.3, url 2.5.8, urlpattern 0.6.0, utf8_iter 1.0.4, uuid 1.28.0, vcpkg 0.2.15, version-compare 0.2.1, version_check 0.9.5, vswhom 0.1.0, vswhom-sys 0.1.3, walkdir 2.5.0, want 0.3.2, wasi 0.11.1+wasi-snapshot-preview1, wasip2 1.0.4+wasi-0.2.12, wasm-bindgen 0.2.129, wasm-bindgen-futures 0.4.79, wasm-bindgen-macro 0.2.129, wasm-bindgen-macro-support 0.2.129, wasm-bindgen-shared 0.2.129, wasm-streams 0.5.0, web-sys 0.3.106, web-time 1.1.0, web_atoms 0.2.6, webkit2gtk 2.0.2, webkit2gtk-sys 2.0.2, webview2-com 0.39.1, webview2-com-macros 0.8.1, webview2-com-sys 0.39.1, winapi 0.3.9, winapi-i686-pc-windows-gnu 0.4.0, winapi-util 0.1.11, winapi-x86_64-pc-windows-gnu 0.4.0, window-vibrancy 0.8.1, windows 0.62.2, windows-collections 0.3.2, windows-core 0.62.2, windows-future 0.3.2, windows-implement 0.60.2, windows-interface 0.59.3, windows-link 0.2.1, windows-native-keyring-store 1.1.0, windows-numerics 0.3.1, windows-registry 0.6.1, windows-result 0.4.1, windows-strings 0.5.1, windows-sys 0.45.0, windows-sys 0.52.0, windows-sys 0.60.2, windows-sys 0.61.2, windows-targets 0.42.2, windows-targets 0.52.6, windows-targets 0.53.5, windows-threading 0.2.1, windows-version 0.1.7, windows_aarch64_gnullvm 0.42.2, windows_aarch64_gnullvm 0.52.6, windows_aarch64_gnullvm 0.53.1, windows_aarch64_msvc 0.42.2, windows_aarch64_msvc 0.52.6, windows_aarch64_msvc 0.53.1, windows_i686_gnu 0.42.2, windows_i686_gnu 0.52.6, windows_i686_gnu 0.53.1, windows_i686_gnullvm 0.52.6, windows_i686_gnullvm 0.53.1, windows_i686_msvc 0.42.2, windows_i686_msvc 0.52.6, windows_i686_msvc 0.53.1, windows_x86_64_gnu 0.42.2, windows_x86_64_gnu 0.52.6, windows_x86_64_gnu 0.53.1, windows_x86_64_gnullvm 0.42.2, windows_x86_64_gnullvm 0.52.6, windows_x86_64_gnullvm 0.53.1, windows_x86_64_msvc 0.42.2, windows_x86_64_msvc 0.52.6, windows_x86_64_msvc 0.53.1, winnow 0.5.40, winnow 1.0.4, winreg 0.56.0, wit-bindgen 0.57.1, wry 0.57.0, x11 2.21.0, x11-dl 2.21.0, xattr 1.6.1, zbus 5.19.0, zbus-secret-service-keyring-store 1.0.1, zbus_macros 5.19.0, zbus_names 4.3.4, zcheapstr 1.1.0, zerocopy 0.8.63, zerocopy-derive 0.8.63, zeroize 1.9.1, zip 9.0.3, zmij 1.0.23, zune-core 0.5.3, zune-jpeg 0.5.15, zvariant 5.15.0, zvariant_derive 5.15.0, zvariant_utils 4.2.0.
+Used by 539 component(s): @preact/signals 2.11.3, @preact/signals-core 1.14.4, @tauri-apps/api 2.12.4, @tauri-apps/plugin-dialog 2.8.3, @tauri-apps/plugin-notification 2.7.0, @tauri-apps/plugin-opener 2.7.2, adler2 2.0.1, aes 0.9.3, aho-corasick 1.1.5, android_system_properties 0.1.6, anyhow 1.0.104, apple-native-keyring-store 1.0.2, async-broadcast 0.7.2, async-channel 2.5.0, async-executor 1.14.0, async-io 2.6.0, async-lock 3.4.2, async-process 2.5.0, async-recursion 1.2.0, async-signal 0.2.14, async-task 4.7.1, async-trait 0.1.92, atk 0.18.2, atk-sys 0.18.2, atomic-waker 1.1.2, autocfg 1.5.1, base64 0.21.7, base64 0.22.1, base64 0.23.1, bit-set 0.8.0, bit-vec 0.8.0, bitflags 1.3.2, bitflags 2.13.2, block-buffer 0.10.4, block-buffer 0.12.1, block-padding 0.4.2, block2 0.6.2, blocking 1.7.0, brotli 8.0.4, brotli 9.0.0, brotli-decompressor 5.0.3, brotli-decompressor 6.0.1, bumpalo 3.20.3, bytemuck 1.25.2, byteorder 1.5.0, byteorder-lite 0.1.0, bytes 1.12.1, cairo-rs 0.18.5, cairo-sys-rs 0.18.2, camino 1.2.6, cargo-platform 0.1.9, cargo_metadata 0.19.2, cargo_toml 1.0.1, cbc 0.2.1, cc 1.8.0, cesu8 1.1.0, cfb 0.14.0, cfg-expr 0.15.8, cfg-if 1.0.5, cfg_aliases 0.2.2, chrono 0.4.45, chrono-tz 0.10.4, cipher 0.5.2, cmov 0.5.4, combine 4.6.9, concurrent-queue 2.5.0, const-oid 0.10.2, cookie 0.18.2, core-foundation 0.10.1, core-foundation 0.9.4, core-foundation-sys 0.8.7, core-graphics 0.25.0, core-graphics-types 0.2.0, core_detect 1.0.0, cpubits 0.1.1, cpufeatures 0.2.17, cpufeatures 0.3.1, crc 3.4.0, crc-catalog 2.5.0, crc32fast 1.5.2, crossbeam-channel 0.5.17, crossbeam-utils 0.8.23, crypto-common 0.1.7, crypto-common 0.2.2, ctor 1.0.13, ctutils 0.4.3, darling 0.24.1, darling_core 0.24.1, darling_macro 0.24.1, dbus 0.9.12, deranged 0.5.9, derive_more 2.1.1, derive_more-impl 2.1.1, digest 0.10.7, digest 0.11.3, dirs 7.0.0, dirs-sys 0.5.0, dispatch2 0.3.1, displaydoc 0.2.7, dlopen2 0.8.2, dlopen2_derive 0.4.3, dom_query 0.28.0, dpi 0.1.2, dtoa 1.0.11, dyn-clone 1.0.20, embed-resource 3.0.12, embed_plist 1.2.2, encoding_rs 0.8.42, endi 1.1.1, enumflags2 0.7.12, enumflags2_derive 0.7.12, equivalent 1.0.3, erased-serde 0.4.10, errno 0.3.14, event-listener 5.4.2, event-listener-strategy 0.5.4, fallible-iterator 0.3.0, fallible-streaming-iterator 0.1.9, fastrand 2.5.0, fdeflate 0.3.7, field-offset 0.3.6, filetime 0.2.29, filetime_creation 0.2.0, find-msvc-tools 0.1.14, flate2 1.1.10, fnv 1.0.7, foreign-types 0.3.2, foreign-types 0.5.0, foreign-types-macros 0.2.4, foreign-types-shared 0.1.1, foreign-types-shared 0.3.1, form_urlencoded 1.2.2, fs4 1.1.0, futures-channel 0.3.34, futures-core 0.3.34, futures-executor 0.3.34, futures-io 0.3.34, futures-lite 2.6.1, futures-macro 0.3.34, futures-sink 0.3.34, futures-task 0.3.34, futures-util 0.3.34, gdk 0.18.2, gdk-pixbuf 0.18.5, gdk-pixbuf-sys 0.18.0, gdk-sys 0.18.2, gdkwayland-sys 0.18.2, gdkx11 0.18.2, gdkx11-sys 0.18.2, generic-array 0.14.7, geometry-rs 0.5.1, getrandom 0.3.4, getrandom 0.4.3, gio 0.18.4, gio-sys 0.18.1, glib 0.18.5, glib-macros 0.18.5, glib-sys 0.18.1, glob 0.3.4, gobject-sys 0.18.0, gtk 0.18.2, gtk-sys 0.18.2, gtk3-macros 0.18.2, hashbrown 0.12.3, hashbrown 0.16.1, hashbrown 0.17.1, hashlink 0.12.2, heck 0.4.1, heck 0.5.0, hermit-abi 0.5.3, hex 0.4.3, hkdf 0.13.0, hmac 0.13.0, html5ever 0.39.0, http 1.5.0, http-body 1.1.0, http-body-util 0.1.5, httparse 1.10.1, hybrid-array 0.4.15, hyper 1.12.0, hyper-tls 0.6.0, hyper-util 0.1.21, iana-time-zone 0.1.65, iana-time-zone-haiku 0.1.2, ico 0.5.0, ident_case 1.0.1, idna 1.1.0, idna_adapter 1.2.2, image 0.25.10, indexmap 1.9.3, indexmap 2.14.2, infer 0.22.0, inout 0.2.3, ipnet 2.12.2, is-docker 0.2.0, is-wsl 0.4.0, itoa 1.0.18, javascriptcore-rs 1.1.2, javascriptcore-rs-sys 1.1.1, jni 0.21.1, jni-sys 0.3.1, jni-sys 0.4.1, jni-sys-macros 0.4.1, js-sys 0.3.106, json-patch 4.2.0, jsonptr 0.7.1, keyboard-types 0.8.3, keyring 4.2.0, keyring-core 1.0.1, lazy_static 1.5.1, libc 0.2.190, libdbus-sys 0.2.7, libredox 0.1.25, libsqlite3-sys 0.38.2, linux-raw-sys 0.12.1, little_exif 0.6.23, lock_api 0.4.14, log 0.4.34, mac-notification-sys 0.6.15, markup5ever 0.39.0, memchr 2.8.3, memoffset 0.9.1, mime 0.3.17, minisign-verify 0.3.0, miniz_oxide 0.8.9, miniz_oxide 0.9.1, mio 1.2.4, muda 0.20.0, multiversion_no_op 1.0.0, native-tls 0.2.18, ndk 0.9.0, ndk-context 0.1.1, ndk-sys 0.6.0+11769913, new_debug_unreachable 1.0.6, nix 0.31.3, notify-rust 4.18.2, num 0.4.3, num-bigint 0.4.8, num-complex 0.4.6, num-conv 0.2.2, num-integer 0.1.47, num-iter 0.1.46, num-rational 0.4.2, num-traits 0.2.19, num_enum 0.7.6, num_enum_derive 0.7.6, objc2 0.6.5, objc2-app-kit 0.3.2, objc2-cloud-kit 0.3.2, objc2-core-data 0.3.2, objc2-core-foundation 0.3.2, objc2-core-graphics 0.3.2, objc2-core-image 0.3.2, objc2-core-location 0.3.2, objc2-core-text 0.3.2, objc2-encode 4.1.0, objc2-exception-helper 0.1.1, objc2-foundation 0.3.2, objc2-osa-kit 0.3.2, objc2-quartz-core 0.3.2, objc2-ui-kit 0.3.2, objc2-user-notifications 0.3.2, objc2-web-kit 0.3.2, once_cell 1.21.4, open 5.4.4, openssl-macros 0.1.1, openssl-probe 0.2.1, openssl-sys 0.9.117, ordered-stream 0.2.0, os_pipe 1.2.3, osakit 0.3.1, pango 0.18.3, pango-sys 0.18.0, parking 2.2.1, parking_lot 0.12.5, parking_lot_core 0.9.12, paste 1.0.15, percent-encoding 2.3.2, phf 0.12.1, phf 0.13.1, phf_codegen 0.13.1, phf_generator 0.13.1, phf_macros 0.13.1, phf_shared 0.12.1, phf_shared 0.13.1, pin-project-lite 0.2.17, piper 0.2.5, pkg-config 0.3.34, plist 1.10.1, png 0.17.16, png 0.18.1, polling 3.11.0, powerfmt 0.2.1, ppv-lite86 0.2.21, pqueue 0.1.0, preact 11.0.1, precomputed-hash 0.1.1, proc-macro-crate 1.3.1, proc-macro-crate 2.0.2, proc-macro-crate 3.5.0, proc-macro-error 1.0.4, proc-macro-error-attr 1.0.4, proc-macro2 1.0.107, quick-xml 0.37.5, quick-xml 0.42.0, quote 1.0.47, r-efi 5.3.0, r-efi 6.0.0, rand 0.9.5, rand_chacha 0.9.0, rand_core 0.9.5, raw-window-handle 0.6.2, redox_syscall 0.5.18, redox_users 0.5.3, regex 1.13.1, regex-automata 0.4.18, regex-syntax 0.8.11, reqwest 0.13.5, rfd 0.16.0, rsqlite-vfs 0.1.1, rtree_rs 0.1.4, rusqlite 0.40.2, rustc-hash 2.1.3, rustc_version 0.4.1, rustix 1.1.5, rustls-pki-types 1.15.1, rustversion 1.0.23, same-file 1.0.6, schannel 0.1.29, schemars 0.8.22, schemars_derive 0.8.22, scopeguard 1.2.0, secret-service 5.2.0, security-framework 3.7.0, security-framework-sys 2.17.0, semver 1.0.28, serde 1.0.229, serde-untagged 0.1.9, serde_core 1.0.229, serde_derive 1.0.229, serde_derive_internals 0.29.1, serde_json 1.0.154, serde_repr 0.1.21, serde_spanned 0.6.9, serde_spanned 1.1.2, serde_urlencoded 0.7.1, serde_with 3.24.0, serde_with_macros 3.24.0, serialize-to-javascript 0.1.2, serialize-to-javascript-impl 0.1.2, servo_arc 0.4.3, sha2 0.10.9, sha2 0.11.1, sharded-slab 0.1.7, shared_child 1.1.2, shlex 2.0.1, signal-hook-registry 1.4.8, simd-adler32 0.3.10, simdutf8 0.1.5, siphasher 1.0.4, slab 0.4.12, smallvec 1.16.3, socket2 0.6.5, softbuffer 0.4.8, soup3 0.5.0, soup3-sys 0.5.0, sqlite-wasm-rs 0.5.5, stable_deref_trait 1.2.1, static_vcruntime 3.0.0, string_cache 0.9.0, string_cache_codegen 0.6.1, strsim 0.11.1, swift-rs 1.0.9, syn 1.0.109, syn 2.0.119, syn 3.0.9, synstructure 0.14.0, system-configuration 0.7.0, system-configuration-sys 0.6.0, system-deps 6.2.2, tao-macros 0.1.4, tar 0.4.46, tauri 2.12.4, tauri-build 2.7.3, tauri-codegen 2.7.3, tauri-macros 2.7.3, tauri-plugin 2.7.2, tauri-plugin-dialog 2.8.3, tauri-plugin-fs 2.7.1, tauri-plugin-notification 2.7.0, tauri-plugin-opener 2.7.2, tauri-plugin-shell 2.5.0, tauri-plugin-updater 2.14.0, tauri-runtime 2.12.2, tauri-runtime-wry 2.12.2, tauri-utils 2.10.2, tauri-winres 0.3.6, tauri-winrt-notification 0.8.1, tempfile 3.27.0, tendril 0.5.1, thiserror 1.0.69, thiserror 2.0.21, thiserror-impl 1.0.69, thiserror-impl 2.0.21, thread_local 1.1.10, time 0.3.55, time-core 0.1.9, time-macros 0.2.32, tinyvec 1.13.3, tokio 1.53.3, tokio-native-tls 0.3.1, tokio-util 0.7.20, toml 0.8.2, toml 1.1.8+spec-1.1.0, toml_datetime 0.6.3, toml_datetime 1.1.2+spec-1.1.0, toml_edit 0.19.15, toml_edit 0.20.2, toml_edit 0.25.17+spec-1.1.0, toml_parser 1.1.5+spec-1.1.0, toml_writer 1.1.3+spec-1.1.0, tower 0.5.3, tower-http 0.6.11, tower-layer 0.3.3, tower-service 0.3.3, tracing 0.1.44, tracing-attributes 0.1.31, tracing-core 0.1.36, tracing-log 0.2.0, tracing-subscriber 0.3.23, try-lock 0.2.5, typed-path 0.12.3, typeid 1.0.3, typenum 1.20.1, tzf-dist 0.0.2026-e, tzf-rs 2.1.3, uds_windows 1.2.1, unicode-ident 1.0.27, unicode-normalization 0.1.25, unicode-segmentation 1.13.3, url 2.5.8, urlpattern 0.6.0, utf8_iter 1.0.4, uuid 1.28.0, vcpkg 0.2.15, version-compare 0.2.1, version_check 0.9.5, vswhom 0.1.0, vswhom-sys 0.1.3, walkdir 2.5.0, want 0.3.2, wasi 0.11.1+wasi-snapshot-preview1, wasip2 1.0.4+wasi-0.2.12, wasm-bindgen 0.2.129, wasm-bindgen-futures 0.4.79, wasm-bindgen-macro 0.2.129, wasm-bindgen-macro-support 0.2.129, wasm-bindgen-shared 0.2.129, wasm-streams 0.5.0, web-sys 0.3.106, web-time 1.1.0, web_atoms 0.2.6, webkit2gtk 2.0.2, webkit2gtk-sys 2.0.2, webview2-com 0.39.1, webview2-com-macros 0.8.1, webview2-com-sys 0.39.1, winapi 0.3.9, winapi-i686-pc-windows-gnu 0.4.0, winapi-util 0.1.11, winapi-x86_64-pc-windows-gnu 0.4.0, window-vibrancy 0.8.1, windows 0.62.2, windows-collections 0.3.2, windows-core 0.62.2, windows-future 0.3.2, windows-implement 0.60.2, windows-interface 0.59.3, windows-link 0.2.1, windows-native-keyring-store 1.1.0, windows-numerics 0.3.1, windows-registry 0.6.1, windows-result 0.4.1, windows-strings 0.5.1, windows-sys 0.45.0, windows-sys 0.52.0, windows-sys 0.60.2, windows-sys 0.61.2, windows-targets 0.42.2, windows-targets 0.52.6, windows-targets 0.53.5, windows-threading 0.2.1, windows-version 0.1.7, windows_aarch64_gnullvm 0.42.2, windows_aarch64_gnullvm 0.52.6, windows_aarch64_gnullvm 0.53.1, windows_aarch64_msvc 0.42.2, windows_aarch64_msvc 0.52.6, windows_aarch64_msvc 0.53.1, windows_i686_gnu 0.42.2, windows_i686_gnu 0.52.6, windows_i686_gnu 0.53.1, windows_i686_gnullvm 0.52.6, windows_i686_gnullvm 0.53.1, windows_i686_msvc 0.42.2, windows_i686_msvc 0.52.6, windows_i686_msvc 0.53.1, windows_x86_64_gnu 0.42.2, windows_x86_64_gnu 0.52.6, windows_x86_64_gnu 0.53.1, windows_x86_64_gnullvm 0.42.2, windows_x86_64_gnullvm 0.52.6, windows_x86_64_gnullvm 0.53.1, windows_x86_64_msvc 0.42.2, windows_x86_64_msvc 0.52.6, windows_x86_64_msvc 0.53.1, winnow 0.5.40, winnow 1.0.4, winreg 0.56.0, wit-bindgen 0.57.1, wry 0.57.0, x11 2.21.0, x11-dl 2.21.0, xattr 1.6.1, zbus 5.19.0, zbus-secret-service-keyring-store 1.0.1, zbus_macros 5.19.0, zbus_names 4.3.4, zcheapstr 1.1.0, zerocopy 0.8.63, zerocopy-derive 0.8.63, zeroize 1.9.1, zip 9.0.3, zmij 1.0.23, zune-core 0.5.3, zune-jpeg 0.5.15, zvariant 5.15.0, zvariant_derive 5.15.0, zvariant_utils 4.2.0.
 
 ```text
 Permission is hereby granted, free of charge, to any
@@ -4971,7 +4968,7 @@ Permission is granted to anyone to use this software for any purpose, including 
                        Version 2.1, February 1999
 
  Copyright (C) 1991, 1999 Free Software Foundation, Inc.
- <https://fsf.org/>
+ 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  Everyone is permitted to copy and distribute verbatim copies
  of this license document, but changing it is not allowed.
 
@@ -5024,7 +5021,7 @@ modified by someone else and passed on, the recipients should know
 that what they have is not the original version, so that the original
 author's reputation will not be affected by problems that might be
 introduced by others.
-
+
   Finally, software patents pose a constant threat to the existence of
 any free program.  We wish to make sure that a company cannot
 effectively restrict the users of a free program by obtaining a
@@ -5080,7 +5077,7 @@ modification follow.  Pay close attention to the difference between a
 "work based on the library" and a "work that uses the library".  The
 former contains code derived from the library, whereas the latter must
 be combined with the library in order to run.
-
+
                   GNU LESSER GENERAL PUBLIC LICENSE
    TERMS AND CONDITIONS FOR COPYING, DISTRIBUTION AND MODIFICATION
 
@@ -5127,7 +5124,7 @@ Library.
   You may charge a fee for the physical act of transferring a copy,
 and you may at your option offer warranty protection in exchange for a
 fee.
-
+
   2. You may modify your copy or copies of the Library or any portion
 of it, thus forming a work based on the Library, and copy and
 distribute such modifications or work under the terms of Section 1
@@ -5185,7 +5182,7 @@ instead of to this License.  (If a newer version than version 2 of the
 ordinary GNU General Public License has appeared, then you can specify
 that version instead if you wish.)  Do not make any other change in
 these notices.
-
+
   Once this change is made in a given copy, it is irreversible for
 that copy, so the ordinary GNU General Public License applies to all
 subsequent copies and derivative works made from that copy.
@@ -5236,7 +5233,7 @@ Library will still fall under Section 6.)
 distribute the object code for the work under the terms of Section 6.
 Any executables containing that work also fall under Section 6,
 whether or not they are linked directly with the Library itself.
-
+
   6. As an exception to the Sections above, you may also combine or
 link a "work that uses the Library" with the Library to produce a
 work containing portions of the Library, and distribute that work
@@ -5298,7 +5295,7 @@ restrictions of other proprietary libraries that do not normally
 accompany the operating system.  Such a contradiction means you cannot
 use both them and the Library together in an executable that you
 distribute.
-
+
   7. You may place library facilities that are a work based on the
 Library side-by-side in a single library together with other library
 facilities not covered by this License, and distribute such a combined
@@ -5339,7 +5336,7 @@ subject to these terms and conditions.  You may not impose any further
 restrictions on the recipients' exercise of the rights granted herein.
 You are not responsible for enforcing compliance by third parties with
 this License.
-
+
   11. If, as a consequence of a court judgment or allegation of patent
 infringement or for any other reason (not limited to patent issues),
 conditions are imposed on you (whether by court order, agreement or
@@ -5391,7 +5388,7 @@ conditions either of that version or of any later version published by
 the Free Software Foundation.  If the Library does not specify a
 license version number, you may choose any version ever published by
 the Free Software Foundation.
-
+
   14. If you wish to incorporate parts of the Library into other free
 programs whose distribution conditions are incompatible with these,
 write to the author to ask for permission.  For software which is
@@ -5425,7 +5422,7 @@ SUCH HOLDER OR OTHER PARTY HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH
 DAMAGES.
 
                      END OF TERMS AND CONDITIONS
-
+
            How to Apply These Terms to Your New Libraries
 
   If you develop a new library, and you want it to be of the greatest
@@ -5453,7 +5450,8 @@ convey the exclusion of warranty; and each file should have at least the
     Lesser General Public License for more details.
 
     You should have received a copy of the GNU Lesser General Public
-    License along with this library; if not, see <https://www.gnu.org/licenses/>.
+    License along with this library; if not, write to the Free Software
+    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
 Also add information on how to contact you by electronic and paper mail.
 
@@ -5464,8 +5462,8 @@ necessary.  Here is a sample; alter the names:
   Yoyodyne, Inc., hereby disclaims all copyright interest in the
   library `Frob' (a library for tweaking knobs) written by James Random Hacker.
 
-  <signature of Moe Ghoul>, 1 April 1990
-  Moe Ghoul, President of Vice
+  <signature of Ty Coon>, 1 April 1990
+  Ty Coon, President of Vice
 
 That's all there is to it!
 ```

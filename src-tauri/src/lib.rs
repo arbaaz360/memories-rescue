@@ -72,15 +72,6 @@ fn paths(app: &tauri::AppHandle) -> Paths {
     }
 }
 
-/// Panics go to the log (redacted like every line) before the default hook.
-fn log_panics() {
-    let default = std::panic::take_hook();
-    std::panic::set_hook(Box::new(move |info| {
-        tracing::error!("panic: {info}");
-        default(info);
-    }));
-}
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -93,7 +84,7 @@ pub fn run() {
         .setup(|app| {
             let handle = app.handle().clone();
             if logging::init(&log_dir(&handle)) {
-                log_panics();
+                logging::install_panic_hook();
             }
             tracing::info!(
                 "Memories Rescue {} starting on {}",
@@ -109,8 +100,9 @@ pub fn run() {
             app.manage(engine.clone());
             // §10.2: at launch and every 24 hours, unless turned off in Settings.
             updater::schedule(handle.clone());
-            // §9.3 rule 3: at most every 30 days, never blocking anything.
-            std::thread::spawn(move || {
+            // §9.3 rule 3: at most every 30 days (every day during the grace
+            // period), never blocking anything; looked at every 6 hours.
+            std::thread::spawn(move || loop {
                 if engine.license.recheck_if_due() {
                     engine.emit(
                         ipc::events::WARNING,
@@ -122,6 +114,7 @@ pub fn run() {
                         },
                     );
                 }
+                std::thread::sleep(std::time::Duration::from_secs(6 * 60 * 60));
             });
             Ok(())
         })
@@ -147,6 +140,7 @@ pub fn run() {
             commands::activate,
             commands::deactivate,
             commands::open_path,
+            commands::open_link,
             commands::diagnostics_preview,
             commands::check_update,
             commands::install_update,
@@ -172,6 +166,65 @@ mod tests {
                 env!("TARGET_TRIPLE"),
                 std::env::consts::EXE_SUFFIX
             ))
+    }
+
+    /// The window's permissions and CSP stay what the security review left
+    /// them: no opener (files and links open from Rust), no fs, http or
+    /// shell, no asset protocol, and no dev-server address in release builds.
+    #[test]
+    fn window_capabilities_and_csp_stay_minimal() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let cap: serde_json::Value = serde_json::from_str(
+            &std::fs::read_to_string(root.join("capabilities").join("default.json")).unwrap(),
+        )
+        .unwrap();
+        let perms: Vec<String> = cap["permissions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|p| {
+                p.as_str()
+                    .map(str::to_string)
+                    .or_else(|| p["identifier"].as_str().map(str::to_string))
+                    .unwrap()
+            })
+            .collect();
+        assert_eq!(
+            perms,
+            [
+                "core:default",
+                "dialog:allow-open",
+                "notification:allow-is-permission-granted",
+                "notification:allow-request-permission",
+                "notification:allow-notify",
+            ]
+        );
+        let conf: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(root.join("tauri.conf.json")).unwrap())
+                .unwrap();
+        let security = &conf["app"]["security"];
+        let csp = security["csp"].as_str().unwrap();
+        assert!(
+            !csp.contains("ws:") && !csp.contains("localhost:1420"),
+            "{csp}"
+        );
+        assert!(!csp.contains("asset:"), "{csp}");
+        assert!(
+            security["devCsp"]
+                .as_str()
+                .unwrap()
+                .contains("ws://localhost:1420")
+        );
+        assert!(
+            security["assetProtocol"]["enable"].as_bool() != Some(true),
+            "the asset protocol stays off"
+        );
+        // Neither may the release overlay turn any of it back on.
+        let release: serde_json::Value = serde_json::from_str(
+            &std::fs::read_to_string(root.join("tauri.release.conf.json")).unwrap(),
+        )
+        .unwrap();
+        assert!(release["app"]["security"].is_null());
     }
 
     /// Runs the real sidecar files when they are present. On the CI runners,

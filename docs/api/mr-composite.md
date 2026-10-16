@@ -128,6 +128,22 @@ skipped by reading, reading stops once `moov` is parsed, and more than
 `Unsupported` instead of reading the whole file. The engine's dry run uses it
 so that nothing is extracted to find clip groups or HEVC videos.
 
+**Both are total on any bytes: no panic, no endless loop, bounded memory.**
+An export can hold a damaged or crafted video, and one bad file must cost
+one item, not the run. So:
+
+- every offset is checked arithmetic; a box shorter than its header, or
+  longer than what holds it, ends the walk at that box;
+- a walk stops after 1,024 top-level boxes or 65,536 children of one box;
+- `moov` over 256 MiB is refused, and a `moov` is read as it arrives, never
+  allocated at its claimed size first;
+- the field parsers (`stts`, `stsz`, `elst`, `tkhd`, `avcC`/`hvcC`, `esds`,
+  EXIF, PNG chunks) read through bounds-checked getters and saturate their
+  sums.
+
+A broken file gives `Unsupported` (`MEDIA_DECODE`) or the facts that could
+be read; a broken child box is skipped. `src/probe_fuzz.rs` holds the tests.
+
 ### `composite_photo(main, overlay, out, &PhotoOptions) -> Result<PhotoOutcome, Error>`
 
 1. Decode the photo (`image` crate: zune-jpeg, png), apply its EXIF
@@ -136,7 +152,12 @@ so that nothing is extracted to find clip groups or HEVC videos.
    §4.4 rule shared with video (`place_overlay`): stretched when the
    aspects agree within 2%, otherwise fitted to the width and centred
    vertically, with an `overlay_aspect_mismatch` warning. Resampling is
-   bilinear (`FilterType::Triangle`).
+   bilinear (`FilterType::Triangle`). An overlay that would be placed more
+   than `MAX_OVERLAY_STRETCH` (8) times the photo's height, or an empty
+   picture, is refused with `MEDIA_DECODE` before anything is resized
+   (`checked_placement`): a 1×100000 overlay would otherwise ask for
+   hundreds of GB, and a failed allocation aborts the process. Video and
+   rejoin plans use the same check.
 3. Straight-alpha "over" onto the photo (integer, rounded; PNG sources with
    alpha get full Porter-Duff).
 4. JPEG sources are written as JPEG at `jpeg_quality` (default 92); PNG
@@ -284,7 +305,7 @@ Warnings are also logged through the `log` crate at `warn`.
 ### Pure planners (what CI tests without ffmpeg)
 
 `video::composite_plan`, `rejoin::rejoin_plan`, `rejoin::concat_list`,
-`video::place_overlay`, `video::target_bitrate_kbps`,
+`video::place_overlay`, `video::checked_placement`, `video::target_bitrate_kbps`,
 `video::encoder_bitrate_kbps`, `video::rotation_filters`,
 `video::even_size`, `ffmpeg::EncoderSet::parse`,
 `ffmpeg::encoder_candidates`, `ffmpeg::select_encoder`,
@@ -468,7 +489,8 @@ shares code with the crate.
 
 | Test | Covers | CI (no ffmpeg) |
 |---|---|---|
-| 44 unit tests (`cargo test -p mr-composite --lib`) | probe parsers (matrix, `stts`, `elst`, EXIF, SPS, `hvcC`, `esds`), placement, bitrate, every argument array, encoder selection with fake `-encoders` listings (Windows LGPL, macOS, none), the software path, concat quoting, the §4.5 rules, photo orientation and blending, error codes; retry and timeout against a real ffmpeg | run; the two ffmpeg ones skip |
+| 46 unit tests (`cargo test -p mr-composite --lib`) | probe parsers (matrix, `stts`, `elst`, EXIF, SPS, `hvcC`, `esds`), placement and the overlay stretch limit, bitrate, every argument array, encoder selection with fake `-encoders` listings (Windows LGPL, macOS, none), the software path, concat quoting, the §4.5 rules, photo orientation and blending, error codes; retry and timeout against a real ffmpeg | run; the two ffmpeg ones skip |
+| 10 probe robustness tests (`src/probe_fuzz.rs`, in the same `--lib` run) | `probe`, `probe_reader` and every field parser on random bytes, random box headers, mutated and truncated real MP4/JPEG/PNG (proptest, 512 cases each), every box size field of the sample MP4s at 32- and 64-bit extremes, and the reported wrap-around shapes; each call runs under a 30 s watchdog, so a hang fails instead of stalling | **run** |
 | `tests/photo.rs` | FR-23 AC1, quality option, `MEDIA_DECODE` | **run** (F-07 photos need only Pillow) |
 | `tests/video.rs` | FR-24 AC1, AC2, encoder plan, compatibility transcode | skip |
 | `tests/clips.rs` | FR-27 detection, AC1, AC2, per-segment overlays, rotated copy join, refusal | skip |
