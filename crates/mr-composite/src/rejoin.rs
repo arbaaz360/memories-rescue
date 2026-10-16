@@ -7,7 +7,8 @@
 //! is always re-encoded with ffmpeg's native `aac` encoder: copied AAC
 //! carries each later segment's encoder priming into the middle of the
 //! stream, which measured as a ~10 ms drop to under 1% level at every join
-//! (an audible click), while the re-encoded join stays above 97%.
+//! (an audible click), while the re-encoded join stays above 97%. The
+//! input timeline is kept with `-copyts` (see [`rejoin_plan`]).
 
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
@@ -347,6 +348,11 @@ pub fn rejoin_plan(
     };
     let mut warnings = Vec::new();
     let mut args = head_args();
+    // Keep the sources' own timeline. Without -copyts ffmpeg shifts the
+    // concat input so its earliest packet, the first segment's AAC priming at
+    // -23 ms, lands on 0; the video then starts 23 ms late, one frame after
+    // re-encoding, and every segment's overlay window is a frame off.
+    args.push("-copyts".into());
 
     let (filter, output_size, bitrate_kbps) = match encoder {
         None => {
@@ -645,6 +651,7 @@ mod tests {
         assert!(a.windows(2).any(|w| w == ["-c:v", "copy"]));
         assert!(a.windows(2).any(|w| w == ["-c:a", "aac"]));
         assert!(!a.iter().any(|x| x == "-filter_complex"));
+        assert!(a.contains(&"-copyts".to_string()));
         assert_eq!(p.encoder, None);
         assert_eq!(
             p.timeout,

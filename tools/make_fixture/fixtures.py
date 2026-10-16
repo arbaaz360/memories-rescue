@@ -601,6 +601,8 @@ BUILDERS = {
 
 from fixtures_m1 import BUILDERS_M1  # noqa: E402  (M1 fixtures share the helpers above)
 from fixtures_m2 import BUILDERS_M2  # noqa: E402
+from fixtures_m3 import BUILDERS_M3  # noqa: E402  (F-07, F-08, F-09; ffmpeg required)
 
 BUILDERS.update(BUILDERS_M1)
 BUILDERS.update(BUILDERS_M2)
+BUILDERS.update(BUILDERS_M3)

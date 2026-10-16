@@ -390,6 +390,134 @@ mod tests {
         );
     }
 
+    /// The staged sidecar, else ffmpeg on PATH; `None` on CI.
+    fn test_ffmpeg() -> Option<PathBuf> {
+        let exe = if cfg!(windows) {
+            "ffmpeg.exe"
+        } else {
+            "ffmpeg"
+        };
+        let bundled = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../third_party/ffmpeg")
+            .join(exe);
+        let works = |p: &Path| {
+            std::process::Command::new(p)
+                .arg("-version")
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .status()
+                .is_ok_and(|s| s.success())
+        };
+        if bundled.is_file()
+            && std::fs::metadata(&bundled).is_ok_and(|m| m.len() > 0)
+            && works(&bundled)
+        {
+            return Some(bundled);
+        }
+        std::env::split_paths(&std::env::var_os("PATH")?)
+            .map(|d| d.join(exe))
+            .find(|p| p.is_file() && works(p))
+    }
+
+    fn lavfi_plan(out: &Path, filter: &str) -> Plan {
+        let mut args = video::head_args();
+        for a in [
+            "-f",
+            "lavfi",
+            "-i",
+            "color=c=gray:s=64x64:r=10:d=0.3",
+            "-vf",
+            filter,
+            "-c:v",
+            "mpeg4",
+        ] {
+            args.push(a.into());
+        }
+        args.push(out.as_os_str().to_owned());
+        Plan {
+            args,
+            timeout: Duration::from_secs(30),
+            filter: filter.into(),
+            output_size: (64, 64),
+            bitrate_kbps: 0,
+            audio: AudioPlan::None,
+            encoder: Some(VideoEncoder::OpenH264),
+            warnings: vec![],
+        }
+    }
+
+    #[test]
+    fn one_retry_on_the_software_path() {
+        let Some(ff) = test_ffmpeg() else {
+            eprintln!("skip: no ffmpeg");
+            return;
+        };
+        let c = Compositor::new(ff);
+        let dir = temp_dir("retry").unwrap();
+        let out = dir.path().join("o.mp4");
+        let bad = lavfi_plan(&out, "no_such_filter_anywhere");
+        let good = lavfi_plan(&out, "format=yuv420p");
+        let o = c.run_with_retry(bad, || Ok(good), &out).unwrap();
+        assert!(o.retried);
+        assert!(
+            o.first_failure.as_deref().unwrap().contains("exit"),
+            "{:?}",
+            o.first_failure
+        );
+        assert!(out.is_file());
+        assert!(!partial_video_path(&out).exists());
+
+        // Both attempts fail: FFMPEG_FAIL naming both, nothing left behind.
+        let out2 = dir.path().join("o2.mp4");
+        let e = c
+            .run_with_retry(
+                lavfi_plan(&out2, "nope1"),
+                || Ok(lavfi_plan(&out2, "nope2")),
+                &out2,
+            )
+            .unwrap_err();
+        assert_eq!(e.code(), "FFMPEG_FAIL");
+        assert!(e.to_string().contains("retry failed too"), "{e}");
+        assert!(!out2.exists() && !partial_video_path(&out2).exists());
+    }
+
+    #[test]
+    fn timeout_kills_ffmpeg() {
+        let Some(ff) = test_ffmpeg() else {
+            eprintln!("skip: no ffmpeg");
+            return;
+        };
+        let f = Ffmpeg::new(ff);
+        let args: Vec<std::ffi::OsString> = [
+            "-hide_banner",
+            "-nostdin",
+            "-re",
+            "-f",
+            "lavfi",
+            "-i",
+            "testsrc=s=64x64:r=10:d=60",
+            "-f",
+            "null",
+            "-",
+        ]
+        .iter()
+        .map(Into::into)
+        .collect();
+        let t = std::time::Instant::now();
+        let e = f.run(&args, Duration::from_millis(500)).unwrap_err();
+        assert!(
+            matches!(
+                e,
+                Error::FfmpegFail {
+                    timed_out: true,
+                    ..
+                }
+            ),
+            "{e}"
+        );
+        assert!(t.elapsed() < Duration::from_secs(10));
+    }
+
     #[test]
     fn missing_ffmpeg_is_reported_not_panicked() {
         let c = Compositor::new("definitely-not-ffmpeg-here.exe");

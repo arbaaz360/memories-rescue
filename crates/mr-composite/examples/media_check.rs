@@ -20,7 +20,11 @@ fn main() {
         .unwrap_or_else(|| {
             let bundled = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
                 .join("../../third_party/ffmpeg")
-                .join(if cfg!(windows) { "ffmpeg.exe" } else { "ffmpeg" });
+                .join(if cfg!(windows) {
+                    "ffmpeg.exe"
+                } else {
+                    "ffmpeg"
+                });
             if bundled.is_file() {
                 bundled
             } else {
@@ -60,7 +64,10 @@ fn main() {
         Err(e) => println!("encoders: {e} [{}]", e.code()),
     }
     match c.encoder_plan() {
-        Ok(p) => println!("encoder plan: primary {:?}, software path {:?}", p.primary, p.software),
+        Ok(p) => println!(
+            "encoder plan: primary {:?}, software path {:?}",
+            p.primary, p.software
+        ),
         Err(e) => println!("encoder plan: {e} [{}]", e.code()),
     }
     let t = Instant::now();
