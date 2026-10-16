@@ -16,7 +16,6 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use little_exif::exif_tag::ExifTag;
-use little_exif::filetype::FileExtension;
 use little_exif::metadata::Metadata;
 use mr_core::discover::{Discovery, Source};
 use mr_core::zipindex::{EntryReader, ZipIndexError};
@@ -136,8 +135,24 @@ pub fn system_time(cap: &Capture) -> SystemTime {
     }
 }
 
+/// Run a metadata call, turning a panic into an error, so that the
+/// METADATA_WRITE fallback (keep the file as it is) still applies.
+fn guarded(f: impl FnOnce() -> Result<(), String>) -> Result<(), String> {
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(f))
+        .unwrap_or_else(|_| Err("internal error while reading this file's metadata".into()))
+}
+
 /// Write the metadata for `ext` from `src` to `dst`.
 pub fn write_metadata(ext: &str, src: &Path, dst: &Path, cap: &Capture) -> Result<(), String> {
+    guarded(|| write_metadata_unguarded(ext, src, dst, cap))
+}
+
+fn write_metadata_unguarded(
+    ext: &str,
+    src: &Path,
+    dst: &Path,
+    cap: &Capture,
+) -> Result<(), String> {
     match ext {
         "jpg" | "jpeg" => native_jpeg::write_jpeg(src, dst, cap)
             .map(|_| ())
@@ -172,23 +187,40 @@ fn exif_strings(md: &Metadata) -> HashMap<&'static str, String> {
 
 /// Read the metadata back and compare with what was meant (NFR-REL-05).
 pub fn verify(ext: &str, path: &Path, cap: &Capture) -> Result<(), String> {
+    guarded(|| verify_unguarded(ext, path, cap))
+}
+
+/// The first and last bytes of a file, without reading it whole.
+fn head_and_tail(path: &Path) -> io::Result<(Vec<u8>, Vec<u8>)> {
+    use std::io::{Seek, SeekFrom};
+    let mut f = File::open(path)?;
+    let len = f.metadata()?.len();
+    let mut head = vec![0u8; len.min(8) as usize];
+    f.read_exact(&mut head)?;
+    let n = len.min(4096);
+    f.seek(SeekFrom::Start(len - n))?;
+    let mut tail = vec![0u8; n as usize];
+    f.read_exact(&mut tail)?;
+    Ok((head, tail))
+}
+
+fn verify_unguarded(ext: &str, path: &Path, cap: &Capture) -> Result<(), String> {
     match ext {
         "jpg" | "jpeg" | "png" => {
-            let bytes = fs::read(path).map_err(|e| e.to_string())?;
+            let (head, tail) = head_and_tail(path).map_err(|e| e.to_string())?;
             let md = if ext == "png" {
-                if bytes.len() < 8 || &bytes[..8] != b"\x89PNG\r\n\x1a\n" {
+                if head.len() < 8 || &head[..8] != b"\x89PNG\r\n\x1a\n" {
                     return Err("output is not a PNG".into());
                 }
                 native_png::read_png(path).map_err(|e| e.to_string())?
             } else {
-                if bytes.len() < 4 || bytes[..2] != [0xFF, 0xD8] {
+                if head.len() < 4 || head[..2] != [0xFF, 0xD8] {
                     return Err("output is not a JPEG".into());
                 }
-                let tail = &bytes[bytes.len().saturating_sub(4096)..];
                 if !tail.windows(2).any(|w| w == [0xFF, 0xD9]) {
                     return Err("JPEG has no end-of-image marker".into());
                 }
-                Metadata::new_from_vec(&bytes, FileExtension::JPEG).map_err(|e| e.to_string())?
+                native_jpeg::read_jpeg(path).map_err(|e| e.to_string())?
             };
             let tags = exif_strings(&md);
             let want_local = cap.exif_local();
@@ -525,6 +557,18 @@ impl<'a> Worker<'a> {
         }
         let cap = p.capture();
         let ext = p.ext.as_str();
+        // Photos are read whole by the metadata writer and the compositor;
+        // one this large is not a photo from an export.
+        if !p.is_video() && p.main.size > mr_meta::guard::MAX_PHOTO_BYTES {
+            return Err(item(
+                "MEDIA_DECODE",
+                format!(
+                    "a {} MB photo is larger than the {} MB this app reads",
+                    p.main.size >> 20,
+                    mr_meta::guard::MAX_PHOTO_BYTES >> 20
+                ),
+            ));
+        }
         let main_raw = tmp.join(format!("main.{ext}"));
         self.extract(&p.main, &main_raw)?;
         let overlay_raw = match (&p.overlay, s.overlay_mode) {

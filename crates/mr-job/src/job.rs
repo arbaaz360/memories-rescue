@@ -1,6 +1,6 @@
 //! Jobs: create, open, run, retry, add a part, report (FR-33 to FR-40, FR-44).
 
-use std::collections::{BTreeMap, HashMap, VecDeque};
+use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::fs;
 use std::panic::AssertUnwindSafe;
 use std::path::{Path, PathBuf};
@@ -123,6 +123,9 @@ struct JobFile {
     options: Options,
     output_root: PathBuf,
 }
+
+/// Starts without an outcome after which an item is set aside (hardening 1c).
+pub const POISON_STARTS: u32 = 3;
 
 fn job_dir(state_dir: &Path, id: &str) -> PathBuf {
     state_dir.join(JOBS_DIR).join(id)
@@ -904,6 +907,63 @@ impl Job {
         }
     }
 
+    /// A file that crashes or hangs the app would otherwise do so on every
+    /// resume. An item started [`POISON_STARTS`] times without an outcome
+    /// (each time the process went away while it was in flight) is marked
+    /// failed with `MEDIA_DECODE` so the rest of the job can finish; Retry
+    /// gives it another chance.
+    ///
+    /// Returns the other items with an interrupted start. They run first and
+    /// one at a time, so that a crash is charged to the item that caused it
+    /// and not to the three that happened to be in flight beside it.
+    fn fail_poison_items(&mut self, sink: &dyn ProgressSink) -> Result<HashSet<String>> {
+        let starts = self.db.unfinished_starts()?;
+        let suspects: HashSet<String> = starts
+            .iter()
+            .filter(|&(_, &n)| n < POISON_STARTS)
+            .map(|(k, _)| k.clone())
+            .collect();
+        if starts.values().all(|&n| n < POISON_STARTS) {
+            return Ok(suspects);
+        }
+        for row in self.db.items_in(Stage::Pending)? {
+            let n = starts.get(row.key()).copied().unwrap_or(0);
+            if n < POISON_STARTS {
+                continue;
+            }
+            let detail = format!(
+                "Memories Rescue stopped {n} times while working on this file, so it was set aside for the rest to finish; Retry tries it again"
+            );
+            self.db.mark_finished(
+                row.key(),
+                &Finished {
+                    stage: Some(Stage::Failed),
+                    error_code: Some("MEDIA_DECODE".into()),
+                    error_detail: Some(detail.clone()),
+                    ..Finished::default()
+                },
+            )?;
+            tracing::warn!(job = %self.id, starts = n, code = "MEDIA_DECODE", "item set aside after repeated interrupted starts");
+            sink.item(&ItemOutcome {
+                id: row.key().to_string(),
+                stage: Stage::Failed,
+                media_type: Some(
+                    if row.plan.is_video() {
+                        "video"
+                    } else {
+                        "photo"
+                    }
+                    .into(),
+                ),
+                output_path: None,
+                error_code: Some("MEDIA_DECODE".into()),
+                error_detail: Some(detail),
+                seconds: 0.0,
+            });
+        }
+        Ok(suspects)
+    }
+
     /// Remove temp files a crash left behind (NFR-PRV-09), for the app to
     /// call at start-up. Does nothing while the job is running elsewhere.
     pub fn clean_temp(&self) -> Result<()> {
@@ -981,6 +1041,7 @@ impl Job {
             return Ok(Outcome::InputsChanged(changes));
         }
         self.apply_free_tier()?;
+        let suspects = self.fail_poison_items(sink)?;
         let open = self.db.items_in(Stage::Pending)?;
         let options = self.row.options.clone();
         if !options.ignore_space_check && !open.is_empty() {
@@ -1100,6 +1161,7 @@ impl Job {
                     sink,
                     control,
                     open,
+                    &suspects,
                     workers,
                     awake_active,
                     started,
@@ -1144,6 +1206,7 @@ impl Job {
         sink: &dyn ProgressSink,
         control: &Control,
         open: Vec<ItemRow>,
+        suspects: &HashSet<String>,
         workers: usize,
         awake_active: bool,
         started: Instant,
@@ -1154,10 +1217,14 @@ impl Job {
         let video_limit = video_workers();
         let mut photos: VecDeque<ItemRow> = VecDeque::new();
         let mut videos: VecDeque<ItemRow> = VecDeque::new();
+        // Items that were in flight when an earlier run went away: alone first.
+        let mut solo: VecDeque<ItemRow> = VecDeque::new();
         let mut bytes_total = 0u64;
         for r in open {
             bytes_total += r.plan.main.size + r.plan.overlay.as_ref().map(|o| o.size).unwrap_or(0);
-            if r.plan.is_video() {
+            if suspects.contains(r.key()) {
+                solo.push_back(r);
+            } else if r.plan.is_video() {
                 videos.push_back(r);
             } else {
                 photos.push_back(r);
@@ -1167,7 +1234,7 @@ impl Job {
         let get = |k: &str| counts.get(k).copied().unwrap_or(0);
         let mut done = get("done");
         let mut failed = get("failed");
-        let total = done + failed + photos.len() + videos.len();
+        let total = done + failed + photos.len() + videos.len() + solo.len();
         let mut in_flight: HashMap<String, (ItemRow, bool)> = HashMap::new();
         let mut videos_in_flight = 0usize;
         let mut eta = Eta::default();
@@ -1208,6 +1275,24 @@ impl Job {
                 && control.may_dispatch()
                 && in_flight.len() < workers
             {
+                if !solo.is_empty() {
+                    if !in_flight.is_empty() {
+                        break;
+                    }
+                    let Some(mut row) = solo.pop_front() else {
+                        break;
+                    };
+                    row.attempts = self.db.mark_started(row.key())?;
+                    let is_video = row.plan.is_video();
+                    if is_video {
+                        videos_in_flight += 1;
+                    }
+                    in_flight.insert(row.key().to_string(), (row.clone(), is_video));
+                    if job_tx.send(row).is_err() {
+                        return Err(JobError::State("worker pool stopped".into()));
+                    }
+                    break;
+                }
                 let video_ok = videos_in_flight < video_limit;
                 let take_video = match (photos.front(), videos.front()) {
                     (Some(p), Some(v)) => video_ok && v.plan.chrono_rank < p.plan.chrono_rank,
@@ -1264,7 +1349,7 @@ impl Job {
                 if control.is_paused() {
                     return Ok(Outcome::Paused(stats()?));
                 }
-                if photos.is_empty() && videos.is_empty() {
+                if photos.is_empty() && videos.is_empty() && solo.is_empty() {
                     sink.progress(&self.progress_now(
                         done,
                         failed,

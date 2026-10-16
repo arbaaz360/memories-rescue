@@ -163,8 +163,60 @@ fn fr33_ac1_kill_twenty_times_then_finish_with_no_duplicates_or_rework() {
     }
     let elapsed = started.elapsed();
 
-    let job = Job::open(&state, id.as_ref().unwrap()).unwrap();
+    let mut job = Job::open(&state, id.as_ref().unwrap()).unwrap();
     assert!(job.rebuilt().is_none(), "state survived every kill");
+    // Kills this close to start-up can interrupt the same item three times in
+    // a row, and then the engine sets it aside as a possible poison file
+    // (hardening 1c). Each one set aside must have been in flight at three
+    // consecutive kills; Retry then finishes it.
+    let set_aside: Vec<String> = job
+        .items()
+        .unwrap()
+        .into_iter()
+        .filter(|i| i.stage == Stage::Failed)
+        .map(|i| {
+            assert_eq!(
+                i.last_error_code.as_deref(),
+                Some("MEDIA_DECODE"),
+                "{}",
+                i.key()
+            );
+            i.key().to_string()
+        })
+        .collect();
+    if !set_aside.is_empty() {
+        let journal = job.journal().unwrap();
+        for key in &set_aside {
+            let mut run = 0;
+            let mut longest = 0;
+            for ev in journal.iter().filter(|e| &e.item == key) {
+                match ev.event.as_str() {
+                    "start" => {
+                        run += 1;
+                        longest = longest.max(run);
+                    }
+                    _ => run = 0,
+                }
+            }
+            assert!(
+                longest >= mr_job::job::POISON_STARTS as usize,
+                "{key} set aside after {longest} interrupted starts"
+            );
+        }
+        let status = Command::new(bin)
+            .args(["retry", id.as_ref().unwrap(), "--quiet"])
+            .arg("--state-dir")
+            .arg(&state)
+            .stdout(Stdio::null())
+            .status()
+            .unwrap();
+        assert!(status.success());
+        job = Job::open(&state, id.as_ref().unwrap()).unwrap();
+        println!(
+            "{} items were set aside after three interrupted starts and finished on retry",
+            set_aside.len()
+        );
+    }
     let items = job.items().unwrap();
     assert_eq!(items.len(), 1000);
     assert!(

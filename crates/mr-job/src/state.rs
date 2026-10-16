@@ -6,7 +6,7 @@
 //! for every planning detail. Only the coordinator thread touches the
 //! connection.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};
 
 use chrono::Utc;
@@ -623,6 +623,31 @@ impl Db {
         )?;
         tx.commit()?;
         Ok(())
+    }
+
+    /// Per item, the starts since its last outcome (done, failed, requeued,
+    /// adopted): starts that ended with the process going away while the
+    /// item was in flight. Items with none are left out.
+    pub fn unfinished_starts(&self) -> Result<HashMap<String, u32>> {
+        let mut st = self
+            .conn
+            .prepare("SELECT item_id, event FROM journal ORDER BY seq")?;
+        let rows = st.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))?;
+        let mut out: HashMap<String, u32> = HashMap::new();
+        for row in rows {
+            let (item, event) = row?;
+            match event.as_str() {
+                "start" => *out.entry(item).or_default() += 1,
+                "done" | "failed" | "adopted" => {
+                    out.remove(&item);
+                }
+                e if e.starts_with("requeue") => {
+                    out.remove(&item);
+                }
+                _ => {}
+            }
+        }
+        Ok(out)
     }
 
     /// Return an item to the queue without counting it as failed.
