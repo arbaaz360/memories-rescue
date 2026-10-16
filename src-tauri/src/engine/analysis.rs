@@ -330,6 +330,7 @@ impl Engine {
             .and_then(|mut f| f.write_all(html.as_bytes()))
             .map_err(|e| io_error(&tmp, &e))?;
         std::fs::rename(&tmp, &path).map_err(|e| io_error(&path, &e))?;
+        self.issue_path(&path);
         Ok(path.to_string_lossy().into_owned())
     }
 

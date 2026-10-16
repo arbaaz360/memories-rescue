@@ -693,6 +693,20 @@ fn settings_persist_and_diagnostics_hold_no_export_content() {
         )
         .unwrap();
     }
+    // A line an older version wrote without today's rules: the export redacts it again.
+    {
+        use std::io::Write as _;
+        let mut f = std::fs::OpenOptions::new()
+            .append(true)
+            .open(env.engine.paths.log_dir.join("memories-rescue.log"))
+            .unwrap();
+        writeln!(
+            f,
+            "INFO legacy line {home} and {:?}",
+            Path::new(&home).join("Pictures")
+        )
+        .unwrap();
+    }
     // Shown before saving: exactly what the ZIP will hold.
     let preview = env.engine.diagnostics_preview();
     assert!(preview.destination.ends_with(".zip"));
@@ -721,7 +735,20 @@ fn settings_persist_and_diagnostics_hold_no_export_content() {
             !text.contains("SECRET") && !text.contains("sc-cdn"),
             "{name}: a URL"
         );
-        assert!(!text.contains(&home), "{name}: the home folder");
+        // The home folder in every spelling: as is, either separator, the
+        // escaped form JSON and `{:?}` write, and in any case.
+        let lower = text.to_lowercase();
+        for spelling in [
+            home.clone(),
+            home.replace('\\', "/"),
+            home.replace('\\', "\\\\"),
+            home.replace('/', "\\"),
+        ] {
+            assert!(
+                !lower.contains(&spelling.to_lowercase()),
+                "{name}: the home folder as {spelling}"
+            );
+        }
         assert!(!text.to_lowercase().contains("telemetry"), "{name}");
         if name.starts_with("journal-") {
             // Items by number, never by key (capture date + export file ID).
@@ -738,4 +765,91 @@ fn settings_persist_and_diagnostics_hold_no_export_content() {
     assert!(info.terms_url.starts_with("https://novabyteworks.com/"));
     assert!(info.faq_url.starts_with("https://novabyteworks.com/"));
     assert!(!env.engine.any_job_running());
+}
+
+#[test]
+fn open_path_opens_only_what_the_engine_handed_out() {
+    let env = env();
+    let inputs = env
+        .engine
+        .add_inputs(&zips(&fixture("small-2026b")))
+        .unwrap();
+    let ids = usable_ids(&inputs);
+    let o = options(&env);
+    let plan = env.engine.plan(&ids, &o).unwrap();
+    let preview = env.engine.export_preview_report(&plan.plan_id).unwrap();
+    let job = env.engine.start(&ids, &o).unwrap();
+    wait_state(
+        &env,
+        &job,
+        0,
+        &[
+            JobState::Done,
+            JobState::Partial,
+            JobState::FreeLimitReached,
+        ],
+    );
+    let r = env.engine.get_report(&job).unwrap();
+    std::fs::create_dir_all(&env.engine.paths.log_dir).unwrap();
+
+    // Handed out by the engine: opens.
+    for ok in [
+        r.output_path.clone(),
+        r.report_html_path.clone().unwrap(),
+        preview,
+        env.engine.paths.log_dir.to_string_lossy().into_owned(),
+    ] {
+        assert!(env.engine.openable(&ok).is_ok(), "{ok}");
+    }
+
+    // Anything else: refused, even inside the output folder.
+    let root = PathBuf::from(&r.output_path);
+    let planted = root.join("run-me.bat");
+    std::fs::write(&planted, "echo hi").unwrap();
+    // A saved memory is not opened by path either (the window never asks for one).
+    fn first_media(dir: &Path) -> Option<PathBuf> {
+        for e in std::fs::read_dir(dir).ok()?.flatten() {
+            let p = e.path();
+            if p.is_dir() {
+                if let Some(f) = first_media(&p) {
+                    return Some(f);
+                }
+            } else if p
+                .extension()
+                .is_some_and(|x| x == "jpg" || x == "mp4" || x == "png")
+            {
+                return Some(p);
+            }
+        }
+        None
+    }
+    let photo = first_media(&root);
+    assert!(photo.is_some());
+    let escaped = format!("{}/../{}", r.output_path, "Memories Rescue/run-me.bat");
+    let outside = repo().join("Cargo.toml");
+    for bad in [
+        planted.to_string_lossy().into_owned(),
+        escaped,
+        outside.to_string_lossy().into_owned(),
+        env.dest.to_string_lossy().into_owned(),
+        env.engine.paths.state_dir.to_string_lossy().into_owned(),
+    ]
+    .into_iter()
+    .chain(photo.map(|p| p.to_string_lossy().into_owned()))
+    {
+        let e = env.engine.openable(&bad).unwrap_err();
+        assert_eq!(e.code, ErrorCode::Unknown, "{bad}");
+        assert!(
+            e.message.contains("only opens its own"),
+            "{bad}: {}",
+            e.message
+        );
+    }
+    assert_eq!(
+        env.engine
+            .openable(&root.join("nope.txt").to_string_lossy())
+            .unwrap_err()
+            .code,
+        ErrorCode::PartMissing
+    );
 }

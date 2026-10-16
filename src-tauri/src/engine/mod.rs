@@ -13,6 +13,7 @@ pub mod diagnostics;
 pub mod inputs;
 pub mod jobs;
 pub mod license;
+pub mod open;
 pub mod settings;
 
 use std::collections::HashMap;
@@ -61,6 +62,8 @@ pub struct Engine {
     pub(crate) media: Option<Arc<mr_job::MediaCompositor>>,
     /// What jobs and plans use: `media`, or the pass-through.
     pub(crate) compositor: Arc<dyn mr_job::Compositor>,
+    /// Files written this session for the user to open (`open.rs`).
+    pub(crate) issued: Mutex<Vec<PathBuf>>,
 }
 
 /// Q-04: Microsoft's software H.264 encoder (`h264_mf`, no GPU first) with
@@ -130,6 +133,7 @@ impl Engine {
             license,
             media,
             compositor,
+            issued: Mutex::new(Vec::new()),
         })
     }
 

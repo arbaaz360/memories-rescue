@@ -72,15 +72,6 @@ fn paths(app: &tauri::AppHandle) -> Paths {
     }
 }
 
-/// Panics go to the log (redacted like every line) before the default hook.
-fn log_panics() {
-    let default = std::panic::take_hook();
-    std::panic::set_hook(Box::new(move |info| {
-        tracing::error!("panic: {info}");
-        default(info);
-    }));
-}
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -93,7 +84,7 @@ pub fn run() {
         .setup(|app| {
             let handle = app.handle().clone();
             if logging::init(&log_dir(&handle)) {
-                log_panics();
+                logging::install_panic_hook();
             }
             tracing::info!(
                 "Memories Rescue {} starting on {}",
