@@ -128,6 +128,13 @@ pub trait Compositor: Send + Sync {
     fn name(&self) -> &str {
         "compositor"
     }
+
+    /// Whether this compositor can burn overlays in at all. Only the
+    /// pass-through says no; the plan uses it to decide whether to warn that
+    /// overlays will be saved beside the files (`COMPOSITE_PENDING`).
+    fn can_burn_in(&self) -> bool {
+        true
+    }
 }
 
 /// The default: never composites.
@@ -141,5 +148,9 @@ impl Compositor for PassThrough {
 
     fn name(&self) -> &str {
         "pass-through"
+    }
+
+    fn can_burn_in(&self) -> bool {
+        false
     }
 }

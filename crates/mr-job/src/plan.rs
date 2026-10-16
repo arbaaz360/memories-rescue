@@ -289,6 +289,15 @@ pub struct Plan {
 }
 
 impl Plan {
+    /// Fit the warnings to the compositor the job will use: with one that
+    /// can burn in, overlays are not left pending, so `COMPOSITE_PENDING`
+    /// is dropped.
+    pub fn adjust_for_compositor(&mut self, compositor: &dyn crate::compositor::Compositor) {
+        if compositor.can_burn_in() {
+            self.warnings.retain(|w| w.code != COMPOSITE_PENDING);
+        }
+    }
+
     /// The first `n` items in chronological order, with planned output paths.
     pub fn sample(&self, n: usize) -> Vec<&PlannedItem> {
         let mut v: Vec<&PlannedItem> = self.items.iter().collect();
@@ -310,8 +319,25 @@ pub(crate) struct Naming {
     pub own_files: HashSet<String>,
 }
 
+/// The warning that overlays will be saved beside the files instead of
+/// burned in (pass-through compositor).
+pub const COMPOSITE_PENDING: &str = "COMPOSITE_PENDING";
+
+/// [`plan`] for a job that will use `compositor`: the same analysis, with
+/// warnings that match what that compositor does.
+pub fn plan_for(
+    inputs: &[PathBuf],
+    options: &Options,
+    compositor: &dyn crate::compositor::Compositor,
+) -> Result<Plan> {
+    let mut p = plan(inputs, options)?;
+    p.adjust_for_compositor(compositor);
+    Ok(p)
+}
+
 /// The dry run (FR-29): analyse the inputs and report the planned output
-/// without writing anything. Not limited by the free tier.
+/// without writing anything. Not limited by the free tier. Warnings assume
+/// the pass-through compositor; use [`plan_for`] when a real one is set.
 pub fn plan(inputs: &[PathBuf], options: &Options) -> Result<Plan> {
     let naming = Naming {
         keep: HashMap::new(),
@@ -609,7 +635,7 @@ pub(crate) fn plan_with(
     warnings.extend(hevc_notice);
     if t.with_overlay > 0 && options.overlay_mode.burns_in() {
         warnings.push(Warning {
-            code: "COMPOSITE_PENDING".into(),
+            code: COMPOSITE_PENDING.into(),
             detail: format!(
                 "{} items have overlays. Until the overlay component is installed they are saved next to the file instead of burned in.",
                 t.with_overlay
