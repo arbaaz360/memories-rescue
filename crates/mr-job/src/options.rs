@@ -73,8 +73,9 @@ pub struct TestHooks {
     /// Extra milliseconds spent per item, to make interruption tests meaningful.
     pub delay_ms: u64,
     /// Pretend the destination volume has this many free bytes (FR-28). While
-    /// items run it shrinks by the bytes the run has processed, so a forced
-    /// run reaches the 2 GB floor as a filling drive would (H-03).
+    /// items run it shrinks by what the FR-28 estimate counts for each item
+    /// finished, so a forced run reaches the 2 GB floor as a filling drive
+    /// would (H-03).
     pub fake_free_bytes: Option<u64>,
     /// Re-check free space every N items instead of 500 (FR-28 AC2).
     pub recheck_every: Option<usize>,

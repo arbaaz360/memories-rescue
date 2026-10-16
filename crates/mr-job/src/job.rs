@@ -1176,6 +1176,9 @@ impl Job {
         let mut processed = 0usize;
         let mut since_check = 0usize;
         let mut bytes_done = 0u64;
+        // What the FR-28 estimate counts for the items finished this run;
+        // the fake free-space hook shrinks by it (H-03).
+        let mut estimated_written = 0u64;
         let mut warnings = 0usize;
         let mut blocked: Option<(String, String)> = None;
         let mut offline_until: Option<Instant> = None;
@@ -1355,6 +1358,10 @@ impl Job {
                             processed += 1;
                             since_check += 1;
                             bytes_done += w.bytes;
+                            if hooks_on {
+                                let (f, o, _) = crate::plan::item_output_bytes(&row.plan, &options);
+                                estimated_written += f + o;
+                            }
                             eta.record(is_video, secs);
                             ItemOutcome {
                                 id: key.clone(),
@@ -1429,7 +1436,7 @@ impl Job {
                         let free = hooks
                             .fake_free_bytes
                             .filter(|_| hooks_on)
-                            .map(|f| f.saturating_sub(bytes_done))
+                            .map(|f| f.saturating_sub(estimated_written))
                             .or_else(|| available_space(&self.root));
                         if let Some(free) = free
                             && free < MIN_FREE_WHILE_RUNNING

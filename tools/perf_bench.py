@@ -287,7 +287,8 @@ def do_h02(work: Path, fx: Path, env: dict, ffmpeg: str | None, h01_wall: float,
     for k in range(kills + 1):
         before = len(bench_lines(bench))
         cmd = h01_cmd(fx, base) + ["--quiet"] if job is None else [cli(True), "resume", job, "--state-dir", str(base / "state"), "--quiet"]
-        kill_at = rng.uniform(0.05, 0.11) * h01_wall + (3.0 if k else 0.0) if k < kills else None
+        # Spread the kills over roughly the first half of the job, so all of them land.
+        kill_at = rng.uniform(0.02, 0.07) * h01_wall + (3.0 if k else 8.0) if k < kills else None
         m = run_measured(cmd, e, kill_after=kill_at)
         job = job or job_id_of(m.stdout)
         if job is None:
