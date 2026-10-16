@@ -33,6 +33,9 @@ Engine v1, measured on 2026-10-16 on one Windows machine (described under
    on this NVMe drive with Defender on. The SRS figure of 287 to 373 photos/s
    (Q-02) measured the metadata writer alone, not the item pipeline. An
    8th-gen i5 on a SATA SSD runs 3 workers by default, so it would likely miss.
+   On macOS, Rust's `File::sync_all` asks the drive to flush its own cache
+   (`F_FULLFSYNC`), which is usually slower again, so the M1 figure needs a
+   run of its own.
 3. **H-02 without sleep/wake and without a USB unplug.** Neither can be done
    from this session. Drive removal is covered by the test suite through the
    destination-offline hook (NFR-REL-06).
