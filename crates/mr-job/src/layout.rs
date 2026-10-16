@@ -29,6 +29,45 @@ pub fn output_root(dest: &Path) -> PathBuf {
     absolute(dest).join(ROOT_DIR)
 }
 
+/// `true` when `p` is a symbolic link, a junction or any other reparse
+/// point (or cannot be inspected). The engine never writes through one in
+/// its own folders: a junction at `.memories-rescue` would send temp
+/// cleanup into another folder.
+pub fn is_redirected(p: &Path) -> bool {
+    match std::fs::symlink_metadata(p) {
+        Ok(m) => {
+            if m.file_type().is_symlink() {
+                return true;
+            }
+            #[cfg(windows)]
+            {
+                use std::os::windows::fs::MetadataExt;
+                const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x400;
+                if m.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0 {
+                    return true;
+                }
+            }
+            false
+        }
+        Err(e) => e.kind() != std::io::ErrorKind::NotFound,
+    }
+}
+
+/// Hardening 8: refuse an output root, state folder or temp folder that is
+/// a link to somewhere else. The message is the plain text for the user.
+pub fn check_own_folders(root: &Path) -> Result<(), String> {
+    let state = root.join(STATE_DIR);
+    for p in [root.to_path_buf(), state.clone(), state.join(TMP_DIR)] {
+        if is_redirected(&p) {
+            return Err(
+                "The output folder contains a link to another place (a junction or a symbolic link), and Memories Rescue does not write through links. Choose another folder."
+                    .into(),
+            );
+        }
+    }
+    Ok(())
+}
+
 pub fn absolute(p: &Path) -> PathBuf {
     std::path::absolute(p).unwrap_or_else(|_| p.to_path_buf())
 }

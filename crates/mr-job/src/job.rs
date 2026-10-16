@@ -128,7 +128,37 @@ struct JobFile {
 pub const POISON_STARTS: u32 = 3;
 
 fn job_dir(state_dir: &Path, id: &str) -> PathBuf {
+    debug_assert!(valid_job_id(id).as_deref() == Some(id), "unchecked job id");
     state_dir.join(JOBS_DIR).join(id)
+}
+
+/// A job id as this engine writes it, a lower-case hyphenated UUID, or
+/// `None`. Ids name folders in the state directory, so anything else (an
+/// absolute path, `..`, a UNC path, which would also open an SMB
+/// connection) is refused before it is joined to a path.
+pub fn valid_job_id(id: &str) -> Option<String> {
+    let u = uuid::Uuid::try_parse(id.trim()).ok()?;
+    let canonical = u.hyphenated().to_string();
+    (canonical == id.trim().to_ascii_lowercase()).then_some(canonical)
+}
+
+/// The id the output folder's marker names, when it is a well-formed id.
+fn read_marker(root: &Path) -> Option<String> {
+    let path = marker_path(root);
+    if layout::is_redirected(&path) || fs::metadata(&path).ok()?.len() > 128 {
+        return None;
+    }
+    valid_job_id(std::str::from_utf8(&fs::read(&path).ok()?).ok()?)
+}
+
+/// The output folder a job in the state directory writes to, as a root key.
+fn job_root_key(state_dir: &Path, id: &str) -> Option<String> {
+    let dir = job_dir(state_dir, id);
+    if let Some((row, _)) = crate::state::peek(&dir.join(DB_FILE)) {
+        return Some(layout::root_key(Path::new(&row.output_path)));
+    }
+    let jf: JobFile = serde_json::from_str(&fs::read_to_string(dir.join(JOB_FILE)).ok()?).ok()?;
+    Some(layout::root_key(&jf.output_root))
 }
 
 fn marker_path(root: &Path) -> PathBuf {
@@ -142,7 +172,10 @@ pub fn list_jobs(state_dir: &Path) -> Vec<JobSummary> {
         return out;
     };
     for e in rd.flatten() {
-        let id = e.file_name().to_string_lossy().into_owned();
+        let name = e.file_name().to_string_lossy().into_owned();
+        let Some(id) = valid_job_id(&name).filter(|id| *id == name) else {
+            continue;
+        };
         if let Some((row, counts)) = crate::state::peek(&e.path().join(DB_FILE)) {
             out.push(JobSummary {
                 id,
@@ -175,13 +208,15 @@ pub fn list_jobs(state_dir: &Path) -> Vec<JobSummary> {
 /// the state directory's records).
 pub fn find_job_for_output(state_dir: &Path, dest: &Path) -> Option<String> {
     let root = layout::output_root(dest);
-    if let Ok(id) = fs::read_to_string(marker_path(&root)) {
-        let id = id.trim().to_string();
-        if job_dir(state_dir, &id).exists() {
-            return Some(id);
-        }
-    }
     let key = layout::root_key(&root);
+    // The marker is in the user's folder, so it is only a hint: it counts
+    // when it names a job of this state directory that writes to this very
+    // folder (a copied library carries a marker of another folder's job).
+    if let Some(id) = read_marker(&root)
+        && job_root_key(state_dir, &id).as_deref() == Some(key.as_str())
+    {
+        return Some(id);
+    }
     list_jobs(state_dir)
         .into_iter()
         .find(|j| layout::root_key(Path::new(&j.output_root)) == key)
@@ -229,14 +264,27 @@ impl Job {
         options.dest = layout::absolute(&options.dest);
         let root = layout::output_root(&options.dest);
         let mut adopt: Option<String> = None;
+        if let Err(why) = layout::check_own_folders(&root) {
+            return Err(JobError::io(
+                &root,
+                std::io::Error::new(std::io::ErrorKind::PermissionDenied, why),
+            ));
+        }
         if let Some(existing) = find_job_for_output(state_dir, &options.dest) {
             if job_dir(state_dir, &existing).join(DB_FILE).exists() {
                 return Err(JobError::OutputInUse { job_id: existing });
             }
             adopt = Some(existing);
-        } else if let Ok(id) = fs::read_to_string(marker_path(&root)) {
-            // Output from a job whose state is gone: adopt its files.
-            adopt = Some(id.trim().to_string());
+        } else if let Some(id) = read_marker(&root) {
+            // Output from a job whose state is gone: adopt the files that
+            // verify. Under the marker's id only if this state directory has
+            // no job of that id; one that does belongs to another folder (a
+            // copied library), so the adopted job gets a new id.
+            adopt = Some(if job_dir(state_dir, &id).exists() {
+                uuid::Uuid::new_v4().to_string()
+            } else {
+                id
+            });
         }
         let naming = Naming {
             keep: HashMap::new(),
@@ -302,6 +350,10 @@ impl Job {
     /// Open a job. A damaged state file is rebuilt from the output folder
     /// (`JOB_STATE_CORRUPT`); see [`Job::rebuilt`].
     pub fn open(state_dir: &Path, id: &str) -> Result<Job> {
+        let Some(id) = valid_job_id(id) else {
+            return Err(JobError::NoSuchJob(id.to_string()));
+        };
+        let id = id.as_str();
         let dir = job_dir(state_dir, id);
         if !dir.is_dir() {
             return Err(JobError::NoSuchJob(id.to_string()));
@@ -881,6 +933,9 @@ impl Job {
 
     /// Remove temp directories (NFR-PRV-09). Only while holding the run lock.
     fn clean_tmp(&self) {
+        if layout::check_own_folders(&self.root).is_err() {
+            return;
+        }
         let tmp = self.root.join(layout::STATE_DIR).join(layout::TMP_DIR);
         let _ = fs::remove_dir_all(layout::long_path(&tmp));
     }
@@ -968,6 +1023,12 @@ impl Job {
     /// call at start-up. Does nothing while the job is running elsewhere.
     pub fn clean_temp(&self) -> Result<()> {
         let _lock = self.run_lock()?;
+        if let Err(why) = layout::check_own_folders(&self.root) {
+            return Err(JobError::io(
+                &self.root,
+                std::io::Error::new(std::io::ErrorKind::PermissionDenied, why),
+            ));
+        }
         self.clean_tmp();
         Ok(())
     }
@@ -1023,6 +1084,14 @@ impl Job {
         control: &Control,
         started: Instant,
     ) -> Result<Outcome> {
+        if let Err(detail) = layout::check_own_folders(&self.root) {
+            sink.issue("PERMISSION_DENIED", &detail);
+            return Ok(Outcome::Blocked {
+                code: "PERMISSION_DENIED".into(),
+                detail,
+                stats: self.stats(0, started)?,
+            });
+        }
         // Temp left by a crash is removed at the next start (NFR-PRV-09).
         self.clean_tmp();
         if let Some(why) = &self.rebuilt {

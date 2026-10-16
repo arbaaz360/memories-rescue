@@ -538,6 +538,11 @@ impl<'a> Worker<'a> {
         if !s.dest.exists() {
             return Err(job("DEST_UNAVAILABLE", "the output drive is not available"));
         }
+        // Never clean or write through a link (hardening 8): checked per item,
+        // because the folder can be swapped while a job runs.
+        if let Err(why) = layout::check_own_folders(&self.root) {
+            return Err(job("PERMISSION_DENIED", why));
+        }
         let tmp = self.tmp_dir(&p.key);
         let _ = fs::remove_dir_all(&tmp);
         fs::create_dir_all(&tmp).map_err(|e| dest_error(e, s, "temp folder"))?;
@@ -759,6 +764,9 @@ impl<'a> Worker<'a> {
         let s = self.settings;
         if !s.dest.exists() {
             return Err(job("DEST_UNAVAILABLE", "the output drive is not available"));
+        }
+        if let Err(why) = layout::check_own_folders(&self.root) {
+            return Err(job("PERMISSION_DENIED", why));
         }
         let tmp = self.tmp_dir(&format!("group-{}", g.id));
         let _ = fs::remove_dir_all(&tmp);
