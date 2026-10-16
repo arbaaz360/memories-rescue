@@ -8,6 +8,11 @@
 //! * `plan <inputs...> --dest D`: the dry run (FR-29).
 //! * `run <inputs...> --dest D`: create a job and process it.
 //! * `resume <job>`, `retry <job>`, `add-part <job> <path>`, `report <job>`, `jobs`.
+//! * `bench index <inputs...>`: FR-06 / H-05 timings and peak memory, as JSON.
+//!
+//! With `MR_BENCH_JSON=<file>` set, every command appends one JSON line to
+//! that file when it ends: wall time, time to the first finished item, peak
+//! resident memory and the run outcome (`docs/perf/README.md`).
 //!
 //! Job state lives in `--state-dir` (default: the per-user app data folder).
 
@@ -139,6 +144,30 @@ enum Command {
         #[arg(long)]
         json: bool,
     },
+    /// Benchmarks (docs/perf/README.md).
+    Bench {
+        #[command(subcommand)]
+        what: Bench,
+    },
+}
+
+#[derive(Subcommand)]
+enum Bench {
+    /// Discovery, merged index, JSON parse and matching over the inputs,
+    /// timed, with peak memory (FR-06 AC1, H-05). Prints one JSON object.
+    Index {
+        #[arg(required = true)]
+        inputs: Vec<PathBuf>,
+    },
+    /// Check a job's output after a soak run (H-01, H-02): every finished
+    /// item's file hashes to its record and reads back its metadata, the
+    /// output folder holds exactly the recorded files, and from the journal,
+    /// no finished item was started again. Prints one JSON object.
+    Verify {
+        job: String,
+        #[arg(long)]
+        state_dir: Option<PathBuf>,
+    },
 }
 
 struct Run<'a> {
@@ -161,9 +190,76 @@ fn run_export<'a>(d: &'a Discovery, export: &'a Export, opts: &MatchOptions) -> 
 }
 
 fn main() -> ExitCode {
+    let started = jobs::process_start();
     let cli = Cli::parse();
+    let name = command_name(&cli.command);
+    let code = dispatch(cli);
+    jobs::bench_line(name, started, code);
+    code
+}
+
+fn command_name(c: &Command) -> &'static str {
+    match c {
+        Command::Analyze { .. } => "analyze",
+        Command::OrderCheck { .. } => "order-check",
+        Command::Plan { .. } => "plan",
+        Command::Run { .. } => "run",
+        Command::Resume { .. } => "resume",
+        Command::Retry { .. } => "retry",
+        Command::AddPart { .. } => "add-part",
+        Command::Report { .. } => "report",
+        Command::Jobs { .. } => "jobs",
+        Command::Bench { .. } => "bench",
+    }
+}
+
+fn bench_index(inputs: &[PathBuf]) -> ExitCode {
+    use std::time::Instant;
+    let t = Instant::now();
+    let d = discover(inputs);
+    let discover_s = t.elapsed().as_secs_f64();
+    let Some(export) = d.exports.first() else {
+        eprintln!("no export found");
+        return ExitCode::FAILURE;
+    };
+    let t1 = Instant::now();
+    let index = build_index(&d, export);
+    let index_s = t1.elapsed().as_secs_f64();
+    let t2 = Instant::now();
+    let json = load_json(&d, &index);
+    let json_s = t2.elapsed().as_secs_f64();
+    let t3 = Instant::now();
+    let summary = summarize(&d, export, &index, json.as_ref());
+    let entries = json.as_ref().map(|j| j.entries.as_slice()).unwrap_or(&[]);
+    let report = match_export(entries, &index, &MatchOptions::default());
+    let match_s = t3.elapsed().as_secs_f64();
+    let v = json!({
+        "parts": summary.parts,
+        "json_entries": summary.json_entries,
+        "main_files": summary.main_files,
+        "overlays": summary.overlays,
+        "matched": report.items.len(),
+        "profile": summary.profile.as_str(),
+        "discover_s": discover_s,
+        "index_s": index_s,
+        "json_s": json_s,
+        "match_s": match_s,
+        "total_s": t.elapsed().as_secs_f64(),
+        "peak_rss_bytes": mr_job::platform::peak_rss_bytes(),
+    });
+    println!("{}", serde_json::to_string_pretty(&v).expect("json"));
+    ExitCode::SUCCESS
+}
+
+fn dispatch(cli: Cli) -> ExitCode {
     let state = |dir: &Option<PathBuf>| dir.clone().unwrap_or_else(jobs::default_state_dir);
     match cli.command {
+        Command::Bench {
+            what: Bench::Index { inputs },
+        } => bench_index(&inputs),
+        Command::Bench {
+            what: Bench::Verify { job, state_dir },
+        } => jobs::bench_verify(&state(&state_dir), &job),
         Command::Plan {
             inputs,
             options,

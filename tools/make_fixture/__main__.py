@@ -16,14 +16,18 @@ from pathlib import Path
 
 from common import Context, detect_ffmpeg
 from fixtures import BUILDERS
+from fixtures_scale import SCALE_BUILDERS
+
+# Scale fixtures are built only on request (--fixture), never by --all.
+ALL_BUILDERS = {**BUILDERS, **SCALE_BUILDERS}
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="make_fixture", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--fixture", action="append", choices=sorted(BUILDERS), help="fixture to build (repeatable)")
-    parser.add_argument("--all", action="store_true", help="build every fixture")
+    parser.add_argument("--fixture", action="append", choices=sorted(ALL_BUILDERS), help="fixture to build (repeatable); the scale-* and perf-* ones only this way")
+    parser.add_argument("--all", action="store_true", help="build every test fixture (not the scale ones)")
     parser.add_argument("--out", type=Path, default=REPO_ROOT / "fixtures", help="output directory (default: <repo>/fixtures)")
     parser.add_argument("--seed", type=int, default=1, help="random seed (default 1)")
     parser.add_argument(
@@ -56,7 +60,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"output: {args.out}  seed: {args.seed}  zip-order: {args.zip_order}")
 
     for name in names:
-        BUILDERS[name](ctx)
+        ALL_BUILDERS[name](ctx)
     return 0
 
 

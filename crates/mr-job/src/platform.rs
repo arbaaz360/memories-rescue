@@ -62,6 +62,45 @@ fn set_birthtime(path: &Path, t: SystemTime) -> io::Result<()> {
     }
 }
 
+/// Peak resident memory of this process so far, in bytes (NFR-PERF-02):
+/// the peak working set on Windows, `ru_maxrss` on macOS. For logs and
+/// benchmarks; `None` where unknown.
+pub fn peak_rss_bytes() -> Option<u64> {
+    #[cfg(windows)]
+    {
+        use windows_sys::Win32::System::ProcessStatus::{
+            GetProcessMemoryInfo, PROCESS_MEMORY_COUNTERS,
+        };
+        use windows_sys::Win32::System::Threading::GetCurrentProcess;
+        // SAFETY: a zeroed counters struct of the size passed; the pseudo
+        // handle of the current process needs no closing.
+        unsafe {
+            let mut c: PROCESS_MEMORY_COUNTERS = std::mem::zeroed();
+            let size = std::mem::size_of::<PROCESS_MEMORY_COUNTERS>() as u32;
+            c.cb = size;
+            if GetProcessMemoryInfo(GetCurrentProcess(), &mut c, size) != 0 {
+                return Some(c.PeakWorkingSetSize as u64);
+            }
+        }
+        None
+    }
+    #[cfg(target_os = "macos")]
+    {
+        // SAFETY: getrusage fills the zeroed struct it is given.
+        unsafe {
+            let mut u: libc::rusage = std::mem::zeroed();
+            if libc::getrusage(libc::RUSAGE_SELF, &mut u) == 0 {
+                return Some(u.ru_maxrss as u64); // bytes on macOS
+            }
+        }
+        None
+    }
+    #[cfg(not(any(windows, target_os = "macos")))]
+    {
+        None
+    }
+}
+
 /// Flush a directory entry to disk after a rename (no-op on Windows, where
 /// directories cannot be opened for sync).
 pub fn sync_dir(dir: &Path) -> io::Result<()> {

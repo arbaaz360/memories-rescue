@@ -162,6 +162,43 @@ fixture-specific item fields, and document them above. Still to come: F-16
 three day groups whose locations are kilometres apart, and F-11's cases are
 exact matches).
 
+### Scale fixtures (performance and soak runs)
+
+Built only on request, never by `--all`, into a scratch folder with room
+(about 3.5 GB for all five):
+
+```bash
+python tools/make_fixture --fixture scale-h01 --out <scratch>/fx
+```
+
+| Fixture | For | Contents |
+|---|---|---|
+| `scale-index` | FR-06 AC1 | 50,000 entries over 5 parts, 30% overlays; placeholder media bytes (indexing never reads them) |
+| `scale-h01` | H-01, H-02, H-03, NFR-PERF-06 | 50,000 items over 12 parts: 40,000 photos, 10,000 videos, 30% overlays; small real media (144x256 JPEG, 2 s 144x256 H.264 clips, faststart and moov-last) |
+| `scale-h05` | H-05 | 200,000 JSON entries, no media |
+| `perf-photos` | NFR-PERF-03 | 1,000 phone-sized photos (1080x1920 JPEG, about 1 MB) |
+| `perf-videos` | NFR-PERF-03 | 200 phone-sized clips (10 s 1080x1920 H.264, about 4.6 MB, moov first and last alternating) |
+
+The scale exports are `2026b` with ZIP order following the newest-first
+JSON; a day's items share a place and either all or none have GPS, so every
+item gets an exact time. The perf exports are `2026a`. A few media blobs are
+reused across items. `truth.json` carries counts only. Defined in
+`fixtures_scale.py`.
+
+## perf_bench.py: the performance and soak runs
+
+`python tools/perf_bench.py --work <scratch> [--only fr06,h05,perf03,h01,h02,h03] [--ffmpeg <sidecar ffmpeg>]`
+builds the scale fixtures into `<work>/fx` if missing and runs FR-06 AC1,
+H-05, NFR-PERF-03, H-01, H-02 (10 kills; NFR-PERF-06) and H-03 (debug build,
+the free-space hook) with the release and debug `mr-cli`. Memory is the
+largest sum of resident memory over the `mr-cli` process tree (the engine
+and the ffmpeg it starts), polled every 100 ms with psutil; the engine also
+reports its own peak through `MR_BENCH_JSON`. Outputs are checked with
+`mr-cli bench verify` (hashes, metadata read-back, exactly the recorded
+files, no finished item started again) and decoded (Pillow, ffmpeg). Results
+go to `<work>/results.json`; `docs/perf/README.md` holds the latest numbers.
+Needs `pip install psutil pillow`. Delete `<work>` afterwards.
+
 ## sidecars.py: ffmpeg and exiftool binaries
 
 `python tools/sidecars.py fetch` downloads the pinned archives (URL, size and
