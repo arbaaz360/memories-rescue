@@ -82,6 +82,8 @@ pub struct TestHooks {
     pub dest_offline_secs: u64,
     /// Treat this computer as unable to play HEVC (FR-51 notice tests).
     pub force_hevc_unplayable: bool,
+    /// Extra milliseconds per file packed into a ZIP (FR-31 interruption tests).
+    pub zip_delay_ms: u64,
 }
 
 impl TestHooks {
@@ -104,6 +106,11 @@ impl TestHooks {
     pub fn delay(&self) -> Option<std::time::Duration> {
         (self.enabled() && self.delay_ms > 0)
             .then(|| std::time::Duration::from_millis(self.delay_ms))
+    }
+
+    pub fn zip_delay(&self) -> Option<std::time::Duration> {
+        (self.enabled() && self.zip_delay_ms > 0)
+            .then(|| std::time::Duration::from_millis(self.zip_delay_ms))
     }
 }
 
@@ -132,8 +139,14 @@ pub struct Options {
     /// "Maximise Windows compatibility": H.264 output when compositing (FR-51).
     pub windows_compat: bool,
     pub clip_rejoin: ClipRejoin,
-    /// ZIP output (FR-31). Placeholder: recorded, not implemented in M2.
+    /// ZIP output (FR-31): once every item is finished, pack the output into
+    /// ZIP64 archives in the destination folder (`crate::zipout`). The
+    /// folder tree is kept.
     pub zip_output: bool,
+    /// Largest size of one archive; `None` for a single archive. The FAT32
+    /// preset is [`ZIP_VOLUME_FAT32`].
+    #[serde(default)]
+    pub zip_volume_bytes: Option<u64>,
     /// Skip the disk-space precheck (FR-28) when the user chose to continue.
     pub ignore_space_check: bool,
     #[serde(default)]
@@ -154,6 +167,7 @@ impl Options {
             windows_compat: false,
             clip_rejoin: ClipRejoin::default(),
             zip_output: false,
+            zip_volume_bytes: None,
             ignore_space_check: false,
             test_hooks: TestHooks::default(),
         }
@@ -166,6 +180,10 @@ impl Options {
 }
 
 pub const DEFAULT_TEMPLATE: &str = "{date}_{time}_{shortid}.{ext}";
+
+/// The FAT32 volume preset for ZIP output (FR-31): 4 GiB minus one byte,
+/// the largest file FAT32 can hold.
+pub const ZIP_VOLUME_FAT32: u64 = u32::MAX as u64;
 
 /// Items processed without a licence (FR-44).
 pub const FREE_TIER_ITEMS: usize = 100;

@@ -10,6 +10,8 @@
 //!   reporting to a [`ProgressSink`] and obeying a [`Control`] (FR-32, FR-34).
 //! * [`Job::retry_failed`], [`Job::add_part`], [`Job::unlock`],
 //!   [`Job::report`], [`list_jobs`].
+//! * ZIP output (FR-31, [`zipout`]): after the last item, the tree is packed
+//!   into verified ZIP64 archives; [`Job::zip_volumes`].
 //! * [`Compositor`]: the seam where overlay burn-in, the Windows
 //!   compatibility transcode and clip rejoin plug in; [`MediaCompositor`] is
 //!   the real one (`mr-composite`).
@@ -30,6 +32,7 @@ pub mod platform;
 pub mod process;
 pub mod space;
 pub mod state;
+pub mod zipout;
 
 pub use compositor::{
     CompositeError, CompositeOutcome, CompositeRequest, CompositeWarning, Compositor, MediaKind,
@@ -40,9 +43,10 @@ pub use error::{JobError, Result};
 pub use fingerprint::InputChange;
 pub use job::{Job, JobSummary, Outcome, Replanned, RunStats, find_job_for_output, list_jobs};
 pub use media::MediaCompositor;
-pub use options::{ClipRejoin, FREE_TIER_ITEMS, Options, OverlayMode, TestHooks};
+pub use options::{ClipRejoin, FREE_TIER_ITEMS, Options, OverlayMode, TestHooks, ZIP_VOLUME_FAT32};
 pub use plan::{
     ExtraKind, ExtraRow, Plan, PlannedItem, Precision, SourceRef, Warning, plan, plan_for,
 };
 pub use space::{SpaceAction, SpaceEstimate, SpaceOption};
 pub use state::{ItemRow, JournalEvent};
+pub use zipout::ZipVolume;

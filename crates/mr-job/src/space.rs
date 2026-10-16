@@ -15,6 +15,9 @@ pub const MIN_FREE_WHILE_RUNNING: u64 = 2 * 1024 * 1024 * 1024;
 pub const SAFETY_FACTOR: f64 = 1.1;
 /// Metadata a writer adds to one file, generously.
 pub const METADATA_OVERHEAD: u64 = 4 * 1024;
+/// ZIP header bytes per packed file, generously (a long name twice plus
+/// `zipout::ENTRY_OVERHEAD`).
+pub const ZIP_ENTRY_ALLOWANCE: u64 = 512;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -41,6 +44,13 @@ pub struct SpaceInputs {
     pub largest_item: u64,
     pub workers: usize,
     pub zip_output: bool,
+    /// Files the ZIP will hold from this run (for the header allowance).
+    #[serde(default)]
+    pub zip_entries: u64,
+    /// Outputs written by earlier runs that the ZIP must hold too (FR-31
+    /// packs the whole job, not only this run's items).
+    #[serde(default)]
+    pub zip_carry_bytes: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -67,7 +77,10 @@ impl SpaceEstimate {
             .saturating_mul(inputs.workers.max(1) as u64)
             .saturating_mul(2);
         let zip = if inputs.zip_output {
-            inputs.final_bytes + inputs.originals_bytes
+            inputs.final_bytes
+                + inputs.originals_bytes
+                + inputs.zip_carry_bytes
+                + inputs.zip_entries * ZIP_ENTRY_ALLOWANCE
         } else {
             0
         };
@@ -143,6 +156,29 @@ mod tests {
     use super::*;
 
     #[test]
+    fn zip_counts_earlier_outputs_and_headers() {
+        let inputs = SpaceInputs {
+            final_bytes: 10_000,
+            originals_bytes: 2_000,
+            largest_item: 500,
+            workers: 1,
+            zip_output: true,
+            zip_entries: 3,
+            zip_carry_bytes: 50_000,
+        };
+        let e = SpaceEstimate::compute(&inputs, None);
+        assert_eq!(e.zip_bytes, 12_000 + 50_000 + 3 * ZIP_ENTRY_ALLOWANCE);
+        let off = SpaceEstimate::compute(
+            &SpaceInputs {
+                zip_output: false,
+                ..inputs
+            },
+            None,
+        );
+        assert_eq!(off.zip_bytes, 0, "no ZIP, no carry");
+    }
+
+    #[test]
     fn formula_and_shortfall_options() {
         let inputs = SpaceInputs {
             final_bytes: 10_000,
@@ -150,6 +186,7 @@ mod tests {
             largest_item: 500,
             workers: 4,
             zip_output: true,
+            ..SpaceInputs::default()
         };
         let enough = SpaceEstimate::compute(&inputs, Some(1_000_000));
         assert_eq!(enough.peak_temp_bytes, 4_000);

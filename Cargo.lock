@@ -2685,6 +2685,7 @@ dependencies = [
  "mr-core",
  "mr-job",
  "serde_json",
+ "zip",
 ]
 
 [[package]]
@@ -2721,6 +2722,7 @@ name = "mr-job"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "crc32fast",
  "crossbeam-channel",
  "filetime_creation",
  "fs4",

@@ -70,9 +70,14 @@ pub struct OptionArgs {
     /// Clip groups not to join (FR-27 AC3), by group id as `plan` lists them.
     #[arg(long, value_delimiter = ',')]
     pub clip_skip: Vec<String>,
-    /// Package the output as ZIP (recorded; not implemented yet).
+    /// Also pack the output into ZIP64 archives once every item is
+    /// finished (FR-31); the folder tree is kept.
     #[arg(long)]
     pub zip_output: bool,
+    /// Largest size of one ZIP archive: `fat32` (4 GiB minus one byte), or
+    /// a size such as `700M`, `2G` or a byte count. Default: one archive.
+    #[arg(long, value_name = "SIZE")]
+    pub zip_volume: Option<String>,
     /// Start even when the disk-space precheck fails.
     #[arg(long)]
     pub ignore_space_check: bool,
@@ -91,6 +96,8 @@ pub struct TestArgs {
     pub test_fake_free_bytes: Option<u64>,
     #[arg(long, hide = true)]
     pub test_recheck_every: Option<usize>,
+    #[arg(long, hide = true, default_value_t = 0)]
+    pub test_zip_delay_ms: u64,
 }
 
 impl OptionArgs {
@@ -109,14 +116,39 @@ impl OptionArgs {
             year_range: parse_years(&self.clip_years)?,
             skip_groups: self.clip_skip.clone(),
         };
-        o.zip_output = self.zip_output;
+        o.zip_output = self.zip_output || self.zip_volume.is_some();
+        o.zip_volume_bytes = self.zip_volume.as_deref().map(parse_size).transpose()?;
         o.ignore_space_check = self.ignore_space_check;
         o.test_hooks.fail_ids = self.test.test_fail_ids.clone();
         o.test_hooks.delay_ms = self.test.test_delay_ms;
         o.test_hooks.fake_free_bytes = self.test.test_fake_free_bytes;
         o.test_hooks.recheck_every = self.test.test_recheck_every;
+        o.test_hooks.zip_delay_ms = self.test.test_zip_delay_ms;
         Ok(o)
     }
+}
+
+/// `fat32`, `700M`, `2G`, `1.5G` or a byte count (K, M, G are powers of 1024).
+pub fn parse_size(s: &str) -> Result<u64, String> {
+    let t = s.trim();
+    if t.eq_ignore_ascii_case("fat32") {
+        return Ok(mr_job::ZIP_VOLUME_FAT32);
+    }
+    let (num, mul) = match t.chars().last().map(|c| c.to_ascii_uppercase()) {
+        Some('K') => (&t[..t.len() - 1], 1u64 << 10),
+        Some('M') => (&t[..t.len() - 1], 1 << 20),
+        Some('G') => (&t[..t.len() - 1], 1 << 30),
+        _ => (t, 1),
+    };
+    let v: f64 = num
+        .trim()
+        .parse()
+        .map_err(|_| format!("--zip-volume: {s:?} is not a size (try fat32, 700M or 2G)"))?;
+    let bytes = (v * mul as f64) as u64;
+    if bytes < 64 << 10 {
+        return Err(format!("--zip-volume: {s:?} is smaller than 64K"));
+    }
+    Ok(bytes)
 }
 
 fn parse_years(s: &str) -> Result<Option<(i32, i32)>, String> {
@@ -240,6 +272,7 @@ fn print_outcome(job: &Job, o: &Outcome, json: bool) {
             "detail": o,
             "counts": job.counts().unwrap_or_default(),
             "output_root": job.output_root(),
+            "zip_volumes": job.zip_volumes().unwrap_or_default(),
         });
         println!("{}", serde_json::to_string_pretty(&v).expect("json"));
         return;
@@ -295,6 +328,28 @@ fn print_outcome(job: &Job, o: &Outcome, json: bool) {
         }
     }
     println!("output: {}", job.output_root().display());
+    for v in job.zip_volumes().unwrap_or_default() {
+        match v.state.as_str() {
+            "done" => println!(
+                "zip: {} ({} files, {}){}",
+                v.name,
+                v.files,
+                mr_job::space::gb(v.size),
+                if v.oversize {
+                    ", larger than the volume size"
+                } else {
+                    ""
+                }
+            ),
+            _ => println!(
+                "zip: {} {} ({}: {})",
+                v.name,
+                v.state,
+                v.error_code.as_deref().unwrap_or("-"),
+                v.error_detail.as_deref().unwrap_or("")
+            ),
+        }
+    }
 }
 
 /// The ffmpeg for burn-in, compatibility and clip joins, named by
