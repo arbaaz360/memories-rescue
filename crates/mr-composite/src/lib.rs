@@ -361,6 +361,13 @@ mod tests {
     use super::*;
 
     #[test]
+    fn compositor_is_shareable_across_worker_threads() {
+        fn assert_send_sync<T: Send + Sync>() {}
+        assert_send_sync::<Compositor>();
+        assert_send_sync::<VideoOutcome>();
+    }
+
+    #[test]
     fn error_codes() {
         assert_eq!(
             Error::EncoderUnavailable("x".into()).code(),
