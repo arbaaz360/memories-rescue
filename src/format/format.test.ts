@@ -81,10 +81,13 @@ describe("ETA rounding and duration", () => {
   });
 });
 
+/** ICU versions differ on the space before "PM" (U+202F or a plain space). */
+const spaces = (s: string) => s.replace(/[\u202f\u00a0]/g, " ");
+
 describe("capture times", () => {
   it("shows the wall clock of the place, not of the viewer", () => {
-    expect(formatCaptureTime("2019-07-04T21:03:55+01:00", "en-GB")).toBe("4 Jul 2019, 21:03");
-    expect(formatCaptureTime("2019-07-04T21:03:55-05:00", "en-US")).toBe("Jul 4, 2019, 9:03 PM");
+    expect(spaces(formatCaptureTime("2019-07-04T21:03:55+01:00", "en-GB"))).toBe("4 Jul 2019, 21:03");
+    expect(spaces(formatCaptureTime("2019-07-04T21:03:55-05:00", "en-US"))).toBe("Jul 4, 2019, 9:03 PM");
   });
 
   it("shows the date only at day precision", () => {
