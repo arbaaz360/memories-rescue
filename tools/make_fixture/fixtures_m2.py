@@ -5,7 +5,7 @@ All three are single-part 2026b exports with real tiny JPEG photos (Pillow)
 and, where videos appear, the small real MP4s from crates/mr-meta/tests/data
 so the metadata writer and the engine can process them end to end.
 
-F-11's truth.json carries, per item, the IANA zone the point lies in and the
+F-11 is a 2026a export (sid/mid in Download Link) so every case matches exactly; its truth.json carries, per item, the IANA zone the point lies in and the
 local time and UTC offset computed with Python's zoneinfo, so the Rust
 resolver (tzf-rs + chrono-tz) is checked against an independent tzdb.
 """
@@ -116,7 +116,7 @@ def _local_expectation(utc: dt.datetime, zone: str) -> dict:
 
 
 def build_tz_edge(ctx: Context) -> dict:
-    """F-11: one photo per timezone case, all in the 2026b profile."""
+    """F-11: one photo per timezone case, in the 2026a profile (exact matching)."""
     name = "tz-edge"
     rng = ctx.rng(name)
     out = ctx.out_dir / name
@@ -135,7 +135,11 @@ def build_tz_edge(ctx: Context) -> dict:
         main_name = f"memories/{date_str}_{d['id']}-main.jpg"
         has_gps = d["lat"] is not None
         loc_field = location_field(d["lat"], d["lon"]) if has_gps else NO_LOCATION_FIELD
-        entry = {"Date": export_date(d["when"]), "Media Type": "Image", "Location": loc_field, "Download Link": "", "Media Download Url": "N/A"}
+        # 2026a: sid/mid tie each entry to its file exactly, so several cases
+        # on one UTC day are not an ordinal group (this fixture tests time
+        # zones, not matching).
+        link = f"https://app.example.invalid/dmd/memories?uid=tz-edge&sid={d['id']}&mid={d['id']}&ts=1&sig=x"
+        entry = {"Date": export_date(d["when"]), "Media Type": "Image", "Location": loc_field, "Download Link": link, "Media Download Url": "N/A"}
         entries.append(entry)
         colour = (rng.randrange(40, 220), rng.randrange(40, 220), rng.randrange(40, 220))
         zipb.add_media(main_name, media.make_photo(d["id"], colour, "jpg", entry["Date"], SMALL))
@@ -169,7 +173,7 @@ def build_tz_edge(ctx: Context) -> dict:
         "schema": TRUTH_SCHEMA,
         "fixture": name,
         "srs_id": "F-11",
-        "format": "2026b",
+        "format": "2026a",
         "generator": _generator_block(ctx),
         "home_zone": HOME_ZONE,
         "parts": [{"file": zip_path.name, "role": "primary", "entries": order}],
@@ -181,8 +185,8 @@ def build_tz_edge(ctx: Context) -> dict:
             "videos": 0,
             "overlays": 0,
             "with_location": sum(1 for d in drafts if d["lat"] is not None),
-            "with_url": 0,
-            "with_tokens": 0,
+            "with_url": len(items),
+            "with_tokens": len(items),
             "media_files": len(items),
             "main_files": len(items),
             "main_files_skipped": 0,

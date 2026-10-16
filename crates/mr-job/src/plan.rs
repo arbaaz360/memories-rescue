@@ -285,6 +285,9 @@ pub(crate) struct Naming {
     pub keep: HashMap<String, String>,
     /// Skip names of files that already exist in the output folder.
     pub avoid_existing: bool,
+    /// Existing files that do not count as taken: the job's own earlier
+    /// outputs of items that are about to be written again (lower-case).
+    pub own_files: HashSet<String>,
 }
 
 /// The dry run (FR-29): analyse the inputs and report the planned output
@@ -293,6 +296,7 @@ pub fn plan(inputs: &[PathBuf], options: &Options) -> Result<Plan> {
     let naming = Naming {
         keep: HashMap::new(),
         avoid_existing: true,
+        own_files: HashSet::new(),
     };
     Ok(plan_with(inputs, options, &naming)?.0)
 }
@@ -656,8 +660,11 @@ fn assign_names(items: &mut [PlannedItem], root: &Path, options: &Options, namin
                 layout::with_suffix(&name, n)
             };
             let rel = layout::join_rel(&folder, &candidate_name);
-            let free = !taken.contains(&rel.to_lowercase())
-                && !(naming.avoid_existing && layout::to_fs(root, &rel).exists());
+            let lower = rel.to_lowercase();
+            let free = !taken.contains(&lower)
+                && !(naming.avoid_existing
+                    && !naming.own_files.contains(&lower)
+                    && layout::to_fs(root, &rel).exists());
             if free {
                 taken.insert(rel.to_lowercase());
                 items[i].output_rel = rel;

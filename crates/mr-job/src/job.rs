@@ -233,6 +233,7 @@ impl Job {
         let naming = Naming {
             keep: HashMap::new(),
             avoid_existing: adopt.is_none(),
+            own_files: Default::default(),
         };
         let (plan, _d) = plan_with(&inputs, &options, &naming)?;
         let id = adopt
@@ -334,6 +335,7 @@ impl Job {
         let naming = Naming {
             keep: HashMap::new(),
             avoid_existing: false,
+            own_files: Default::default(),
         };
         let (plan, _) = plan_with(&jf.inputs, &jf.options, &naming)?;
         let row = JobRow {
@@ -657,6 +659,7 @@ impl Job {
         let naming = Naming {
             keep: keep.clone(),
             avoid_existing: true,
+            own_files: Default::default(),
         };
         let (mut plan, _) = plan_with(&inputs, &options, &naming)?;
         // Finished items whose bytes would change get new names: plan again
@@ -672,12 +675,17 @@ impl Job {
             .map(|p| p.key.clone())
             .collect();
         if !changed.is_empty() {
+            let mut own_files = std::collections::HashSet::new();
             for k in &changed {
                 keep.remove(k);
+                if let Some(old) = existing.get(k) {
+                    own_files.extend(old.recorded_outputs().into_iter().map(|r| r.to_lowercase()));
+                }
             }
             let naming = Naming {
                 keep,
                 avoid_existing: true,
+                own_files,
             };
             plan = plan_with(&inputs, &options, &naming)?.0;
         }

@@ -33,4 +33,5 @@ libc = "0.2"
 
 [dev-dependencies]
 memory-stats = "1"
+mr-report = { path = "../mr-report" }
 zip.workspace = true
