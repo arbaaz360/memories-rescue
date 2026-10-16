@@ -160,7 +160,8 @@ ResumableJob { job_id, output_path, created_at, state, items_done, items_total, 
 Settings { destination,                // last used; first default = the user's Pictures folder
            home_timezone, overlay_mode, keep_originals, clip_rejoin, clip_rejoin_years,
            apply_uncertain_locations, windows_compatibility, workers | null,
-           output_template, zip_output, zip_volume_bytes | null,
+           output_template,              // mr-job tokens {date} {time} {shortid} {id} {ext}, default "{date}_{time}_{shortid}.{ext}"
+           zip_output, zip_volume_bytes | null,
            update_checks, update_channel: "stable"|"beta", telemetry, language }
 
 LicenseStatus { tier: "free"|"licensed"|"grace", key_masked | null, verified_at | null,
@@ -190,7 +191,8 @@ with `listen(name)` for the life of the app and filters on `job_id`.
 ```ts
 ProgressEvent {
   job_id, overall_pct (0..100), items_done, items_total, bytes_done, bytes_total,
-  stage: "idle"|"indexing"|"matching"|"extracting"|"compositing"|"tagging"|"writing"|"verifying"|"rejoining"|"zipping"|"reporting",
+  stage: "idle"|"processing"|"finishing"|"waiting_for_drive"|"blocked"|"done"     // mr-job's stages
+       | "indexing"|"matching"|"extracting"|"compositing"|"tagging"|"writing"|"verifying"|"rejoining"|"zipping"|"reporting",  // finer, optional
   throughput_items_per_s,              // EWMA, photos and videos combined
   eta_seconds | null,                  // null until the estimate is usable (after ~10 items)
   warnings, failures,                  // running counts

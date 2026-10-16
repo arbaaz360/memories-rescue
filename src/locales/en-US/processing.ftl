@@ -8,6 +8,11 @@ processing-overall = Overall progress
 processing-valuetext = { $pct }, { $done } of { $total } items
 processing-stage =
     { $stage ->
+        [processing] Rescuing memories
+        [finishing] Finishing the items in progress
+        [waiting_for_drive] Waiting for the output drive
+        [blocked] Stopped until the problem is fixed
+        [done] Done
         [indexing] Reading the export…
         [matching] Matching files to their dates…
         [extracting] Unpacking files

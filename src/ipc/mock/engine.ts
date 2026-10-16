@@ -335,7 +335,7 @@ export class MockBackend implements Backend {
       apply_uncertain_locations: false,
       windows_compatibility: false,
       workers: null,
-      output_template: "{YYYY-MM-DD}_{HHMMSS}_{shortid}",
+      output_template: "{date}_{time}_{shortid}.{ext}",
       zip_output: false,
       zip_volume_bytes: null,
       update_checks: true,

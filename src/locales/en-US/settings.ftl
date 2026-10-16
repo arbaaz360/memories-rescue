@@ -19,7 +19,8 @@ settings-template-problem =
         [empty] Enter a pattern.
         [token] Use only the placeholders listed below.
         [chars] File names can't contain < > : " / \ | ? or *.
-       *[id] Include {"{"}shortid{"}"} so every file name stays unique.
+        [ext] Include {"{"}ext{"}"} so files keep their type.
+       *[id] Include {"{"}shortid{"}"} or {"{"}id{"}"} so every file name stays unique.
     }
 
 settings-license = License

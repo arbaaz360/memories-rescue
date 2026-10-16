@@ -310,8 +310,18 @@ export type JobState =
   | "cancelled"
   | "free_limit_reached";
 
+/**
+ * The engine reports what it is doing; mr-job's own stages are `processing`,
+ * `finishing` (items in flight after a pause or cancel), `waiting_for_drive`,
+ * `blocked` and `done`. The finer per-item stages are optional.
+ */
 export type Stage =
   | "idle"
+  | "processing"
+  | "finishing"
+  | "waiting_for_drive"
+  | "blocked"
+  | "done"
   | "indexing"
   | "matching"
   | "extracting"
@@ -442,7 +452,7 @@ export interface Settings {
   apply_uncertain_locations: boolean;
   windows_compatibility: boolean;
   workers: number | null;
-  /** §3.7 template, default "{YYYY-MM-DD}_{HHMMSS}_{shortid}". */
+  /** §3.7 template in mr-job's tokens: {date} {time} {shortid} {id} {ext}; default "{date}_{time}_{shortid}.{ext}". */
   output_template: string;
   zip_output: boolean;
   zip_volume_bytes: number | null;

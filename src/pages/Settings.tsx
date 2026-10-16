@@ -7,20 +7,27 @@ import { ActionBar, Badge, Button, Callout, Checkbox, Dialog, RadioGroup, Screen
 import { IconArrowBack, IconExternal } from "../ui/icons";
 import { YearRange, timeZones } from "../screens/Options";
 
-const TEMPLATE_TOKENS = ["{YYYY-MM-DD}", "{HHMMSS}", "{shortid}"] as const;
+/** mr-job's output template tokens (docs/api/mr-job.md, SRS 3.7). */
+const TEMPLATE_TOKENS = ["{date}", "{time}", "{shortid}", "{id}", "{ext}"] as const;
 
-/** Output template check: known tokens only, no path separators or characters Windows refuses. */
-export function templateProblem(template: string): "empty" | "token" | "chars" | "id" | null {
+/** Output template check: known tokens only, an id and the extension, no characters Windows refuses. */
+export function templateProblem(template: string): "empty" | "token" | "chars" | "id" | "ext" | null {
   if (template.trim().length === 0) return "empty";
   const unknown = template.replace(/\{[^}]*\}/g, (tok) => (TEMPLATE_TOKENS.includes(tok as (typeof TEMPLATE_TOKENS)[number]) ? "" : "\u0000"));
   if (unknown.includes("\u0000") || /[{}]/.test(unknown)) return "token";
   if (/[<>:"/\\|?*]/.test(unknown)) return "chars";
-  if (!template.includes("{shortid}")) return "id";
+  if (!template.includes("{shortid}") && !template.includes("{id}")) return "id";
+  if (!template.includes("{ext}")) return "ext";
   return null;
 }
 
 export function templateExample(template: string): string {
-  return template.replace("{YYYY-MM-DD}", "2019-07-04").replace("{HHMMSS}", "210355").replace("{shortid}", "3F2A9C1E");
+  return template
+    .replace("{date}", "2019-07-04")
+    .replace("{time}", "210355")
+    .replace("{shortid}", "3F2A9C1E")
+    .replace("{id}", "3F2A9C1E-0B4D-4E8A-9C21-6D7E5F104A22")
+    .replace("{ext}", "jpg");
 }
 
 const OVERLAY_MODES: readonly OverlayMode[] = ["burn_in_keep_originals", "burn_in_only", "separate_file", "ignore"];
