@@ -1,0 +1,12 @@
+{
+  "app_version": "0.0.0-test",
+  "os_family": "windows",
+  "items_processed_bucket": "1k-10k",
+  "error_code_counts": {
+    "FFMPEG_FAIL": 1,
+    "MEDIA_DECODE": 1,
+    "METADATA_WRITE": 1,
+    "ZIP_ENTRY_CRC": 1
+  },
+  "crash_signatures": []
+}

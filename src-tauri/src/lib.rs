@@ -1,57 +1,48 @@
-//! Tauri shell for Memories Rescue. ffmpeg and exiftool ship as sidecars
-//! (`bundle.externalBin` in `tauri.conf.json`) and are run from Rust through
-//! the shell plugin; the window cannot run them. The window uses the dialog
-//! (file and folder pickers), opener (allowlisted URLs) and notification
-//! plugins directly, exactly as `capabilities/default.json` allows, and talks
-//! to the engine through the commands in `docs/ipc-contract.md`. Until the
-//! engine is wired, only `sidecar_versions` exists here and the window runs
-//! on its built-in mock engine. The processing core lives in `crates/`.
+//! Tauri shell for Memories Rescue.
+//!
+//! The window talks to the engine through the commands and events of
+//! `docs/ipc-contract.md`: `commands.rs` is the thin Tauri layer, `engine/`
+//! the adapter onto `mr-job` (testable without a window), `ipc.rs` the
+//! contract's types. ffmpeg and exiftool ship as sidecars and run from Rust
+//! only. The window uses the dialog, opener and notification plugins exactly
+//! as `capabilities/default.json` allows.
 
-use tauri::AppHandle;
-use tauri_plugin_shell::ShellExt;
+pub mod commands;
+pub mod engine;
+pub mod ipc;
 
-/// What `sidecar_versions` returns to the window.
-#[derive(Debug, serde::Serialize)]
-pub struct SidecarVersions {
-    /// First line of `ffmpeg -version`, e.g. `ffmpeg version n9.0.2-28-g669f5ab083-20261015 ...`.
-    pub ffmpeg: String,
-    /// Output of `exiftool -ver`, e.g. `13.59`.
-    pub exiftool: String,
-}
+use std::sync::Arc;
 
-/// Run both bundled sidecars and return what they report. Fails with a
-/// readable message if either is missing, cannot start, or exits non-zero,
-/// which is what the installed-app smoke test looks for.
-#[tauri::command]
-async fn sidecar_versions(app: AppHandle) -> Result<SidecarVersions, String> {
-    Ok(SidecarVersions {
-        ffmpeg: first_line(&app, "ffmpeg", &["-version"]).await?,
-        exiftool: first_line(&app, "exiftool", &["-ver"]).await?,
-    })
-}
+use tauri::{Emitter, Manager};
 
-async fn first_line(app: &AppHandle, name: &str, args: &[&str]) -> Result<String, String> {
-    let output = app
-        .shell()
-        .sidecar(name)
-        .map_err(|e| format!("{name}: {e}"))?
-        .args(args)
-        .output()
-        .await
-        .map_err(|e| format!("{name}: {e}"))?;
-    if !output.status.success() {
-        return Err(format!(
-            "{name} exited with {:?}: {}",
-            output.status.code(),
-            String::from_utf8_lossy(&output.stderr).trim()
-        ));
+use engine::{Engine, EventSink, Paths, license};
+
+/// Engine events out to the window.
+struct WindowSink(tauri::AppHandle);
+
+impl EventSink for WindowSink {
+    fn emit(&self, event: &str, payload: serde_json::Value) {
+        let _ = self.0.emit(event, payload);
     }
-    Ok(String::from_utf8_lossy(&output.stdout)
-        .lines()
-        .next()
-        .unwrap_or_default()
-        .trim()
-        .to_string())
+}
+
+fn paths(app: &tauri::AppHandle) -> Paths {
+    let p = app.path();
+    let home = p.home_dir().unwrap_or_default();
+    Paths {
+        state_dir: p
+            .app_data_dir()
+            .unwrap_or_else(|_| home.join(".memories-rescue")),
+        cache_dir: p
+            .app_cache_dir()
+            .unwrap_or_else(|_| std::env::temp_dir().join("memories-rescue")),
+        pictures_dir: p.picture_dir().unwrap_or_else(|_| home.clone()),
+        desktop_dir: p
+            .desktop_dir()
+            .or_else(|_| p.download_dir())
+            .unwrap_or(home),
+        resource_dir: p.resource_dir().ok(),
+    }
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -61,7 +52,58 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
-        .invoke_handler(tauri::generate_handler![sidecar_versions])
+        .setup(|app| {
+            let handle = app.handle().clone();
+            let engine = Engine::new(
+                paths(&handle),
+                Arc::new(WindowSink(handle.clone())),
+                Arc::new(license::Keychain::new(&app.config().identifier)),
+                license::GumroadConfig::from_build(),
+            );
+            app.manage(engine.clone());
+            // §9.3 rule 3: at most every 30 days, never blocking anything.
+            std::thread::spawn(move || {
+                if engine.license.recheck_if_due() {
+                    engine.emit(
+                        ipc::events::WARNING,
+                        &ipc::WarningEvent {
+                            job_id: None,
+                            code: ipc::ErrorCode::LicenseInvalid,
+                            message: "Gumroad no longer recognises this licence key. The free version returns after 14 days.".into(),
+                            count: None,
+                        },
+                    );
+                }
+            });
+            Ok(())
+        })
+        .invoke_handler(tauri::generate_handler![
+            commands::add_inputs,
+            commands::remove_input,
+            commands::analyze,
+            commands::plan,
+            commands::export_preview_report,
+            commands::estimate_space,
+            commands::volume_info,
+            commands::start,
+            commands::pause,
+            commands::resume,
+            commands::cancel,
+            commands::retry_failed,
+            commands::add_part,
+            commands::get_report,
+            commands::list_resumable_jobs,
+            commands::get_settings,
+            commands::set_settings,
+            commands::telemetry_preview,
+            commands::license_status,
+            commands::activate,
+            commands::deactivate,
+            commands::open_path,
+            commands::export_diagnostics,
+            commands::app_info,
+            commands::sidecar_versions,
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

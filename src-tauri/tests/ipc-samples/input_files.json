@@ -1,0 +1,51 @@
+[
+  {
+    "id": "in-1",
+    "path": "C:\\Users\\you\\Downloads\\mydata~1729000000000.zip",
+    "name": "mydata~1729000000000.zip",
+    "size_bytes": 2147381274,
+    "kind": "zip",
+    "role": "primary",
+    "part_number": 1,
+    "status": "ok",
+    "issue": null
+  },
+  {
+    "id": "in-2",
+    "path": "C:\\Users\\you\\Downloads\\mydata~1729000000000-2.zip",
+    "name": "mydata~1729000000000-2.zip",
+    "size_bytes": 2146902113,
+    "kind": "zip",
+    "role": "part",
+    "part_number": 2,
+    "status": "ok",
+    "issue": null
+  },
+  {
+    "id": "in-3",
+    "path": "C:\\Users\\you\\Downloads\\mydata~1729000000000-4.zip",
+    "name": "mydata~1729000000000-4.zip",
+    "size_bytes": 1612447091,
+    "kind": "zip",
+    "role": "part",
+    "part_number": 4,
+    "status": "ok",
+    "issue": null
+  },
+  {
+    "id": "in-4",
+    "path": "C:\\Users\\you\\Downloads\\IMG_2041.jpg",
+    "name": "IMG_2041.jpg",
+    "size_bytes": 3480115,
+    "kind": "other",
+    "role": "ignored",
+    "part_number": null,
+    "status": "not_export",
+    "issue": {
+      "code": "INPUT_NOT_EXPORT",
+      "message": "This doesn't look like a Snapchat export.",
+      "count": null,
+      "part_number": null
+    }
+  }
+]

@@ -1,0 +1,87 @@
+{
+  "export_id": "exp-mydata~1729000000000",
+  "input_ids": [
+    "in-1",
+    "in-2",
+    "in-3"
+  ],
+  "profile": "mixed",
+  "profile_counts": {
+    "exact": 1854,
+    "ordinal": 2689,
+    "day_only": 269,
+    "metadata_only": 0
+  },
+  "parts": [
+    {
+      "part_number": 1,
+      "input_id": "in-1",
+      "name": "mydata~1729000000000.zip",
+      "size_bytes": 2147381274,
+      "status": "ok",
+      "entries": 1305
+    },
+    {
+      "part_number": 2,
+      "input_id": "in-2",
+      "name": "mydata~1729000000000-2.zip",
+      "size_bytes": 2146902113,
+      "status": "ok",
+      "entries": 1290
+    },
+    {
+      "part_number": 3,
+      "input_id": null,
+      "name": null,
+      "size_bytes": 0,
+      "status": "missing",
+      "entries": 0
+    },
+    {
+      "part_number": 4,
+      "input_id": "in-3",
+      "name": "mydata~1729000000000-4.zip",
+      "size_bytes": 1612447091,
+      "status": "ok",
+      "entries": 955
+    }
+  ],
+  "missing_parts": [
+    3
+  ],
+  "counts": {
+    "entries": 4812,
+    "photos": 2425,
+    "videos": 1125,
+    "overlays": 892,
+    "orphan_overlays": 23,
+    "with_location": 2737,
+    "unrecognised": 0
+  },
+  "date_range": {
+    "first": "2016-03-12",
+    "last": "2026-08-30"
+  },
+  "total_bytes": 5906730478,
+  "issues": [
+    {
+      "code": "PART_MISSING",
+      "message": "Part 3 appears to be missing.",
+      "count": 1262,
+      "part_number": 3
+    },
+    {
+      "code": "MATCH_PARTIAL",
+      "message": "Exact time unknown for 212 items.",
+      "count": 212,
+      "part_number": null
+    },
+    {
+      "code": "LOCATION_UNCERTAIN",
+      "message": "Location not applied for 36 items because the match was uncertain.",
+      "count": 36,
+      "part_number": null
+    }
+  ],
+  "blocked": false
+}

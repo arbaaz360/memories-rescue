@@ -1,0 +1,13 @@
+{
+  "job_id": "job-1",
+  "item": {
+    "item_id": "9E3779B1",
+    "name": "2016-01-19_9E3779B1-main.mp4",
+    "media_type": "video",
+    "status": "done",
+    "error_code": null,
+    "message": null,
+    "output_path": "D:\\Memories\\Memories Rescue\\2016\\01\\2016-01-19_103109_9E3779B1.mp4",
+    "finished_at": "2026-10-16T12:00:00.000Z"
+  }
+}
