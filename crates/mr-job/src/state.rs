@@ -777,7 +777,8 @@ impl Db {
                 now()
             ],
         )?;
-        self.journal_event(&format!("clip:{id}"), stage)?;
+        // Not "done"/"failed": those names are the item audit trail (mr-cli kill test).
+        self.journal_event(&format!("clip:{id}"), &format!("clip_{stage}"))?;
         Ok(())
     }
 
