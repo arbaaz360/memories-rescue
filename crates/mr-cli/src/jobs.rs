@@ -130,12 +130,12 @@ fn parse_years(s: &str) -> Result<Option<(i32, i32)>, String> {
 /// The per-user state directory (SRS 3.7): `%APPDATA%\NovaByteWorks\Memories Rescue`
 /// on Windows, `~/Library/Application Support/Memories Rescue` on macOS.
 pub fn default_state_dir() -> PathBuf {
-    if cfg!(windows) {
-        if let Some(appdata) = std::env::var_os("APPDATA") {
-            return PathBuf::from(appdata)
-                .join("NovaByteWorks")
-                .join("Memories Rescue");
-        }
+    if cfg!(windows)
+        && let Some(appdata) = std::env::var_os("APPDATA")
+    {
+        return PathBuf::from(appdata)
+            .join("NovaByteWorks")
+            .join("Memories Rescue");
     }
     let home = std::env::var_os("HOME")
         .map(PathBuf::from)
@@ -297,10 +297,10 @@ fn drive(job: &mut Job, quiet: bool, json: bool) -> ExitCode {
     let sink = ConsoleSink::new(quiet);
     match job.run(&sink, &Control::new()) {
         Ok(o) => {
-            if matches!(o, Outcome::Completed(_)) {
-                if let Err(e) = job.report() {
-                    eprintln!("warning: report not written: {e}");
-                }
+            if matches!(o, Outcome::Completed(_))
+                && let Err(e) = job.report()
+            {
+                eprintln!("warning: report not written: {e}");
             }
             print_outcome(job, &o, json);
             outcome_exit(&o)
@@ -324,10 +324,10 @@ pub fn cmd_plan(
         Ok(p) => p,
         Err(e) => return fail(e),
     };
-    if let Some(path) = export {
-        if let Err(e) = std::fs::write(path, serde_json::to_vec_pretty(&p).expect("json")) {
-            return fail(e);
-        }
+    if let Some(path) = export
+        && let Err(e) = std::fs::write(path, serde_json::to_vec_pretty(&p).expect("json"))
+    {
+        return fail(e);
     }
     if json {
         println!("{}", serde_json::to_string_pretty(&p).expect("json"));
