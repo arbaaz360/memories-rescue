@@ -405,6 +405,19 @@ fn free_tier_stops_at_100_and_later_finishes_partial() {
             .is_some_and(|p| Path::new(p).is_file())
     );
     assert_eq!(r.state, JobState::Partial);
+    // Progress counts the items saved with a warning; the last event releases sleep prevention.
+    let last = env
+        .sink
+        .of("progress")
+        .into_iter()
+        .map(|v| serde_json::from_value::<ProgressEvent>(v).unwrap())
+        .rfind(|p| p.job_id == job)
+        .unwrap();
+    assert_eq!(
+        last.warnings,
+        r.counts.metadata_partial + r.counts.location_uncertain
+    );
+    assert!(!last.sleep_prevented);
 }
 
 /// A loopback stand-in for Gumroad's verify endpoint: `GOOD-KEY` is valid,

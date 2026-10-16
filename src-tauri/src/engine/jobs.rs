@@ -14,7 +14,7 @@
 
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
 use mr_job::{Job, JobError, Outcome};
@@ -290,9 +290,19 @@ impl Engine {
                 },
             );
         }
-        let lookup: HashMap<String, ItemInfo> = job
-            .items()
-            .map_err(job_error)?
+        let rows = job.items().map_err(job_error)?;
+        // Items already saved with the date only or without a location (earlier runs).
+        let earlier_warnings = rows
+            .iter()
+            .filter(|r| {
+                r.stage == mr_job::control::Stage::Done
+                    && matches!(
+                        r.plan.status.as_str(),
+                        "metadata_partial" | "location_uncertain"
+                    )
+            })
+            .count() as u64;
+        let lookup: HashMap<String, ItemInfo> = rows
             .into_iter()
             .map(|r| {
                 let p = r.plan;
@@ -318,9 +328,13 @@ impl Engine {
             handle: h,
             root: job.output_root().to_path_buf(),
             lookup,
+            warnings: AtomicU64::new(earlier_warnings),
+            last: Mutex::new(None),
         };
         let control = h.control.lock().expect("control").clone();
-        let outcome = job.run(&sink, &control).map_err(job_error)?;
+        let outcome = job.run(&sink, &control);
+        sink.finish();
+        let outcome = outcome.map_err(job_error)?;
         let unlocked = job.options().unlocked;
         Ok(match outcome {
             Outcome::Completed(stats) => {
@@ -529,9 +543,23 @@ struct RunSink<'a> {
     handle: &'a JobHandle,
     root: PathBuf,
     lookup: HashMap<String, ItemInfo>,
+    /// Items saved with the date only or without a location, this job so far.
+    warnings: AtomicU64,
+    last: Mutex<Option<ProgressEvent>>,
 }
 
 impl RunSink<'_> {
+    /// The run has returned: one last progress with sleep prevention released.
+    fn finish(&self) {
+        if let Some(mut p) = self.last.lock().expect("progress").take() {
+            p.sleep_prevented = false;
+            p.throughput_items_per_s = 0.0;
+            p.eta_seconds = None;
+            p.warnings = self.warnings.load(Ordering::SeqCst);
+            self.engine.emit(events::PROGRESS, &p);
+        }
+    }
+
     fn outcome(&self, o: &mr_job::ItemOutcome) -> ItemOutcome {
         use mr_job::control::Stage as S;
         let info = self.lookup.get(&o.id);
@@ -589,16 +617,23 @@ impl mr_job::ProgressSink for RunSink<'_> {
             stage: Stage::from_engine(&p.stage),
             throughput_items_per_s: p.throughput,
             eta_seconds: p.eta_seconds,
-            warnings: p.warnings as u64,
+            warnings: self.warnings.load(Ordering::SeqCst),
             failures: p.failures as u64,
             recent_items: p.recent.iter().rev().map(|o| self.outcome(o)).collect(),
             sleep_prevented: p.sleep_prevented,
         };
         self.engine.emit(events::PROGRESS, &event);
+        *self.last.lock().expect("progress") = Some(event);
     }
 
     fn item(&self, o: &mr_job::ItemOutcome) {
         let item = self.outcome(o);
+        if matches!(
+            item.status,
+            ItemStatus::MetadataPartial | ItemStatus::LocationUncertain
+        ) {
+            self.warnings.fetch_add(1, Ordering::SeqCst);
+        }
         self.engine.emit(
             events::ITEM,
             &ItemEvent {
