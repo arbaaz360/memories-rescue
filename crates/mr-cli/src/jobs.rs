@@ -342,7 +342,13 @@ pub fn cmd_plan(
         Ok(o) => o,
         Err(e) => return fail(e),
     };
-    let p = match plan(inputs, &options) {
+    // With MR_FFMPEG the run will burn overlays in, so the plan's warnings
+    // say so (no COMPOSITE_PENDING).
+    let planned = match sidecar_ffmpeg() {
+        Some(ffmpeg) => mr_job::plan_for(inputs, &options, &MediaCompositor::new(ffmpeg)),
+        None => plan(inputs, &options),
+    };
+    let p = match planned {
         Ok(p) => p,
         Err(e) => return fail(e),
     };

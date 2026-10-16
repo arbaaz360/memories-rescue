@@ -96,6 +96,10 @@ fn declined_or(e: mr_composite::Error) -> Result<CompositeOutcome, CompositeErro
     }
 }
 
+/// `can_burn_in` keeps the trait's `true`: photos never need ffmpeg, and
+/// when no H.264 encoder works each video burn-in is declined on its own
+/// (`composite_pending`), so the plan's `COMPOSITE_PENDING` warning would be
+/// wrong for every photo.
 impl Compositor for MediaCompositor {
     fn composite(&self, req: &CompositeRequest<'_>) -> Result<CompositeOutcome, CompositeError> {
         match self.inner.composite_any(req.main, req.overlay, req.out) {

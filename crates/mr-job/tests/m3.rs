@@ -147,6 +147,13 @@ fn f07_burn_in_through_the_media_compositor() {
         return;
     };
     let e = env("m3-f07");
+    // With the real compositor the dry run does not promise pending overlays.
+    let media = MediaCompositor::new(&ffmpeg);
+    let warned = |p: &Plan| p.warnings.iter().any(|w| w.code == "COMPOSITE_PENDING");
+    assert!(warned(&plan(&zips_in(&dir), &options(&e.dest)).unwrap()));
+    assert!(!warned(
+        &mr_job::plan_for(&zips_in(&dir), &options(&e.dest), &media).unwrap()
+    ));
     let mut job = Job::create(&e.state, &zips_in(&dir), options(&e.dest)).unwrap();
     job.set_compositor(Arc::new(MediaCompositor::new(&ffmpeg)));
     let (outcome, _) = run(&mut job);
