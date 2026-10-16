@@ -1,0 +1,89 @@
+/*
+ * Design tokens. Text colours meet WCAG 2.1 AA (4.5:1) on every surface they
+ * are used on, borders of controls meet 3:1 (1.4.11). Measured with axe-core in
+ * both schemes; see docs/ui/verification.md. Dark values follow the OS through
+ * prefers-color-scheme; forced-colors (Windows high contrast) swaps in system
+ * colours at the bottom of app.css.
+ */
+
+:root {
+  color-scheme: light dark;
+
+  --font-sans: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "Cascadia Mono", "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+
+  --bg: #f6f5f2;
+  --surface: #ffffff;
+  --surface-2: #efede8;
+  --text: #1c1b19;
+  --text-muted: #57534d;
+  --border: #dcd8d1;
+  --border-strong: #807a72;
+  --accent: #0a5c87;
+  --accent-hover: #084a6d;
+  --accent-text: #ffffff;
+  --accent-soft: #e3eef5;
+  --focus: #0a5c87;
+
+  --success: #1d6a35;
+  --success-bg: #e4f2e7;
+  --warning: #7f4d00;
+  --warning-bg: #fbefd9;
+  --danger: #b0251c;
+  --danger-bg: #fbe8e6;
+  --info: #0a5c87;
+  --info-bg: #e3eef5;
+
+  --seg-a: #1d6a35;
+  --seg-b: #0a5c87;
+  --seg-c: #b56a00;
+  --meter-used: #807a72;
+  --meter-need: #0a5c87;
+  --meter-short: #b0251c;
+
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.06), 0 2px 8px rgb(0 0 0 / 0.04);
+  --radius: 10px;
+  --radius-sm: 6px;
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --content-max: 62rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #151514;
+    --surface: #1f1f1d;
+    --surface-2: #2a2a27;
+    --text: #f1efea;
+    --text-muted: #b8b3ab;
+    --border: #3a3936;
+    --border-strong: #8f8980;
+    --accent: #72bde8;
+    --accent-hover: #9bd0ef;
+    --accent-text: #0b1a24;
+    --accent-soft: #17303f;
+    --focus: #72bde8;
+
+    --success: #82d69a;
+    --success-bg: #17301f;
+    --warning: #f0b860;
+    --warning-bg: #372811;
+    --danger: #ff8f84;
+    --danger-bg: #3b1916;
+    --info: #72bde8;
+    --info-bg: #17303f;
+
+    --seg-a: #82d69a;
+    --seg-b: #72bde8;
+    --seg-c: #f0b860;
+    --meter-used: #8f8980;
+    --meter-need: #72bde8;
+    --meter-short: #ff8f84;
+
+    --shadow: 0 1px 2px rgb(0 0 0 / 0.4);
+  }
+}

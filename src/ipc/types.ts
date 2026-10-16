@@ -432,6 +432,8 @@ export interface ResumableJob {
 export type UpdateChannel = "stable" | "beta";
 
 export interface Settings {
+  /** Last destination used; the engine's first default is the user's Pictures folder (keeps the default flow to five steps, NFR-USE-01). */
+  destination: string;
   home_timezone: string;
   overlay_mode: OverlayMode;
   keep_originals: boolean;
@@ -500,8 +502,10 @@ export interface SidecarVersions {
 
 /**
  * Every command, its argument object and its result. Argument keys are the
- * Tauri command parameter names (snake_case; Tauri 2 accepts snake_case keys
- * for `#[tauri::command]` parameters).
+ * Rust parameter names in snake_case. Tauri 2 expects top-level command
+ * arguments in camelCase on the wire by default, so `TauriBackend` converts the
+ * top-level keys (`input_ids` -> `inputIds`); nested structs stay snake_case
+ * through serde. An engine that declares `rename_all = "snake_case"` works too.
  */
 export interface Commands {
   add_inputs: { args: { paths: string[] }; result: InputFile[] };

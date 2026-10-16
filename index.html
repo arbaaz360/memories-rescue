@@ -1,31 +1,13 @@
 <!doctype html>
-<html lang="en">
+<html lang="en-US" dir="ltr">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="stylesheet" href="/src/styles.css" />
+    <meta name="color-scheme" content="light dark" />
     <title>Memories Rescue</title>
-    <script type="module" src="/src/main.ts" defer></script>
+    <script type="module" src="/src/main.tsx"></script>
   </head>
   <body>
-    <main class="container">
-      <h1>Memories Rescue</h1>
-      <p class="lede">Repairs your own Snapchat Memories export on this computer. Nothing leaves it.</p>
-      <p id="status" class="status">Placeholder shell (milestone M1 spike). The processing pipeline is being wired in.</p>
-      <section class="sidecars" aria-labelledby="sidecars-heading">
-        <h2 id="sidecars-heading">Bundled tools</h2>
-        <dl>
-          <dt>ffmpeg</dt>
-          <dd id="ffmpeg-version">…</dd>
-          <dt>exiftool</dt>
-          <dd id="exiftool-version">…</dd>
-        </dl>
-        <p id="sidecar-status" class="status" data-state="pending">Checking the bundled tools…</p>
-      </section>
-      <p class="disclaimer">
-        Not affiliated with, endorsed by, or sponsored by Snap Inc. "Snapchat" and "Memories" are
-        trademarks of Snap Inc., used only to describe compatibility.
-      </p>
-    </main>
+    <div id="app"></div>
   </body>
 </html>

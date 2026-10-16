@@ -10,8 +10,12 @@ changes, change the other in the same commit** (checklist at the end).
 Conventions:
 
 - Command names and every JSON key are `snake_case`, so the Rust side can
-  `#[derive(Serialize, Deserialize)]` without renames. Tauri 2 accepts
-  snake_case argument keys for `#[tauri::command]` parameters.
+  `#[derive(Serialize, Deserialize)]` without renames.
+- Top-level command parameters: Tauri 2 deserialises them from camelCase
+  keys by default, so `TauriBackend` renames the top-level keys before
+  `invoke` (`input_ids` becomes `inputIds`, `job_id` becomes `jobId`). The Rust
+  side writes plain `#[tauri::command] fn plan(input_ids: Vec<String>, options: JobOptions)`.
+  Struct fields inside the arguments (`options.keep_originals`) are not renamed.
 - Optional values are `T | null` (`Option<T>`), never an absent key.
 - Numbers are JSON numbers; byte counts stay under 2^53.
 - Times are ISO 8601 strings. Capture times carry the resolved UTC offset
@@ -153,7 +157,8 @@ JobReport {
 
 ResumableJob { job_id, output_path, created_at, state, items_done, items_total, input_names }
 
-Settings { home_timezone, overlay_mode, keep_originals, clip_rejoin, clip_rejoin_years,
+Settings { destination,                // last used; first default = the user's Pictures folder
+           home_timezone, overlay_mode, keep_originals, clip_rejoin, clip_rejoin_years,
            apply_uncertain_locations, windows_compatibility, workers | null,
            output_template, zip_output, zip_volume_bytes | null,
            update_checks, update_channel: "stable"|"beta", telemetry, language }
