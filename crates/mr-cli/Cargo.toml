@@ -1,6 +1,6 @@
 [package]
 name = "mr-cli"
-description = "Memories Rescue core from the command line: index exports and check the ZIP-order assumption"
+description = "Memories Rescue from the command line: analyse exports, check the ZIP-order assumption, plan, run and resume jobs"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
@@ -15,4 +15,6 @@ path = "src/main.rs"
 chrono.workspace = true
 clap.workspace = true
 mr-core = { path = "../mr-core" }
+mr-job = { path = "../mr-job" }
 serde_json.workspace = true
+

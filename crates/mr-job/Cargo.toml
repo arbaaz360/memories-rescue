@@ -1,0 +1,37 @@
+[package]
+name = "mr-job"
+description = "The Memories Rescue engine: plan (dry run), resumable jobs with SQLite state, worker pool, metadata writes, atomic output, free tier (SRS sections 3.7, 3.8, 4.2, 5.6 to 5.8)"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+chrono = { workspace = true, features = ["clock", "serde"] }
+crossbeam-channel = "0.5"
+filetime_creation = "0.2"
+fs4 = "1"
+little_exif = "0.6"
+mr-core = { path = "../mr-core" }
+mr-meta = { path = "../mr-meta" }
+mr-report = { path = "../mr-report" }
+mr-tz = { path = "../mr-tz" }
+rusqlite = { version = "0.40", features = ["bundled"] }
+serde.workspace = true
+serde_json.workspace = true
+sha2 = "0.11"
+thiserror.workspace = true
+unicode-normalization = "0.1"
+uuid = { version = "1", features = ["v4"] }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_System_Power"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+libc = "0.2"
+
+[dev-dependencies]
+memory-stats = "1"
+mr-report = { path = "../mr-report" }
+zip.workspace = true

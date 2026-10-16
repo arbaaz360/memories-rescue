@@ -32,7 +32,24 @@ are licensed under the Database Contents License:
 
 | Component | Version | Licence | Notes |
 |---|---|---|---|
-| [little_exif](https://github.com/TechnikTobi/little_exif) | 0.6 | MIT | EXIF read/write for JPEG and PNG. |
+| [little_exif](https://github.com/TechnikTobi/little_exif) | 0.6 | MIT OR Apache-2.0 | EXIF read/write for JPEG and PNG. |
+
+## Engine (crates/mr-job)
+
+| Component | Licence | Notes |
+|---|---|---|
+| [rusqlite](https://crates.io/crates/rusqlite) with bundled [SQLite](https://sqlite.org/copyright.html) | MIT; SQLite is in the public domain | Job state (section 3.8). |
+| [crossbeam-channel](https://crates.io/crates/crossbeam-channel) | MIT OR Apache-2.0 | Worker pool channels. |
+| [filetime](https://crates.io/crates/filetime), [filetime_creation](https://crates.io/crates/filetime_creation) | MIT OR Apache-2.0 | File modification and creation times (FR-20). |
+| [fs4](https://crates.io/crates/fs4) | MIT OR Apache-2.0 | Free space (FR-28). |
+| [sha2](https://crates.io/crates/sha2) | MIT OR Apache-2.0 | Output and input fingerprints. |
+| [uuid](https://crates.io/crates/uuid) | MIT OR Apache-2.0 | Job ids. |
+| [unicode-normalization](https://crates.io/crates/unicode-normalization) | MIT OR Apache-2.0 | NFC keys (NFR-I18N-04). |
+| [windows-sys](https://crates.io/crates/windows-sys) | MIT OR Apache-2.0 | `SetThreadExecutionState` (FR-36). |
+| [libc](https://crates.io/crates/libc) | MIT OR Apache-2.0 | `setattrlist` on macOS (FR-20). |
+| [crc32fast](https://crates.io/crates/crc32fast) | MIT OR Apache-2.0 | ZIP recovery and the PNG `eXIf` chunk. |
+| [zip](https://crates.io/crates/zip) | MIT | ZIP reading (crates/mr-core). |
+| [flate2](https://crates.io/crates/flate2) | MIT OR Apache-2.0 | Deflate for ZIP recovery (crates/mr-core). |
 
 ## Sidecars (not bundled in v1.0 unless a later decision says so)
 

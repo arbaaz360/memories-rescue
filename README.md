@@ -1,6 +1,6 @@
 # Memories Rescue (working name)
 
-Memories Rescue is a local Windows and macOS desktop app (Tauri 2, Rust core) that repairs your own Snapchat "Download My Data" Memories export: it restores capture dates and GPS into the photos and videos, pairs caption overlays with their media, and writes a clean, date-sorted `YYYY/MM` library that photo apps import on the right day and place. Everything runs on your computer; no Snapchat login, no uploads. The requirements live in the public spec at <https://github.com/arbaaz360/memories-rescue-srs> (v0.2); this repository is the application code, currently at milestone M1 (core: ZIP index, part discovery, merged index, JSON-to-file matching).
+Memories Rescue is a local Windows and macOS desktop app (Tauri 2, Rust core) that repairs your own Snapchat "Download My Data" Memories export: it restores capture dates and GPS into the photos and videos, pairs caption overlays with their media, and writes a clean, date-sorted `YYYY/MM` library that photo apps import on the right day and place. Everything runs on your computer; no Snapchat login, no uploads. The requirements live in the public spec at <https://github.com/arbaaz360/memories-rescue-srs> (v0.2); this repository is the application code, currently at milestone M2 (core and engine: ZIP index, part discovery, matching, time zones, metadata writing, resumable jobs, report).
 
 Not affiliated with, endorsed by, or sponsored by Snap Inc. "Snapchat", "Memories" and "My Eyes Only" are trademarks of Snap Inc. and are used only to describe compatibility.
 
@@ -10,12 +10,16 @@ Not affiliated with, endorsed by, or sponsored by Snap Inc. "Snapchat", "Memorie
 |---|---|
 | `crates/mr-core` | Rust library: filename patterns and field parsers (SRS §3.2, §3.5), streaming `Saved Media` reader, ZIP part index with truncation recovery and zip-slip checks, input discovery and part grouping (FR-01 to FR-05), merged index and FR-07 summary, the §3.6 matcher. |
 | `crates/mr-meta` | Rust library: metadata writers (SRS §4.3): exiftool `-stay_open` sidecar driver, native JPEG/MP4 writers, and the Q-02 benchmark (`q02-bench`). |
-| `crates/mr-cli` | Command line: `mr-cli index <inputs...> [--json]` prints the summary and the per-item match table; `mr-cli order-check <inputs...>` measures the ZIP-order assumption on a `2026a` export (Q-03). |
+| `crates/mr-tz` | Local UTC offset from GPS with bundled time zone boundaries and tzdb, home-zone fallback (FR-19). |
+| `crates/mr-job` | The engine: dry run (FR-29), resumable jobs in SQLite (FR-33), worker pool, metadata writes, atomic output (FR-35), free tier (FR-44), retry, add part, compositor seam. API: `docs/api/mr-job.md`. |
+| `crates/mr-report` | `_report/report.html`, `report.csv`, `failed_items.json` (FR-38). |
+| `crates/mr-cli` | Command line: `analyze`, `order-check`, `plan`, `run`, `resume`, `retry`, `add-part`, `report`, `jobs` (see below). |
 | `src-tauri` | Tauri 2 shell: the window, ffmpeg and exiftool sidecars run from Rust (`bundle.externalBin`), dialog, opener and notification plugins with capabilities limited to what the screens use, NSIS and MSI bundles. |
 | `third_party/` | Sidecar binaries, gitignored; `third_party/README.md` records source, version, SHA-256 and license. `python tools/sidecars.py fetch` stages them. |
 | `docs/decisions/` | Decision records: `Q-02-metadata-writer.md`, `signing.md`. |
-| `src` | User interface: Preact + TypeScript + Vite, every screen of SRS §7.2, strings in `src/locales/en-US/*.ftl` (Fluent). Talks to the engine through `src/ipc/backend.ts`; without the engine it runs on a built-in mock (`src/ipc/mock/`). |
+| `docs/api/` | `mr-job.md`: the engine API the app layer drives. |
 | `docs/ipc-contract.md` | The commands and events between the window and the engine; `src/ipc/types.ts` holds the same shapes. |
+| `src` | User interface: Preact + TypeScript + Vite, every screen of SRS §7.2, strings in `src/locales/en-US/*.ftl` (Fluent). Talks to the engine through `src/ipc/backend.ts`; without the engine it runs on a built-in mock (`src/ipc/mock/`). |
 | `docs/ui/verification.md` | What was checked on the UI (accessibility, zoom, keyboard, Tauri smoke) and how to repeat it with `scripts/ui-verify.mjs`. |
 | `tools/make_fixture` | Python generator for synthetic test exports with `truth.json` ground truth (SRS §11.2). See `tools/README.md`. |
 | `fixtures/` | Generated fixtures (gitignored). |
@@ -42,7 +46,21 @@ under `src-tauri/target/release/bundle/` (unsigned until the certificates in `do
 ## Try it on an export
 
 ```bash
-cargo run -p mr-cli -- index path/to/mydata~1729000000000.zip path/to/mydata~1729000000000-2.zip
+cargo run -p mr-cli -- plan path/to/mydata~1729000000000*.zip --dest D:/Rescued --home-tz Europe/London
+cargo run -p mr-cli -- run path/to/mydata~1729000000000*.zip --dest D:/Rescued --home-tz Europe/London --unlocked
+cargo run -p mr-cli -- jobs
+cargo run -p mr-cli -- resume <job-id>
+```
+
+`plan` is the dry run and writes nothing. `run` creates a job, prints its id and processes it; kill it or press Ctrl-C at
+any time and `resume` continues where it stopped. Without `--unlocked` the first 100 items are processed (FR-44).
+Job state is kept in the per-user app data folder (`--state-dir` to change it); the report lands in
+`<dest>/Memories Rescue/_report/`.
+
+To see what the core makes of an export without processing it:
+
+```bash
+cargo run -p mr-cli -- analyze path/to/mydata~1729000000000.zip path/to/mydata~1729000000000-2.zip
 ```
 
 Add `--json` for machine-readable output. On a current export whose JSON carries `sid`/`mid` in `Download Link`:
