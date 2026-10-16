@@ -17,9 +17,11 @@ unmodified upstream release ffmpeg-9.0.2.tar.xz, SHA-256
 8c3850283eb25fa026482078a04051e0be17347b09ef81a0849bec15a96e002e), the build
 script and the exact configure options are published with each release at
 
-    https://github.com/arbaaz360/memories-rescue-releases
+    https://github.com/arbaaz360/memories-rescue-releases/releases
 
-under the folder for that release (ffmpeg/). If you cannot get it there,
+as downloadable files attached to that release: ffmpeg-9.0.2.tar.xz,
+ffmpeg-9.0.2.tar.xz.asc, build.sh, BUILDINFO-windows-x64.txt,
+BUILDINFO-macos.txt and COPYING.LGPLv2.1. If you cannot get them there,
 write to NovaByteWorks through the contact address on
 https://novabyteworks.com and we will send it to you for no more than the
 cost of sending it. This offer is valid for at least three years after we

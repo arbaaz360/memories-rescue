@@ -8,9 +8,9 @@ Needs the `gh` CLI with GH_TOKEN set to a token that can write releases in
 `--repo`. Steps, each idempotent so the job can be re-run:
 
 1. Download every asset of the draft release and write `SHA256SUMS.txt`.
-2. Prereleases: the updater manifest is served as `latest-beta.json`; the
-   `latest.json` tauri-action uploaded is renamed so the stable channel never
-   sees a prerelease.
+2. (The updater channels are handled by tools/release/publish.py when the
+   owner publishes the draft: stable readers follow `/releases/latest/`,
+   beta readers the fixed `channel-beta` release.)
 3. If any build was unsigned or carried the development ffmpeg (from the
    per-target build-info files), upload `BUILD-NOTES.txt` saying so, put the
    same banner at the top of the release notes and "(unsigned build)" in the
@@ -56,7 +56,7 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--repo", required=True)
     ap.add_argument("--tag", required=True)
-    ap.add_argument("--prerelease", default="false")
+    ap.add_argument("--prerelease", default="false", help="recorded only; channels are set by publish.py")
     ap.add_argument("--build-info", nargs="*", default=[])
     args = ap.parse_args()
 
@@ -72,14 +72,6 @@ def main() -> int:
     print(f"{args.repo} {args.tag}: {len(asset_names)} assets, draft={release['isDraft']}")
 
     work = Path(tempfile.mkdtemp(prefix="mr-release-"))
-
-    # 2. Prerelease channel.
-    if args.prerelease == "true" and "latest.json" in asset_names:
-        gh("release", "download", args.tag, "--repo", args.repo, "--pattern", "latest.json", "--dir", str(work), "--clobber")
-        (work / "latest.json").rename(work / "latest-beta.json")
-        gh("release", "upload", args.tag, str(work / "latest-beta.json"), "--repo", args.repo, "--clobber")
-        gh("release", "delete-asset", args.tag, "latest.json", "--repo", args.repo, "--yes")
-        print("  latest.json -> latest-beta.json")
 
     # 4. ffmpeg source bundle next to the binaries that were built from it.
     lock = json.loads(LOCK.read_text(encoding="utf-8"))

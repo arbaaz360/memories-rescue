@@ -24,11 +24,31 @@ Pushing the tag runs `.github/workflows/release.yml`:
 | Checklist | ubuntu | `tools/release/check.py --tag`: versions agree, changelog entry, notices current, overlay parses; extracts the release notes from CHANGELOG.md; prerelease when the tag has a `-` (`v1.1.0-beta.1`) |
 | Windows x64 | windows | stages the pinned minimal ffmpeg, picks eSigner or Trusted Signing from the secrets, `tauri build --config src-tauri/tauri.release.conf.json`: NSIS (per-user) and MSI, app and sidecar signed through `tools/release/sign-windows.ps1`, updater `.sig` files, uploads to the draft release |
 | macOS universal | macos | same with `--target universal-apple-darwin`: app and sidecar signed with the Developer ID, hardened runtime, notarized and stapled DMG, updater `.tar.gz` + `.sig` |
-| Finish draft release | ubuntu | `tools/release/finish_release.py`: `SHA256SUMS.txt`, `latest-beta.json` for prereleases, the ffmpeg source bundle copied in, and an "unsigned build" label when any secret was missing |
+| Finish draft release | ubuntu | `tools/release/finish_release.py`: `SHA256SUMS.txt`, the ffmpeg source bundle copied in from the sidecar release, and an "unsigned build" label when any secret was missing. The release stays a draft. |
 
 The owner then opens the draft on the releases repository, reads the notes,
-and publishes. Publishing is what makes `releases/latest/download/latest.json`
-resolve, so published apps only see a release the owner has looked at.
+and runs
+
+```bash
+python tools/release/publish.py v1.0.0
+```
+
+which publishes the draft and rewrites `latest-beta.json` on the fixed
+`channel-beta` release. Nothing publishes itself, so installed apps only see
+a release the owner has looked at.
+
+### Update channels
+
+| Channel | The app reads | Written by |
+|---|---|---|
+| stable | `.../releases/latest/download/latest.json` | tauri-action attaches `latest.json` to every release; GitHub's `/releases/latest/` resolves to the newest published non-prerelease |
+| beta | `.../releases/download/channel-beta/latest-beta.json` | `publish.py`, on every publish (beta or stable), onto the fixed release `channel-beta`, created as a prerelease so it can never become "latest" |
+
+GitHub's `/releases/latest/` never points at a prerelease, which is why the
+beta feed cannot sit on the prerelease itself. A beta user therefore also
+moves forward to the next stable release and is never left behind on an old
+beta. The two addresses live in `src/config/links.json` (and the stable one
+again in `tauri.conf.json`, as Tauri requires).
 
 Dry runs: `workflow_dispatch` with an existing tag builds without pushing a
 new tag (re-running a failed release); `allow_dev_ffmpeg` lets the Windows
@@ -44,7 +64,7 @@ release is labelled accordingly. Tag pushes never use the development ffmpeg.
 | `Memories Rescue_<ver>_x64-setup.exe.sig`, `.msi.sig` | updater | signatures with the updater key |
 | `Memories Rescue_<ver>_universal.dmg` | macOS | notarized and stapled |
 | `Memories Rescue_universal.app.tar.gz` + `.sig` | updater | what the macOS updater downloads |
-| `latest.json` (or `latest-beta.json`) | tauri-action | updater manifest, both platforms, NSIS preferred on Windows |
+| `latest.json` | tauri-action | updater manifest, both platforms, NSIS preferred on Windows; copied to `channel-beta/latest-beta.json` by `publish.py` |
 | `SHA256SUMS.txt` | finish step | every asset above |
 | `ffmpeg-9.0.2.tar.xz`, `.asc`, `build.sh`, `BUILDINFO-*.txt`, `COPYING.LGPLv2.1` | sidecar release | the LGPL complete corresponding source, next to the binaries that were built from it |
 | `BUILD-NOTES.txt` | finish step | only when unsigned or development ffmpeg; such a release is not to be published |
@@ -89,7 +109,30 @@ when `TRUSTED_SIGNING_ENDPOINT` is set, else unsigned. macOS signs when
 `APPLE_TEAM_ID` instead of the API key; the API key is preferred for CI).
 
 Nothing in the repository holds a secret: `sign-windows.ps1` and the
-workflow pass them to the signing tools from the environment only.
+workflow pass them to the signing tools from the environment only, and the
+eSigner tool is started as `java -jar` directly, never through its `.bat`,
+so `cmd.exe` never parses a password or TOTP secret.
+
+### Supply chain of the workflows
+
+Both workflows run with every third-party action **pinned by commit SHA**
+(the tag it corresponds to is in the comment next to it), and `release.yml`
+has no `pull_request` trigger, so its secrets never meet code that has not
+been merged. The two signing tools are downloaded from fixed URLs and
+checked before use:
+
+| Tool | Pinned | Checked by |
+|---|---|---|
+| SSL.com CodeSignTool | GitHub release `SSLcom/CodeSignTool` v1.3.2, `CodeSignTool-v1.3.2.zip` | SHA-256 `f14b1e1ef14bfa1fd00279c363aab0debbf5dcfba0e4bcdce5d22bb771de0e3a` |
+| Microsoft.Trusted.Signing.Client | NuGet flat container, version 1.0.95 (`TSC_VERSION`; nuget.org lists none of its versions any more, but exact versions stay downloadable) | SHA-512 base64 `uTRnbWSg1agZUh8J5bqJXhJr4LZ9dzs6Xy9PNxK4yA9ubpGuPq71bz1AZMmiKs/HVbQc3NUChtGMVexqmuV+kA==`, equal to NuGet's catalogue `packageHash` |
+| actionlint (CI) | `rhysd/actionlint:1.7.12` | image digest in `ci.yml` |
+
+To bump an action: `gh api repos/<owner>/<repo>/git/ref/tags/<tag>` (follow
+an annotated tag's object once more with `git/tags/<sha>`), put the commit
+SHA in `uses:` and the tag in the comment. To bump a tool: download the new
+archive, hash it (`sha256sum`, or SHA-512 base64 for the NuGet package, which
+must equal the `packageHash` in its catalogue entry), and change the two
+values in the step.
 
 ## Owner's steps
 
@@ -168,19 +211,41 @@ app can ever accept an update again**; keep a copy outside this machine.
 
 ### Releases repository
 
-1. Create the public repository `arbaaz360/memories-rescue-releases` with
-   the contents of `docs/release/releases-repo/` (README, LICENSE, the
-   ffmpeg licence files). Default branch `main`; the workflow uses
-   `main` as the commitish for the tags it creates there.
+1. Create the public repository `arbaaz360/memories-rescue-releases`
+   (default branch `main`; the workflow uses `main` as the commitish for
+   the tags it creates there), then fill it:
+
+   ```bash
+   python tools/release/prepare_releases_repo.py --out ../memories-rescue-releases
+   cd ../memories-rescue-releases
+   git init -b main && git add . && git commit -m "Downloads repository"
+   git remote add origin https://github.com/arbaaz360/memories-rescue-releases.git && git push -u origin main
+   ```
+
+   The script copies the README and LICENSE from `docs/release/releases-repo/`
+   and the ffmpeg licence text, source offer and build notes from
+   `third_party/ffmpeg/`, so this repository keeps one copy of each.
 2. Create the fine-grained token above (`RELEASES_TOKEN`).
-3. Publish the sidecar release once per ffmpeg version: tag
-   `sidecars-ffmpeg-9.0.2` holding `ffmpeg-x86_64-pc-windows-msvc.exe`,
-   `ffmpeg-universal-apple-darwin`, `ffmpeg-aarch64-apple-darwin`,
-   `ffmpeg-x86_64-apple-darwin`, `ffmpeg-9.0.2.tar.xz`, `.asc`, `build.sh`,
-   `BUILDINFO-windows-x64.txt`, `BUILDINFO-macos.txt`, `COPYING.LGPLv2.1`
-   (built by `third_party/ffmpeg/build.sh`; the ffmpeg session's
-   PUBLISHING.md). Then record each binary's SHA-256 in
-   `tools/release/sidecars.lock.json`.
+3. **Sidecar release** (once per ffmpeg version). The Windows binary is
+   built: `third_party/ffmpeg/dist/x86_64-pc-windows-msvc/ffmpeg.exe`,
+   9,453,568 bytes, SHA-256
+   `f17252176a50b04338cd8b41a8a4fe03b06d72e8aa6f18ca5054c392ba966977`,
+   `ffmpeg version 9.0.2`; that exact file is what
+   `tools/release/sidecars.lock.json` pins. Upload it under the asset name
+   the lock file gives, together with the source bundle:
+
+   ```bash
+   cd third_party/ffmpeg
+   cp dist/x86_64-pc-windows-msvc/ffmpeg.exe ffmpeg-x86_64-pc-windows-msvc.exe
+   cp dist/x86_64-pc-windows-msvc/BUILDINFO.txt BUILDINFO-windows-x64.txt
+   gh release create sidecars-ffmpeg-9.0.2 --repo arbaaz360/memories-rescue-releases --title "ffmpeg 9.0.2 sidecar (minimal LGPL build)" --notes "NovaByteWorks minimal LGPL v2.1+ build of FFmpeg 9.0.2 for Memories Rescue, with its complete corresponding source. See README.md and ffmpeg/SOURCE_OFFER.txt." ffmpeg-x86_64-pc-windows-msvc.exe BUILDINFO-windows-x64.txt _downloads/ffmpeg-9.0.2.tar.xz _downloads/ffmpeg-9.0.2.tar.xz.asc build.sh COPYING.LGPLv2.1
+   ```
+
+   `release.yml` verifies the download against the pinned SHA-256, so the
+   file must be byte-identical. When the macOS binaries exist
+   (`ffmpeg-universal-apple-darwin`, the two per-arch files,
+   `BUILDINFO-macos.txt`), add them to the same release with
+   `gh release upload` and fill the `universal-apple-darwin` pin.
 
 ## Checks and where they run
 
@@ -199,15 +264,18 @@ installer unchanged, and `Start-Process -Wait` is what makes the silent
 installer and uninstaller block until they are done.
 
 ```powershell
-$setup = Get-Item "targeteleaseundle
+$setup = Get-Item "target
+eleaseundle
 sis\Memories Rescue_*_x64-setup.exe"
 Start-Process -FilePath $setup.FullName -ArgumentList "/S" -Wait          # per-user install, no UAC
 $inst = Join-Path $env:LOCALAPPDATA "Memories Rescue"
 Get-ChildItem $inst                                                      # memories-rescue.exe, ffmpeg.exe, COPYING.LGPLv2.1, SOURCE_OFFER.txt, THIRD_PARTY_NOTICES.md
 $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = "--remote-debugging-port=9517" # any free port; no other instance running
 Start-Process -FilePath (Join-Path $inst "memories-rescue.exe")
-node toolselease\probe_engine.mjs 9517 welcome.png                   # "RESULT: engine answers"
-powershell -File toolseleaseerify_window.ps1 -OutPng about.png -Press About -Expect "Version,NovaByteWorks,Third-party notices" -Reject "Mock engine"
+node tools
+elease\probe_engine.mjs 9517 welcome.png                   # "RESULT: engine answers"
+powershell -File tools
+eleaseerify_window.ps1 -OutPng about.png -Press About -Expect "Version,NovaByteWorks,Third-party notices" -Reject "Mock engine"
 Stop-Process -Name memories-rescue -Force
 Start-Process -FilePath (Join-Path $inst "uninstall.exe") -ArgumentList "/S" -Wait
 Test-Path $inst                                                          # False
@@ -215,10 +283,6 @@ Test-Path $inst                                                          # False
 
 ## Known gaps
 
-- `bundle.createUpdaterArtifacts: true` is not in the overlay yet: Tauri
-  refuses it while `plugins.updater` is absent from `tauri.conf.json`. When
-  the updater plugin lands (public key, endpoint), set it next to that
-  config; until then a release has no `.sig` files and no `latest.json`.
 
 - MSI is per-machine (Tauri's WiX template); the NSIS build is the per-user
   consumer download. A per-user MSI needs a custom `main.wxs`.

@@ -3,16 +3,19 @@
 #
 # Picks the signing service from which environment variables are present:
 #   SSL.com eSigner        ESIGNER_USERNAME, ESIGNER_PASSWORD, ESIGNER_CREDENTIAL_ID, ESIGNER_TOTP_SECRET,
-#                          CODESIGNTOOL_DIR (folder holding CodeSignTool.bat; Java 11+ on PATH)
+#                          CODESIGNTOOL_DIR (the extracted CodeSignTool folder: jar/, conf/), Java 11+ on PATH
 #   Azure Trusted Signing  AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET (read by the dlib itself),
 #                          TRUSTED_SIGNING_ENDPOINT, TRUSTED_SIGNING_ACCOUNT, TRUSTED_SIGNING_PROFILE,
 #                          TRUSTED_SIGNING_DLIB (path to Azure.CodeSigning.Dlib.dll)
 #   neither                the file is left unsigned and MR_RELEASE_SIGNED=false is noted; the build goes on.
 #
-# Values are only ever passed to the signing tool's own command line; nothing is
-# written to disk except the Trusted Signing metadata file (endpoint and account
-# names, which are not secret). The release workflow sets these from repository
-# secrets; see docs/release/README.md for where each one comes from.
+# Secrets travel only as environment variables and process arguments to the
+# signing tool itself. CodeSignTool's Java entry point is started directly,
+# never through CodeSignTool.bat, so cmd.exe never parses the password or
+# the TOTP secret (& ^ % | would otherwise be interpreted). Nothing is written
+# to disk except the Trusted Signing metadata file (endpoint and account
+# names, which are not secret). The release workflow sets the variables from
+# repository secrets; docs/release/README.md says where each one comes from.
 param(
     [Parameter(Mandatory = $true)][string]$Path
 )
@@ -33,16 +36,30 @@ $name = Split-Path $file -Leaf
 
 if ($env:ESIGNER_USERNAME -and $env:ESIGNER_CREDENTIAL_ID) {
     if (-not $env:CODESIGNTOOL_DIR) { throw "CODESIGNTOOL_DIR is not set" }
-    $tool = Join-Path $env:CODESIGNTOOL_DIR "CodeSignTool.bat"
-    Write-Host "sign-windows: eSigner -> $name"
-    & $tool sign `
-        "-username=$env:ESIGNER_USERNAME" `
-        "-password=$env:ESIGNER_PASSWORD" `
-        "-credential_id=$env:ESIGNER_CREDENTIAL_ID" `
-        "-totp_secret=$env:ESIGNER_TOTP_SECRET" `
-        "-input_file_path=$file" `
+    $jar = Get-ChildItem -Path (Join-Path $env:CODESIGNTOOL_DIR "jar") -Filter "code_sign_tool-*.jar" | Select-Object -First 1
+    if (-not $jar) { throw "code_sign_tool-*.jar not found under $env:CODESIGNTOOL_DIR\jar" }
+    $java = Get-Command java -ErrorAction SilentlyContinue
+    if (-not $java) { throw "java not found on PATH (CodeSignTool needs Java 11 or newer)" }
+    # The tool reads conf/code_sign_tool.properties from CODE_SIGN_TOOL_PATH.
+    $env:CODE_SIGN_TOOL_PATH = $env:CODESIGNTOOL_DIR
+    $arguments = @(
+        "-jar", $jar.FullName, "sign",
+        "-username=$($env:ESIGNER_USERNAME)",
+        "-password=$($env:ESIGNER_PASSWORD)",
+        "-credential_id=$($env:ESIGNER_CREDENTIAL_ID)",
+        "-totp_secret=$($env:ESIGNER_TOTP_SECRET)",
+        "-input_file_path=$file",
         "-override=true"
-    if ($LASTEXITCODE -ne 0) { throw "CodeSignTool failed for $name" }
+    )
+    Write-Host "sign-windows: eSigner (CodeSignTool $($jar.BaseName)) -> $name"
+    Push-Location $env:CODESIGNTOOL_DIR
+    try {
+        & $java.Source @arguments
+        $code = $LASTEXITCODE
+    } finally {
+        Pop-Location
+    }
+    if ($code -ne 0) { throw "CodeSignTool failed for $name (exit $code)" }
 }
 elseif ($env:TRUSTED_SIGNING_ENDPOINT -and $env:TRUSTED_SIGNING_ACCOUNT -and $env:TRUSTED_SIGNING_PROFILE) {
     if (-not $env:TRUSTED_SIGNING_DLIB) { throw "TRUSTED_SIGNING_DLIB is not set" }
