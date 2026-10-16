@@ -312,7 +312,6 @@ impl Job {
                 }
             }
         };
-        job.clean_tmp();
         Ok(job)
     }
 
@@ -610,6 +609,23 @@ impl Job {
         Ok(failed.len())
     }
 
+    /// Queue the items that were finished without burn-in (`composite_pending`,
+    /// the pass-through compositor) so that a real compositor set with
+    /// [`Job::set_compositor`] composites them. Their earlier files are
+    /// replaced or removed when they are written again. Returns how many.
+    pub fn requeue_composite_pending(&mut self) -> Result<usize> {
+        let mut rows = Vec::new();
+        for mut r in self.db.items()? {
+            if r.stage == Stage::Done && r.composite_pending {
+                r.previous_outputs = r.recorded_outputs();
+                r.stage = Stage::Pending;
+                rows.push(r);
+            }
+        }
+        self.db.upsert_items(&rows)?;
+        Ok(rows.len())
+    }
+
     /// FR-40: add a part that was missing; only what it brings is processed.
     pub fn add_part(&mut self, path: &Path) -> Result<Replanned> {
         let path = layout::absolute(path);
@@ -730,10 +746,37 @@ impl Job {
         Ok(result)
     }
 
-    /// Remove temp directories (NFR-PRV-09).
+    /// Remove temp directories (NFR-PRV-09). Only while holding the run lock.
     fn clean_tmp(&self) {
         let tmp = self.root.join(layout::STATE_DIR).join(layout::TMP_DIR);
         let _ = fs::remove_dir_all(layout::long_path(&tmp));
+    }
+
+    /// Take the job's run lock: one `run` at a time per job, across processes.
+    /// Released when the returned file is dropped (or the process dies).
+    fn run_lock(&self) -> Result<fs::File> {
+        let path = self.dir.join("run.lock");
+        let file = fs::File::options()
+            .create(true)
+            .truncate(false)
+            .write(true)
+            .open(&path)
+            .map_err(|e| JobError::io(&path, e))?;
+        match file.try_lock() {
+            Ok(()) => Ok(file),
+            Err(fs::TryLockError::WouldBlock) => Err(JobError::Busy {
+                job_id: self.id.clone(),
+            }),
+            Err(fs::TryLockError::Error(e)) => Err(JobError::io(&path, e)),
+        }
+    }
+
+    /// Remove temp files a crash left behind (NFR-PRV-09), for the app to
+    /// call at start-up. Does nothing while the job is running elsewhere.
+    pub fn clean_temp(&self) -> Result<()> {
+        let _lock = self.run_lock()?;
+        self.clean_tmp();
+        Ok(())
     }
 
     fn stats(&self, processed: usize, started: Instant) -> Result<RunStats> {
@@ -753,6 +796,8 @@ impl Job {
     /// completes, pauses, is cancelled or is blocked; progress goes to `sink`.
     pub fn run(&mut self, sink: &dyn ProgressSink, control: &Control) -> Result<Outcome> {
         let started = Instant::now();
+        let _lock = self.run_lock()?;
+        // Temp left by a crash is removed at the next start (NFR-PRV-09).
         self.clean_tmp();
         if let Some(why) = &self.rebuilt {
             sink.issue("JOB_STATE_CORRUPT", why);

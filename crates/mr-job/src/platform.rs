@@ -142,7 +142,6 @@ mod mac {
     const K_IOPM_ASSERTION_LEVEL_ON: u32 = 255;
 
     #[link(name = "IOKit", kind = "framework")]
-    #[link(name = "CoreFoundation", kind = "framework")]
     unsafe extern "C" {
         fn IOPMAssertionCreateWithName(
             assertion_type: CFStringRef,
@@ -151,6 +150,10 @@ mod mac {
             id: *mut u32,
         ) -> i32;
         fn IOPMAssertionRelease(id: u32) -> i32;
+    }
+
+    #[link(name = "CoreFoundation", kind = "framework")]
+    unsafe extern "C" {
         fn CFStringCreateWithCString(
             alloc: *const c_void,
             c_str: *const c_char,

@@ -1,10 +1,17 @@
-//! `mr-cli`: run the M1 core over export files from a terminal.
+//! `mr-cli`: the Memories Rescue core and engine from a terminal, the way
+//! the app drives them.
 //!
-//! * `mr-cli index <inputs...> [--json]`: discovery, merged index, the FR-07
-//!   summary and the per-item match table.
-//! * `mr-cli order-check <inputs...> [--json]`: on a `2026a` export, where
-//!   `sid`/`mid` give ground truth, measure per day how often ZIP entry order
-//!   agrees with JSON order. This is the Q-03 check for a real export.
+//! * `analyze <inputs...>` (alias `index`): discovery, merged index, the
+//!   FR-07 summary and the per-item match table.
+//! * `order-check <inputs...>`: on a `2026a` export, per day, how often ZIP
+//!   entry order agrees with JSON order (Q-03).
+//! * `plan <inputs...> --dest D`: the dry run (FR-29).
+//! * `run <inputs...> --dest D`: create a job and process it.
+//! * `resume <job>`, `retry <job>`, `add-part <job> <path>`, `report <job>`, `jobs`.
+//!
+//! Job state lives in `--state-dir` (default: the per-user app data folder).
+
+mod jobs;
 
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -31,8 +38,9 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
-    /// Index export ZIPs or folders: FR-07 summary and per-item match table.
-    Index {
+    /// Analyse export ZIPs or folders: FR-07 summary and per-item match table.
+    #[command(alias = "index")]
+    Analyze {
         /// Export ZIP files and/or extracted folders.
         #[arg(required = true)]
         inputs: Vec<PathBuf>,
@@ -52,6 +60,82 @@ enum Command {
     OrderCheck {
         #[arg(required = true)]
         inputs: Vec<PathBuf>,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Dry run (FR-29): totals, match breakdown, sample output paths,
+    /// warnings and the space estimate. Writes nothing unless --export is given.
+    Plan {
+        #[arg(required = true)]
+        inputs: Vec<PathBuf>,
+        #[command(flatten)]
+        options: jobs::OptionArgs,
+        /// Write the full preview as JSON to this file.
+        #[arg(long)]
+        export: Option<PathBuf>,
+        #[arg(long)]
+        json: bool,
+        /// Sample size in text mode.
+        #[arg(long, default_value_t = 20)]
+        limit: usize,
+    },
+    /// Create a job for these inputs and process it.
+    Run {
+        #[arg(required = true)]
+        inputs: Vec<PathBuf>,
+        #[command(flatten)]
+        options: jobs::OptionArgs,
+        #[arg(long)]
+        state_dir: Option<PathBuf>,
+        #[arg(long)]
+        quiet: bool,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Continue a job (after a pause, a crash, or with --unlocked).
+    Resume {
+        job: String,
+        #[arg(long)]
+        state_dir: Option<PathBuf>,
+        /// Unlock the full version for this job first (FR-44).
+        #[arg(long)]
+        unlocked: bool,
+        #[arg(long)]
+        quiet: bool,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Process the failed items of a job again (FR-39).
+    Retry {
+        job: String,
+        #[arg(long)]
+        state_dir: Option<PathBuf>,
+        #[arg(long)]
+        quiet: bool,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Add an export part that was missing (FR-40); then `resume`.
+    AddPart {
+        job: String,
+        path: PathBuf,
+        #[arg(long)]
+        state_dir: Option<PathBuf>,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Write the report (FR-38) into the job's output folder.
+    Report {
+        job: String,
+        #[arg(long)]
+        state_dir: Option<PathBuf>,
+        #[arg(long)]
+        json: bool,
+    },
+    /// List the jobs in the state directory.
+    Jobs {
+        #[arg(long)]
+        state_dir: Option<PathBuf>,
         #[arg(long)]
         json: bool,
     },
@@ -78,8 +162,48 @@ fn run_export<'a>(d: &'a Discovery, export: &'a Export, opts: &MatchOptions) -> 
 
 fn main() -> ExitCode {
     let cli = Cli::parse();
+    let state = |dir: &Option<PathBuf>| dir.clone().unwrap_or_else(jobs::default_state_dir);
     match cli.command {
-        Command::Index {
+        Command::Plan {
+            inputs,
+            options,
+            export,
+            json,
+            limit,
+        } => jobs::cmd_plan(&inputs, &options, json, export.as_deref(), limit),
+        Command::Run {
+            inputs,
+            options,
+            state_dir,
+            quiet,
+            json,
+        } => jobs::cmd_run(&state(&state_dir), &inputs, &options, quiet, json),
+        Command::Resume {
+            job,
+            state_dir,
+            unlocked,
+            quiet,
+            json,
+        } => jobs::cmd_resume(&state(&state_dir), &job, unlocked, quiet, json),
+        Command::Retry {
+            job,
+            state_dir,
+            quiet,
+            json,
+        } => jobs::cmd_retry(&state(&state_dir), &job, quiet, json),
+        Command::AddPart {
+            job,
+            path,
+            state_dir,
+            json,
+        } => jobs::cmd_add_part(&state(&state_dir), &job, &path, json),
+        Command::Report {
+            job,
+            state_dir,
+            json,
+        } => jobs::cmd_report(&state(&state_dir), &job, json),
+        Command::Jobs { state_dir, json } => jobs::cmd_jobs(&state(&state_dir), json),
+        Command::Analyze {
             inputs,
             json,
             apply_uncertain_locations,

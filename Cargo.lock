@@ -2276,6 +2276,7 @@ dependencies = [
  "chrono",
  "clap",
  "mr-core",
+ "mr-job",
  "serde_json",
 ]
 

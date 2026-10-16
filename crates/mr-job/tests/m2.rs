@@ -21,6 +21,13 @@ use mr_job::{
 use mr_meta::native_mp4;
 use mr_report::{RowKind, Status};
 
+/// Items in F-01 on this machine: 50 with ffmpeg, 30 without (the CI runners).
+fn f01_items() -> usize {
+    truth("small-2026b")["counts"]["main_files"]
+        .as_u64()
+        .unwrap() as usize
+}
+
 fn done_items(job: &Job) -> Vec<mr_job::ItemRow> {
     job.items()
         .unwrap()
@@ -668,7 +675,7 @@ fn fr28_recheck_pauses_when_space_runs_low() {
     };
     assert_eq!(code, "DISK_FULL_IMMINENT");
     assert!((10..=12).contains(&stats.done), "{stats:?}");
-    assert_eq!(stats.pending, 50 - stats.done);
+    assert_eq!(stats.pending, f01_items() - stats.done);
 }
 
 #[test]
@@ -805,7 +812,7 @@ fn job_state_corrupt_is_rebuilt_from_the_output_folder() {
         files.keys().all(|k| !k.contains("_2.")),
         "no duplicates after rebuild"
     );
-    assert_eq!(done_items(&job).len(), 50);
+    assert_eq!(done_items(&job).len(), f01_items());
     assert!(
         job.report_data()
             .unwrap()
@@ -834,7 +841,7 @@ fn fr34_pause_resume_and_cancel() {
     let mr_job::Outcome::Paused(stats) = &outcome else {
         panic!("{outcome:?}")
     };
-    assert!(stats.done > 0 && stats.done < 50, "{stats:?}");
+    assert!(stats.done > 0 && stats.done < f01_items(), "{stats:?}");
     assert!(
         !sink.progress.lock().unwrap().is_empty(),
         "progress at least once per second"
@@ -859,7 +866,7 @@ fn fr34_pause_resume_and_cancel() {
     // A fresh control finishes it.
     let (outcome, _) = run(&mut job);
     assert!(matches!(outcome, mr_job::Outcome::Completed(_)));
-    assert_eq!(done_items(&job).len(), 50);
+    assert_eq!(done_items(&job).len(), f01_items());
 }
 
 #[test]
@@ -1063,7 +1070,7 @@ fn dest_unavailable_pauses_then_resumes_by_itself() {
     );
     assert!(issues.contains(&"DEST_AVAILABLE".to_string()), "{issues:?}");
     assert!(t0.elapsed() >= Duration::from_secs(2));
-    assert_eq!(done_items(&job).len(), 50);
+    assert_eq!(done_items(&job).len(), f01_items());
     let waiting = sink
         .progress
         .lock()
@@ -1227,4 +1234,190 @@ fn fr25_fr26_overlay_modes_originals_and_the_compositor_seam() {
             _ => unreachable!(),
         }
     }
+}
+
+// ---------------------------------------------------------------------------
+// Section 3.7 collisions: a file already in the output folder is never overwritten
+// ---------------------------------------------------------------------------
+
+#[test]
+fn foreign_files_in_the_output_folder_get_a_suffix_not_overwritten() {
+    let e = env("foreign");
+    let inputs = zips_in(&fixture_dir("small-2026b"));
+    let o = options(&e.dest);
+    // Learn the planned name of the first item, then put a stranger's file there.
+    let p = plan(&inputs, &o).unwrap();
+    let first = p.sample(1)[0].clone();
+    let squatter = mr_job::layout::to_fs(&p.output_root, &first.output_rel);
+    fs::create_dir_all(squatter.parent().unwrap()).unwrap();
+    fs::write(&squatter, b"the user's own file").unwrap();
+    let mut job = Job::create(&e.state, &inputs, o).unwrap();
+    let (outcome, _) = run(&mut job);
+    assert!(matches!(outcome, mr_job::Outcome::Completed(_)));
+    assert_eq!(
+        fs::read(&squatter).unwrap(),
+        b"the user's own file",
+        "never overwritten"
+    );
+    let row = job
+        .items()
+        .unwrap()
+        .into_iter()
+        .find(|i| i.plan.key == first.key)
+        .unwrap();
+    let rel = row.output_path.unwrap();
+    assert_eq!(
+        rel,
+        mr_job::layout::join_rel(
+            mr_job::layout::split_rel(&first.output_rel).0,
+            &mr_job::layout::with_suffix(mr_job::layout::split_rel(&first.output_rel).1, 2),
+        )
+    );
+    assert!(job.output_root().join(&rel).is_file());
+}
+
+#[test]
+fn a_job_runs_once_at_a_time_and_open_does_not_touch_its_temp() {
+    let e = env("busy");
+    let mut o = options(&e.dest);
+    o.test_hooks.delay_ms = 50;
+    o.workers = Some(1);
+    let mut job = Job::create(&e.state, &zips_in(&fixture_dir("small-2026b")), o).unwrap();
+    let id = job.id().to_string();
+    let state = e.state.clone();
+    let control = Control::new();
+    let c = control.clone();
+    let runner = std::thread::spawn(move || {
+        let out = job.run(&CollectingSink::default(), &c).unwrap();
+        (job, out)
+    });
+    std::thread::sleep(Duration::from_millis(400));
+    // A second handle can read state while the first one runs...
+    let t_open = Instant::now();
+    let mut second = Job::open(&state, &id).unwrap();
+    println!("second open took {} ms", t_open.elapsed().as_millis());
+    assert_eq!(second.items().unwrap().len(), f01_items());
+    // ...but cannot run it or clear its temp.
+    assert!(matches!(
+        second.run(&CollectingSink::default(), &Control::new()),
+        Err(mr_job::JobError::Busy { .. })
+    ));
+    assert!(matches!(
+        second.clean_temp(),
+        Err(mr_job::JobError::Busy { .. })
+    ));
+    control.cancel();
+    let (_job, out) = runner.join().unwrap();
+    assert!(matches!(out, mr_job::Outcome::Cancelled(_)), "{out:?}");
+    // Now it may run again, from the other handle.
+    let (out, _) = run(&mut second);
+    assert!(matches!(out, mr_job::Outcome::Completed(_)), "{out:?}");
+    assert_eq!(done_items(&second).len(), f01_items());
+}
+
+#[test]
+fn composite_pending_items_are_composited_once_a_compositor_is_available() {
+    let e = env("pending");
+    let mut job = Job::create(
+        &e.state,
+        &zips_in(&fixture_dir("small-2026b")),
+        options(&e.dest),
+    )
+    .unwrap();
+    run(&mut job);
+    let pending = job
+        .items()
+        .unwrap()
+        .iter()
+        .filter(|i| i.composite_pending)
+        .count();
+    assert!(pending > 0);
+    let before = files_under(job.output_root());
+    assert_eq!(
+        before
+            .keys()
+            .filter(|k| k.ends_with("-overlay.png"))
+            .count(),
+        pending
+    );
+    let boundary = job.journal().unwrap().last().unwrap().seq;
+    job.set_compositor(Arc::new(CopyCompositor));
+    assert_eq!(job.requeue_composite_pending().unwrap(), pending);
+    let (outcome, _) = run(&mut job);
+    assert!(
+        matches!(outcome, mr_job::Outcome::Completed(_)),
+        "{outcome:?}"
+    );
+    let restarted = job
+        .journal()
+        .unwrap()
+        .into_iter()
+        .filter(|ev| ev.seq > boundary && ev.event == "start")
+        .count();
+    assert_eq!(restarted, pending, "only the pending items were processed");
+    assert_eq!(
+        job.items()
+            .unwrap()
+            .iter()
+            .filter(|i| i.composite_pending)
+            .count(),
+        0
+    );
+    let after = files_under(job.output_root());
+    let beside = after
+        .keys()
+        .filter(|k| k.ends_with("-overlay.png") && !k.contains("/originals/"))
+        .count();
+    let originals = after.keys().filter(|k| k.contains("/originals/")).count();
+    assert_eq!(
+        beside, 0,
+        "overlays saved beside were removed after burn-in"
+    );
+    assert_eq!(
+        originals,
+        2 * pending,
+        "originals/ kept for every composited item"
+    );
+    assert!(after.keys().all(|k| !k.contains("_2.")), "no duplicates");
+}
+
+#[test]
+fn an_output_the_user_edited_is_never_overwritten_or_removed() {
+    let e = env("edited");
+    let mut job = Job::create(
+        &e.state,
+        &zips_in(&fixture_dir("small-2026b")),
+        options(&e.dest),
+    )
+    .unwrap();
+    run(&mut job);
+    let victim = job
+        .items()
+        .unwrap()
+        .into_iter()
+        .find(|i| i.composite_pending)
+        .expect("an item with an overlay");
+    let rel = victim.output_path.clone().unwrap();
+    let path = job.output_root().join(&rel);
+    let mut bytes = fs::read(&path).unwrap();
+    bytes.extend_from_slice(b"edited by the user");
+    fs::write(&path, &bytes).unwrap();
+    // Write the pending items again (with a compositor): the edited file must survive.
+    job.set_compositor(Arc::new(CopyCompositor));
+    job.requeue_composite_pending().unwrap();
+    let (outcome, _) = run(&mut job);
+    assert!(matches!(outcome, mr_job::Outcome::Completed(_)));
+    assert_eq!(fs::read(&path).unwrap(), bytes, "the user's edit is kept");
+    let row = job
+        .items()
+        .unwrap()
+        .into_iter()
+        .find(|i| i.plan.key == victim.plan.key)
+        .unwrap();
+    let new_rel = row.output_path.unwrap();
+    assert_ne!(new_rel, rel, "the new output went next to it");
+    assert!(new_rel.contains("_2."), "{new_rel}");
+    // Untouched outputs were replaced in place, not duplicated.
+    let files = files_under(job.output_root());
+    assert_eq!(files.keys().filter(|k| k.contains("_2.")).count(), 1);
 }

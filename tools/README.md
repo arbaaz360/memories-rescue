@@ -58,6 +58,9 @@ on every run. The whole set takes about ten seconds.
 | `missing-part` | F-05 | F-04 without part 3: 250 mains lost, 74 overlays lost, 77 orphan overlays. |
 | `truncated` | F-06 | F-04 with part 2 cut at 70% of its bytes (238 entries readable, 1 partial, 87 lost) and one CRC-corrupt stored entry in part 1. |
 | `zipslip` | F-14 | Two good items next to six entries that must be refused: `../`, `memories/../../`, an absolute path, a drive letter, a backslash traversal, a symlink (NFR-PRV-07). |
+| `tz-edge` | F-11 | 24 photos, one per time zone case: FR-19 AC1 (New York, London, no GPS with home zone Asia/Kolkata), DST both ways in New York and London, the date line both ways (Kiritimati +14, Pago Pago -11), Apia, Kathmandu +05:45, Kolkata, Chatham +13:45, Adelaide, St John's -02:30, Lord Howe, month and year boundaries, an ocean point. A `2026a` export, so every case matches exactly; expected local time, offset and `YYYY/MM` come from Python `zoneinfo`. |
+| `unicode-paths` | F-12 | 12 items (photos and real tiny MP4s); the tests choose a non-ASCII destination deeper than 260 characters. |
+| `free-limit` | F-13 | 250 items (200 photos, 50 tiny MP4s) with a `chronological_rank` per item, for the free tier (FR-44). |
 
 ### truth.json (schema 1)
 
@@ -104,6 +107,11 @@ Item fields by fixture:
   lost_mains, lost_overlays, orphan_overlays[]}`; `truncated_part {number,
   cut_bytes, full_bytes, readable[], partial, lost[]}` and `corrupt_entry
   {part, name, crc32, flipped_offset}`.
+- `tz-edge`: `case`, `id`, `date_utc`, `location`, `expected {method (gps | home |
+  gps_unknown_or_home), zone, offset_seconds, offset, local, local_date,
+  local_folder, dst}`; top-level `home_zone`.
+- `unicode-paths`, `free-limit`: `id`, `date_utc`, `media_type`, `ext`, `main`,
+  `overlay`, `location`, `day_group_size`, `chronological_rank`.
 - `zipslip`: `entries[] {name, refused, reason}` (`parent_traversal` |
   `absolute_path` | `drive_letter` | `symlink`) next to the two items.
 
@@ -114,7 +122,9 @@ in the multipart family are an independent Python reading of the same rules.
 ### How the tests use it
 
 `crates/mr-core/tests/fixtures.rs` (parsers, M0) and
-`crates/mr-core/tests/m1.rs` (discovery, index, matching, M1) read the
+`crates/mr-core/tests/m1.rs` (discovery, index, matching, M1),
+`crates/mr-tz/tests/tz_edge.rs`, `crates/mr-job/tests/m2.rs` (the engine, M2)
+and `crates/mr-cli/tests/kill.rs` (FR-33 AC1) read the
 fixtures and compare every count and decision with `truth.json`. If any
 `fixtures/<name>/truth.json` is missing, the test binary runs
 `python tools/make_fixture --all` itself before the first test (it tries
@@ -131,7 +141,7 @@ Add a builder to `fixtures.py` or `fixtures_m1.py` and register it in the
 `BUILDERS` map; keep the common `truth.json` keys, add fixture-specific item
 fields, and document them above. Still to come: F-03 mixed-format, F-07
 rotation, F-08 clips, F-09 codecs, F-11 tz-edge, F-12 unicode paths, F-13
-free-limit, F-16 uncertain-location (M2+).
+F-16 uncertain-location (M3+).
 
 ## sidecars.py: ffmpeg and exiftool binaries
 
