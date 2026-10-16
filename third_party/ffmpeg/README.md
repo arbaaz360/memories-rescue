@@ -11,7 +11,7 @@ tests use. It replaces the 134 MB BtbN development build in releases.
 | Signature | `ffmpeg-9.0.2.tar.xz.asc`, good signature by the FFmpeg release signing key `FCF9 86EA 15E6 E293 A564 4F10 B432 2F04 D676 58D8` (checked 2026-10-16) |
 | Patches | none |
 | License of the build | **LGPL v2.1 or later**: no `--enable-gpl`, no `--enable-nonfree`, no `--enable-version3` |
-| Windows x64 | WINDOWS_SIZE |
+| Windows x64 | `ffmpeg.exe` **9,453,568 bytes (9.0 MiB)**, static, SHA-256 `f17252176a50b04338cd8b41a8a4fe03b06d72e8aa6f18ca5054c392ba966977` (2026-10-16); BtbN's is 134 MB |
 | macOS universal | recipe in `build.sh`, **unverified** (no Mac available; CI blocked) |
 
 ## Files
@@ -137,9 +137,29 @@ No ffprobe (the app reads media natively, `mr_composite::probe`), no
 network, no devices, no OpenH264 (Q-04, provisionally closed 2026-10-16: the
 software `h264_mf` at 1.3× the source bitrate instead).
 
-## Results
+## Results (Windows 11 Pro N, 2026-10-16)
 
-RESULTS
+| Check | Minimal build | BtbN build |
+|---|---|---|
+| Size of `ffmpeg.exe` | 9,453,568 bytes | 134 MB |
+| DLLs it imports | `KERNEL32`, `SHELL32`, `bcrypt`, `msvcrt`, `ole32` (Media Foundation loaded at run time) | many more |
+| `-encoders` (video) | `h264_mf`, `hevc_mf`, `png`, `mjpeg` | dozens |
+| `cargo test -p mr-composite` (44 unit + 15 integration) | **all pass** | all pass |
+| `cargo test -p mr-job --test m3` (engine on F-07, F-08, F-09) | **all pass** | all pass |
+| FR-24 AC1 frame SSIM (F-07) | 0.988 to 0.994 | 0.985 to 0.993 (before the 1.3× default) |
+| FR-24 AC2 A/V drift over 60 s | 0.0 ms | 0.0 ms |
+| FR-27 AC1 join | 24.000 s, joins at 96 to 97 % level | the same |
+| `media_check` | `h264_mf` listed; software MFT works (84 ms smoke), GPU MFT works; plan: software MFT, software path = software MFT (no OpenH264) | adds `libopenh264` as the software path |
+
+Both binaries were selected with `MR_FFMPEG`, so the same test binaries ran
+against each. Two unit tests that used `lavfi` and `mpeg4` (not in the
+minimal build) were rewritten to loop a PNG into a PNG-in-MOV, which both
+builds have; nothing else needed changing.
+
+Not verified here: the macOS recipe (no Mac; GitHub Actions is blocked by
+billing), and Windows N without the Media Feature Pack (this machine has it;
+the import table shows ffmpeg.exe will start there and report no working
+encoder).
 
 ## Notes
 

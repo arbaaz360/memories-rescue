@@ -145,12 +145,20 @@ F-16 uncertain-location (M3+).
 
 ## sidecars.py: ffmpeg and exiftool binaries
 
-`python tools/sidecars.py fetch` downloads the pinned archives (URL, size and
-SHA-256 in the script), verifies them, extracts into `third_party/` and stages
-`src-tauri/binaries/<name>-<target triple>.exe` plus `exiftool_files/` for
-Tauri's `bundle.externalBin` and `bundle.resources`. `placeholders` writes empty
-files instead (CI); `verify` re-hashes what is staged. Details and licenses:
-`third_party/README.md`.
+Two ffmpegs can be staged in the same place:
+
+| Command | Stages | For |
+|---|---|---|
+| `python tools/sidecars.py fetch` | BtbN's full LGPL ffmpeg (134 MB) and ffprobe, plus exiftool, from pinned archives (URL, size and SHA-256 in the script) | development; ffprobe is a test oracle |
+| `python tools/sidecars.py stage-local` | NovaByteWorks' minimal LGPL ffmpeg (9 MB) built by `third_party/ffmpeg/build.sh`; exiftool and ffprobe are left as they are | releases (SRS §10.4) and checking the app against what ships |
+
+Both put ffmpeg in `third_party/ffmpeg/` and `src-tauri/binaries/<name>-<target
+triple>.exe` for Tauri's `bundle.externalBin`; `third_party/ffmpeg/STAGED.json`
+says which one is staged, and `verify` checks it. `placeholders` writes empty
+files instead (CI). `MR_FFMPEG=<path>` points the media tests, `media_check` and
+`mr-cli` at any ffmpeg without staging. Details and licenses:
+`third_party/README.md` (BtbN, exiftool) and `third_party/ffmpeg/README.md`
+(the minimal build).
 
 ## bench_corpus.py: Q-02 benchmark corpus
 
