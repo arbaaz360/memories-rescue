@@ -14,10 +14,17 @@ URLs on the reserved `.invalid` domain. No real user data, ever.
 - On Windows also [tzdata](https://pypi.org/project/tzdata/) (`pip install tzdata`): `tz-edge`
   computes its expected local times with `zoneinfo`, and Windows has no system zone database.
   macOS and Linux use the system one.
-- ffmpeg on `PATH`, optional, used by `small-2026b` and `small-2026a` only.
-  Without it their video *files* are left out of the ZIP; the JSON entries are
-  still written, `truth.json` marks each one with `main_skipped: "ffmpeg_missing"`,
-  and the tests allow for that. Both GitHub runners lack ffmpeg.
+- ffmpeg, optional, for real video files. The generator looks at **every**
+  ffmpeg on `PATH`, in order, and takes the first with `libx264`, else the
+  first with `libopenh264`, else the first with `mpeg4`; `MR_FIXTURE_FFMPEG`
+  names one explicitly. Taking simply the first one is wrong under
+  `cargo test` on Windows, which puts `target/debug` first on `PATH`, where
+  tauri-build copies the LGPL sidecar (no software H.264 encoder) or an empty
+  placeholder. Without a usable ffmpeg the video *files* of F-01, F-15 and F-03
+  are left out of the ZIP; the JSON entries are still written, `truth.json`
+  marks each one with `main_skipped: "ffmpeg_missing"`, and the tests allow for
+  that. F-07 to F-09 need `libx264` (and `libx265` for F-09's HEVC cases) and
+  write `skipped` instead. Both GitHub runners lack ffmpeg.
 
 ### Usage
 
@@ -53,6 +60,7 @@ on every run. The whole set takes about ten seconds.
 | `small-2026b` | F-01 | 50 items in one part: 30 photos (a few PNG), 20 videos, 15 overlays (30%), 35 with GPS (70%); JSON newest-first with URL fields empty, `N/A` or missing (`2026b` profile); media under `memories/`. |
 | `small-2026a` | F-15 | The same 50 items, but every entry has a `Download Link` on a synthetic host carrying `sid` and `mid` equal to the filename UUID (`2026a` profile, exact matching). |
 | `small-legacy` | F-02 | 50 JSON entries with signed, long-expired dummy `Download Link` / `Media Download Url` values carrying `sid`/`mid` UUIDs; no media bundled. |
+| `mixed-format` | F-03 | 40 entries in one part whose JSON mixes the legacy shape with the 2026 ones, media bundled for 35 (`mixed` profile, FR-13 AC2): 20 legacy-style signed URLs carrying lower-case `sid`/`mid` (for some only `Media Download Url` carries them), 10 with URL fields empty, `N/A` or absent, 5 signed URLs without usable parameters (ordinal path), 5 with `sid`/`mid` whose media is not in the export (`missing_media`). Ordinal entries are on days of their own except one same-day pair at one place. Expected matches assume `--zip-order json`. |
 | `weird-json` | F-10 | 30 hand-written cases in one JSON file: UTF-8 BOM, CRLF, tab indent, unknown top-level keys before and after the array, unknown entry fields, missing/empty/non-string `Location`, `0.0, 0.0`, out-of-range coordinates, ISO 8601 and other date variants, legacy URLs, escaped text, case-folded keys, an empty entry. |
 | `multipart` | F-04 | 1,000 items over 4 parts of 250, every overlay in the part after its main's, part 2 renamed to `mydata (1).zip`. Same-day items share a place so that positional matching is right; three multi-item days have locations kilometres apart so the §3.6 location policy fires (7 items). Videos are placeholder bytes. `2026b` by default. |
 | `missing-part` | F-05 | F-04 without part 3: 250 mains lost, 74 overlays lost, 77 orphan overlays. |
@@ -61,13 +69,16 @@ on every run. The whole set takes about ten seconds.
 | `tz-edge` | F-11 | 24 photos, one per time zone case: FR-19 AC1 (New York, London, no GPS with home zone Asia/Kolkata), DST both ways in New York and London, the date line both ways (Kiritimati +14, Pago Pago -11), Apia, Kathmandu +05:45, Kolkata, Chatham +13:45, Adelaide, St John's -02:30, Lord Howe, month and year boundaries, an ocean point. A `2026a` export, so every case matches exactly; expected local time, offset and `YYYY/MM` come from Python `zoneinfo`. |
 | `unicode-paths` | F-12 | 12 items (photos and real tiny MP4s); the tests choose a non-ASCII destination deeper than 260 characters. |
 | `free-limit` | F-13 | 250 items (200 photos, 50 tiny MP4s) with a `chronological_rank` per item, for the free tier (FR-44). |
+| `rotation` | F-07 | 5 videos (rotate 90, 270 and 180, a 60 s landscape for FR-24 AC2, a 9:16 overlay on a 360x780 video) and 7 photos (EXIF orientation 1, 3, 6, 8, a PNG, two aspect mismatches), overlays at 1x or 2x the display size, with Pillow and ffmpeg reference composites in `ref/`. Built by `fixtures_m3.py`; documented in `docs/api/mr-composite.md`. |
+| `clips` | F-08 | 33 clips at 288x512 in groups of 2 to 6 (10+10+4 s for FR-27 AC1, overlays on some segments, rotated groups) plus decoys that must not join (resolution, a 5 s gap, 25 vs 30 fps, 1.1 km apart, a short middle clip, New Year 2022, a 2023 group). A `2026a` export. `fixtures_m3.py`. |
+| `codecs` | F-09 | 3 s clips: H.264, HEVC 8-bit `hvc1` rotated, HEVC 10-bit `hev1`, variable frame rate, no audio, 4:4:4 at 361x641, 25 fps; probe expectations per case (FR-51). `fixtures_m3.py`. |
 
 ### truth.json (schema 1)
 
 ```text
 schema            1
 fixture, srs_id   e.g. "multipart", "F-04"
-format            "2026a" | "2026b" | "legacy"
+format            "2026a" | "2026b" | "legacy" | "mixed"
 generator         name, version, seed, zip_order, json_order, ffmpeg{available, version, encoder | note}
 parts[]           {file, role, entries[]} plus, for multi-part fixtures, number, renamed, present
 json              {bom, crlf, indent, top_level_keys_before[], top_level_keys_after[]}
@@ -90,6 +101,13 @@ Item fields by fixture:
   `zip_index_overlay`.
 - `small-legacy`: `date_utc`, `media_type`, `location`, `download_link`,
   `media_download_url`, `download_link_redacted`, `sid`, `mid`.
+- `mixed-format`: the `small-2026b` fields plus `built_as` (`exact` |
+  `ordinal_empty` | `ordinal_tokenless` | `missing`), `expected_match`
+  (`exact` | `ordinal` | `missing_media`) and `ordinal_pair`; counts add
+  `path_exact`, `path_ordinal` (entries per matching path, FR-13) and
+  `expected_exact`, `expected_ordinal`, `expected_missing_media`.
+- `rotation`, `clips`, `codecs`: see the fixtures section of
+  `docs/api/mr-composite.md`.
 - `weird-json`: `case` (a name), `fields` (the raw entry) and `expected`
   with `date_utc`, `date_kind` (`instant` | `day_only` | `unparseable` |
   `missing`), `media_type` (`photo` | `video` | `unknown`), `location`,
@@ -122,7 +140,7 @@ in the multipart family are an independent Python reading of the same rules.
 ### How the tests use it
 
 `crates/mr-core/tests/fixtures.rs` (parsers, M0) and
-`crates/mr-core/tests/m1.rs` (discovery, index, matching, M1),
+`crates/mr-core/tests/m1.rs` (discovery, index, matching, M1), `crates/mr-core/tests/fr13.rs` (profiles and F-03),
 `crates/mr-tz/tests/tz_edge.rs`, `crates/mr-job/tests/m2.rs` (the engine, M2)
 and `crates/mr-cli/tests/kill.rs` (FR-33 AC1) read the
 fixtures and compare every count and decision with `truth.json`. If any
@@ -137,11 +155,12 @@ is reported on its own.
 
 ### Adding a fixture
 
-Add a builder to `fixtures.py` or `fixtures_m1.py` and register it in the
-`BUILDERS` map; keep the common `truth.json` keys, add fixture-specific item
-fields, and document them above. Still to come: F-03 mixed-format, F-07
-rotation, F-08 clips, F-09 codecs, F-11 tz-edge, F-12 unicode paths, F-13
-F-16 uncertain-location (M3+).
+Add a builder to `fixtures.py`, `fixtures_m1.py` or `fixtures_m2.py` and
+register it in the `BUILDERS` map; keep the common `truth.json` keys, add
+fixture-specific item fields, and document them above. Still to come: F-16
+`uncertain-location` as its own fixture (the multipart family already has
+three day groups whose locations are kilometres apart, and F-11's cases are
+exact matches).
 
 ## sidecars.py: ffmpeg and exiftool binaries
 

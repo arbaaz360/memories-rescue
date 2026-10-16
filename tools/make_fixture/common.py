@@ -9,6 +9,7 @@ from __future__ import annotations
 import datetime as dt
 import io
 import json
+import os
 import random
 import shutil
 import subprocess
@@ -194,12 +195,31 @@ def part_name(suffix: str = "") -> str:
 # ---------------------------------------------------------------------------
 
 PREFERRED_ENCODERS = ["libx264", "libopenh264", "mpeg4"]
+FFMPEG_ENV = "MR_FIXTURE_FFMPEG"
 
 
-def detect_ffmpeg() -> FfmpegInfo | None:
-    path = shutil.which("ffmpeg")
-    if not path:
-        return None
+def ffmpeg_candidates() -> list[str]:
+    """``MR_FIXTURE_FFMPEG`` alone when set; otherwise every ffmpeg on PATH,
+    in PATH order. The first one is often not the right one: ``cargo test``
+    puts ``target/debug`` first on PATH on Windows, and tauri-build copies the
+    LGPL sidecar there (no libx264), or an empty placeholder in CI."""
+    env = os.environ.get(FFMPEG_ENV)
+    if env:
+        return [env]
+    exe = "ffmpeg.exe" if os.name == "nt" else "ffmpeg"
+    seen, out = set(), []
+    for d in os.environ.get("PATH", "").split(os.pathsep):
+        if not d:
+            continue
+        p = os.path.join(d, exe)
+        key = os.path.normcase(os.path.abspath(p))
+        if key not in seen and os.path.isfile(p) and os.path.getsize(p) > 0:
+            seen.add(key)
+            out.append(p)
+    return out
+
+
+def _probe_ffmpeg(path: str) -> tuple[str, set[str]] | None:
     try:
         version = subprocess.run(
             [path, "-version"], capture_output=True, text=True, check=True, timeout=30
@@ -207,10 +227,18 @@ def detect_ffmpeg() -> FfmpegInfo | None:
         encoders = subprocess.run(
             [path, "-hide_banner", "-encoders"], capture_output=True, text=True, check=True, timeout=30
         ).stdout
-    except (OSError, subprocess.SubprocessError):
+    except (OSError, subprocess.SubprocessError, IndexError):
         return None
-    available = {line.split()[1] for line in encoders.splitlines() if line.startswith(" V")}
+    names = {line.split()[1] for line in encoders.splitlines() if line.startswith(" V") and len(line.split()) > 1}
+    return version, names
+
+
+def detect_ffmpeg() -> FfmpegInfo | None:
+    """The best ffmpeg anywhere on PATH: the first with libx264, else the
+    first with libopenh264, else the first with mpeg4."""
+    found = [(p, r) for p in ffmpeg_candidates() if (r := _probe_ffmpeg(p))]
     for enc in PREFERRED_ENCODERS:
-        if enc in available:
-            return FfmpegInfo(path=path, version=version, encoder=enc)
+        for path, (version, names) in found:
+            if enc in names:
+                return FfmpegInfo(path=path, version=version, encoder=enc)
     return None
