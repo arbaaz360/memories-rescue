@@ -42,8 +42,8 @@ o.unlocked = license_is_valid;               // false: first 100 items (FR-44)
 | `output_template: String` | `{date}_{time}_{shortid}.{ext}` | 3.7; also `{id}` |
 | `unlocked: bool` | `false` | FR-44 |
 | `apply_uncertain_locations: bool` | `false` | 3.6 step 4, FR-48 |
-| `windows_compat: bool` | `false` | FR-51; passed to the compositor |
-| `clip_rejoin: ClipRejoin { enabled, year_range }` | off, `2017-2021` | FR-27; recorded, not yet acted on |
+| `windows_compat: bool` | `false` | FR-51: videos the compositor finds HEVC are saved as H.264 (`compat_transcode`); burn-ins are H.264 anyway |
+| `clip_rejoin: ClipRejoin { enabled, year_range, skip_groups }` | off, `2017-2021`, none | FR-27: groups found in the dry run are joined after the items; `skip_groups` holds the group ids the user unticked (AC3) |
 | `zip_output: bool` | `false` | FR-31; recorded and counted in the space estimate, not yet written |
 | `ignore_space_check: bool` | `false` | FR-28 AC1 "continue anyway" |
 | `test_hooks: TestHooks` | empty | debug builds only (fault injection) |
@@ -73,8 +73,8 @@ everything the Check & Summary and Preview screens (S2, S4) show:
 | `sample(n)` | the first `n` items in chronological order |
 | `extras: Vec<ExtraRow>` | entries that are not items: missing media, unmatched entries, orphan overlays, unrecognised, refused, duplicates |
 | `space: SpaceEstimate` | FR-28 formula, free space, `sufficient`, `shortfall_bytes`, `options` (change destination, disable originals, disable ZIP, with bytes saved) |
-| `warnings: Vec<Warning>` | `{code, detail}`: `PART_MISSING`, `PART_TRUNCATED`, `ENTRY_REFUSED`, `JSON_MISSING`, `JSON_PARSE`, `LEGACY_LINKS_ONLY`, `MATCH_PARTIAL`, `LOCATION_UNCERTAIN`, `FREE_LIMIT`, `COMPOSITE_PENDING` |
-| `clip_groups` | empty until clip detection lands (FR-27) |
+| `warnings: Vec<Warning>` | `{code, detail}`: `PART_MISSING`, `PART_TRUNCATED`, `ENTRY_REFUSED`, `JSON_MISSING`, `JSON_PARSE`, `LEGACY_LINKS_ONLY`, `MATCH_PARTIAL`, `LOCATION_UNCERTAIN`, `FREE_LIMIT`, `COMPOSITE_PENDING` (overlays exist and the mode burns in; `plan_for` with a `MediaCompositor` leaves it out), `HEVC_PLAYBACK` (FR-51: HEVC found in a sample of up to 16 videos, this Windows cannot play HEVC, and `windows_compat` is off; offer the option) |
+| `clip_groups: Vec<ClipGroup>` | FR-27, with `clip_rejoin.enabled`: `id` (first clip's item key), `items` (keys in order), `start_utc`, `total_secs`, `output_rel` (`<first clip stem>-joined.<ext>`), `enabled` (false when in `skip_groups`). Videos are probed where they lie, streamed until `moov`; only exact-time videos in the year range with a neighbour within a minute are read |
 | `date_range`, `tz_data_version`, `home_zone`, `output_root` | |
 
 To "export the preview report" (FR-29 AC1), serialise the `Plan` (it is
@@ -170,7 +170,9 @@ impl ProgressSink for TauriSink {
 ```
 
 `ItemOutcome`: `id` (item key), `stage` (`done` / `failed`), `media_type`,
-`output_path` (relative), `error_code`, `error_detail`, `seconds`.
+`output_path` (relative), `error_code`, `error_detail`, `seconds`. A joined
+clip group reports one `ItemOutcome` with `id` = `clip:<group id>` after the
+items are done.
 
 Issue codes sent to `issue`: `JOB_STATE_CORRUPT`, `INPUT_CHANGED`,
 `DISK_FULL`, `DISK_FULL_IMMINENT`, `DEST_UNAVAILABLE`, `DEST_AVAILABLE`,
@@ -190,7 +192,13 @@ job.unlock()?;                         // FR-44: skipped_free_limit -> pending
 job.set_options(options)?;             // home zone / template / uncertain locations re-plan
 let files = job.report()?;             // FR-38
 let data = job.report_data()?;         // the same rows, for an in-app Results table
+let groups = job.clip_groups()?;       // FR-27: ClipRow { group, stage, output_path, error_code, ... }
 ```
+
+`ClipRow::stage`: `pending`, `done`, `failed` (`CLIP_INCOMPLETE` when a clip
+was not written, or the compositor's code), `skipped` (unticked) or
+`declined` (no media support). A group whose clips' plans change is joined
+again and its earlier file replaced.
 
 `Replanned`: `items`, `new_items`, `requeued` (finished items whose time,
 location or overlay changed because of the new part; they are written again
@@ -203,21 +211,41 @@ entry (FR-38 AC1); statuses `done`, `metadata_partial`, `location_uncertain`,
 `missing_media`, `failed`, `skipped_free_limit`, `pending`,
 `orphan_overlay`, `unrecognised`, `refused`, `duplicate`. Rows name parts by
 file name and outputs relative to the output folder; free text is redacted of
-URLs and absolute paths.
+URLs and absolute paths. Joined clip groups are rows of kind `joined_clip`
+(item = group id, the joined file as output). An item's message also carries
+the compositor's notes from its latest attempt (`OVERLAY_ASPECT_MISMATCH`,
+`H264_COMPAT`, `ODD_SIZE_SCALED`, `AUDIO_REENCODED`), kept as `warning:`
+journal events.
 
 ## The compositor seam
 
 ```rust
 pub trait Compositor: Send + Sync {
     fn composite(&self, req: &CompositeRequest<'_>) -> Result<CompositeOutcome, CompositeError>;
+    fn compat_transcode(&self, req: &TranscodeRequest<'_>) -> Result<CompositeOutcome, CompositeError> { NotSupported }
+    fn rejoin(&self, req: &RejoinRequest<'_>) -> Result<CompositeOutcome, CompositeError> { NotSupported }
     fn name(&self) -> &str { "compositor" }
 }
-job.set_compositor(Arc::new(MyCompositor));
+// The real one (mr-composite), bound to the ffmpeg sidecar:
+job.set_compositor(Arc::new(mr_job::MediaCompositor::new(sidecar_ffmpeg)));
 ```
+
+`MediaCompositor` (`crates/mr-job/src/media.rs`) burns overlays into photos
+(no ffmpeg needed) and videos, makes HEVC videos H.264 when asked, and joins
+clip groups; `media.encoder_plan()` tells the UI before a run whether video
+work is possible. When no H.264 encoder works (`ENCODER_UNAVAILABLE`, e.g. a
+Windows N edition without the Media Feature Pack) it declines video work
+(`NotSupported`) instead of failing items, so those items are written with
+their overlay beside them and `composite_pending`, ready for
+`requeue_composite_pending` once the component is installed.
+`mr_job::media::hevc_playback_available()` answers FR-51 for the UI.
+`mr-cli` uses it when the `MR_FFMPEG` environment variable names an ffmpeg.
 
 `CompositeRequest`: `kind` (`Photo` / `Video`), `main`, `overlay`, `out`
 (all inside the item's temp folder on the destination volume), `ext`,
-`windows_compat`, `item_key`. Return `Composited` after writing `out`;
+`windows_compat`, `item_key`. Return `Composited` (or
+`CompositedWithWarnings(vec![CompositeWarning { code, detail }])`, which the
+report shows) after writing `out`;
 the engine then writes metadata onto the composite, verifies it, and with
 `BurnInKeepOriginals` + `keep_originals` saves `originals/<stem>-main.<ext>`
 (metadata fixed) and `originals/<stem>-overlay.png`. Return `NotSupported`
@@ -228,6 +256,13 @@ the item is reported `failed` with that code, and the original plus the
 separate overlay are still written. The default is `PassThrough`
 (`NotSupported`). The compositor runs on worker threads, several at once.
 
+`compat_transcode` gets `TranscodeRequest { main, out, ext, item_key }` for
+every video that was not composited when `windows_compat` is on; it returns
+`NotSupported` for anything that needs no conversion. `rejoin` gets
+`RejoinRequest { group_id, segments: [RejoinSegment { main, overlay }], out }`
+on the coordinator thread after all items are done; the engine writes the
+first clip's metadata onto the result and places it beside the clips.
+
 When a real compositor becomes available for a job that already ran with the
 pass-through, `job.requeue_composite_pending()` queues the items marked
 `composite_pending`; the next `run` composites them, writes `originals/` as
@@ -237,7 +272,8 @@ configured and removes the overlays that were saved beside the files.
 
 1. Temp folder `<output>/.memories-rescue/tmp/<key>/` on the destination volume.
 2. Main (and overlay) streamed out of the part; CRC checked (`ZIP_ENTRY_CRC`).
-3. Compositor, if the mode burns in.
+3. Compositor, if the mode burns in; otherwise, for videos with
+   `windows_compat`, the H.264 conversion when the compositor says it is needed.
 4. Metadata: JPEG `DateTimeOriginal`, `CreateDate`, `ModifyDate`,
    `OffsetTimeOriginal`, `OffsetTimeDigitized`, `OffsetTime`, GPS with refs
    and UTC stamps; PNG the same in an `eXIf` chunk; MP4/MOV `mvhd`/`tkhd`/
@@ -258,6 +294,7 @@ configured and removes the overlays that were saved beside the files.
   YYYY/MM/<YYYY-MM-DD>_<HHMMSS>_<SHORTID>.<ext>      local capture time
   YYYY/MM/<stem>-overlay.png                         overlay beside (pass-through, save separate)
   YYYY/MM/originals/<stem>-main.<ext>, -overlay.png  composited + keep originals
+  YYYY/MM/<first clip stem>-joined.<ext>             clip rejoin (FR-27); the clips stay
   _report/report.html, report.csv, failed_items.json
   .memories-rescue/job-id                            marker
   .memories-rescue/tmp/                              per-item temp, removed after use

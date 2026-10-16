@@ -10,16 +10,20 @@
 //!   reporting to a [`ProgressSink`] and obeying a [`Control`] (FR-32, FR-34).
 //! * [`Job::retry_failed`], [`Job::add_part`], [`Job::unlock`],
 //!   [`Job::report`], [`list_jobs`].
-//! * [`Compositor`]: the seam where overlay burn-in plugs in.
+//! * [`Compositor`]: the seam where overlay burn-in, the Windows
+//!   compatibility transcode and clip rejoin plug in; [`MediaCompositor`] is
+//!   the real one (`mr-composite`).
 
 #![deny(unsafe_code)]
 
+mod clips;
 pub mod compositor;
 pub mod control;
 pub mod error;
 pub mod fingerprint;
 pub mod job;
 pub mod layout;
+pub mod media;
 pub mod options;
 pub mod plan;
 pub mod platform;
@@ -28,12 +32,14 @@ pub mod space;
 pub mod state;
 
 pub use compositor::{
-    CompositeError, CompositeOutcome, CompositeRequest, Compositor, MediaKind, PassThrough,
+    CompositeError, CompositeOutcome, CompositeRequest, CompositeWarning, Compositor, MediaKind,
+    PassThrough, RejoinRequest, RejoinSegment, TranscodeRequest,
 };
 pub use control::{CollectingSink, Control, ItemOutcome, Progress, ProgressSink, Stage};
 pub use error::{JobError, Result};
 pub use fingerprint::InputChange;
 pub use job::{Job, JobSummary, Outcome, Replanned, RunStats, find_job_for_output, list_jobs};
+pub use media::MediaCompositor;
 pub use options::{ClipRejoin, FREE_TIER_ITEMS, Options, OverlayMode, TestHooks};
 pub use plan::{
     ExtraKind, ExtraRow, Plan, PlannedItem, Precision, SourceRef, Warning, plan, plan_for,

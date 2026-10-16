@@ -13,6 +13,7 @@ crossbeam-channel = "0.5"
 filetime_creation = "0.2"
 fs4 = "1"
 little_exif = "0.6"
+mr-composite = { path = "../mr-composite" }
 mr-core = { path = "../mr-core" }
 mr-meta = { path = "../mr-meta" }
 mr-report = { path = "../mr-report" }

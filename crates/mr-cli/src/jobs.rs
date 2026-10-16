@@ -4,12 +4,12 @@
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use clap::{Args, ValueEnum};
 use mr_job::{
-    ClipRejoin, Control, ItemOutcome, Job, JobError, Options, Outcome, OverlayMode, Progress,
-    ProgressSink, list_jobs, plan,
+    ClipRejoin, Control, ItemOutcome, Job, JobError, MediaCompositor, Options, Outcome,
+    OverlayMode, Progress, ProgressSink, list_jobs, plan,
 };
 use serde_json::json;
 
@@ -58,15 +58,18 @@ pub struct OptionArgs {
     /// Write the ordinal match's location even when the day group disagrees.
     #[arg(long)]
     pub apply_uncertain_locations: bool,
-    /// "Maximise Windows compatibility" (H.264 output when compositing).
+    /// "Maximise Windows compatibility": HEVC videos are saved as H.264 (FR-51).
     #[arg(long)]
     pub windows_compat: bool,
-    /// Rejoin consecutive clips (recorded; joining arrives with the media component).
+    /// Join consecutive clips into one extra video (FR-27); the clips are kept.
     #[arg(long)]
     pub clip_rejoin: bool,
     /// Clip-rejoin years, `2017-2021` or `all`.
     #[arg(long, default_value = "2017-2021")]
     pub clip_years: String,
+    /// Clip groups not to join (FR-27 AC3), by group id as `plan` lists them.
+    #[arg(long, value_delimiter = ',')]
+    pub clip_skip: Vec<String>,
     /// Package the output as ZIP (recorded; not implemented yet).
     #[arg(long)]
     pub zip_output: bool,
@@ -104,6 +107,7 @@ impl OptionArgs {
         o.clip_rejoin = ClipRejoin {
             enabled: self.clip_rejoin,
             year_range: parse_years(&self.clip_years)?,
+            skip_groups: self.clip_skip.clone(),
         };
         o.zip_output = self.zip_output;
         o.ignore_space_check = self.ignore_space_check;
@@ -293,7 +297,25 @@ fn print_outcome(job: &Job, o: &Outcome, json: bool) {
     println!("output: {}", job.output_root().display());
 }
 
+/// The ffmpeg for burn-in, compatibility and clip joins, named by
+/// `MR_FFMPEG` (the app passes its sidecar the same way). Without it,
+/// overlays are saved beside the files (`composite_pending`), as before.
+fn sidecar_ffmpeg() -> Option<PathBuf> {
+    let p = PathBuf::from(std::env::var_os("MR_FFMPEG")?);
+    std::fs::metadata(&p)
+        .is_ok_and(|m| m.is_file() && m.len() > 0)
+        .then_some(p)
+}
+
 fn drive(job: &mut Job, quiet: bool, json: bool) -> ExitCode {
+    if let Some(ffmpeg) = sidecar_ffmpeg() {
+        if !quiet {
+            eprintln!("media: {}", ffmpeg.display());
+        }
+        job.set_compositor(Arc::new(MediaCompositor::new(ffmpeg)));
+    } else if !quiet {
+        eprintln!("media: no ffmpeg (set MR_FFMPEG); overlays are saved beside the files");
+    }
     let sink = ConsoleSink::new(quiet);
     match job.run(&sink, &Control::new()) {
         Ok(o) => {
@@ -320,7 +342,13 @@ pub fn cmd_plan(
         Ok(o) => o,
         Err(e) => return fail(e),
     };
-    let p = match plan(inputs, &options) {
+    // With MR_FFMPEG the run will burn overlays in, so the plan's warnings
+    // say so (no COMPOSITE_PENDING).
+    let planned = match sidecar_ffmpeg() {
+        Some(ffmpeg) => mr_job::plan_for(inputs, &options, &MediaCompositor::new(ffmpeg)),
+        None => plan(inputs, &options),
+    };
+    let p = match planned {
         Ok(p) => p,
         Err(e) => return fail(e),
     };
@@ -391,6 +419,19 @@ pub fn cmd_plan(
     );
     for w in &p.warnings {
         println!("! {}: {}", w.code, w.detail);
+    }
+    if !p.clip_groups.is_empty() {
+        println!("Clip groups (FR-27; skip one with --clip-skip <id>):");
+        for g in &p.clip_groups {
+            println!(
+                "  {} {} clips, {:.1} s -> {}{}",
+                g.id,
+                g.items.len(),
+                g.total_secs,
+                g.output_rel,
+                if g.enabled { "" } else { "  (skipped)" }
+            );
+        }
     }
     println!("Sample (chronological):");
     for it in p.sample(limit) {

@@ -46,6 +46,10 @@ pub struct ClipRejoin {
     pub enabled: bool,
     /// Inclusive year range of candidate clips; `None` means all years.
     pub year_range: Option<(i32, i32)>,
+    /// Groups the user unticked in the preview (FR-27 AC3), by
+    /// `ClipGroup::id` (the first clip's item key).
+    #[serde(default)]
+    pub skip_groups: Vec<String>,
 }
 
 impl Default for ClipRejoin {
@@ -53,6 +57,7 @@ impl Default for ClipRejoin {
         ClipRejoin {
             enabled: false,
             year_range: Some((2017, 2021)),
+            skip_groups: Vec::new(),
         }
     }
 }
@@ -75,6 +80,8 @@ pub struct TestHooks {
     /// `dest_offline_secs` seconds (DEST_UNAVAILABLE, NFR-REL-06).
     pub dest_offline_after: Option<usize>,
     pub dest_offline_secs: u64,
+    /// Treat this computer as unable to play HEVC (FR-51 notice tests).
+    pub force_hevc_unplayable: bool,
 }
 
 impl TestHooks {
@@ -88,6 +95,10 @@ impl TestHooks {
                 .fail_ids
                 .iter()
                 .any(|f| f.eq_ignore_ascii_case(key) || f.eq_ignore_ascii_case(file_id))
+    }
+
+    pub fn hevc_unplayable(&self) -> bool {
+        self.enabled() && self.force_hevc_unplayable
     }
 
     pub fn delay(&self) -> Option<std::time::Duration> {

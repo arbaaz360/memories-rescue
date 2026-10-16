@@ -105,6 +105,8 @@ pub enum RowKind {
     JsonEntry,
     /// A file that is not an item (orphan overlay, unrecognised, refused, duplicate).
     File,
+    /// A video joined from consecutive clips (FR-27); the clips are items too.
+    JoinedClip,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
@@ -229,6 +231,19 @@ pub fn plain_message(code: &str) -> &'static str {
         "COMPOSITE_PENDING" => {
             "Overlay saved next to the file; burning it in needs the overlay component."
         }
+        "OVERLAY_ASPECT_MISMATCH" => {
+            "The overlay had a different shape from the picture; it was fitted to the width and centred."
+        }
+        "ODD_SIZE_SCALED" => "The video had an odd size and was scaled by one pixel.",
+        "AUDIO_REENCODED" => "The video's sound was converted to AAC.",
+        "H264_COMPAT" => "Saved as H.264 so Windows can play it.",
+        "HEVC_PLAYBACK" => {
+            "Some videos are HEVC, which this computer can't play without Microsoft's HEVC Video Extensions."
+        }
+        "CLIP_JOINED" => "Consecutive clips joined into one video; the clips are kept too.",
+        "CLIP_PENDING" => "Clips not joined yet.",
+        "CLIP_DECLINED" => "Clips not joined: video processing is not available on this computer.",
+        "CLIP_INCOMPLETE" => "Clips not joined because one of them could not be written.",
         _ => "Something went wrong with this item.",
     }
 }
@@ -327,6 +342,7 @@ fn kind_str(k: Option<RowKind>) -> &'static str {
         Some(RowKind::Item) => "item",
         Some(RowKind::JsonEntry) => "json_entry",
         Some(RowKind::File) => "file",
+        Some(RowKind::JoinedClip) => "joined_clip",
         None => "",
     }
 }
