@@ -389,26 +389,16 @@ pub fn discover(inputs: &[PathBuf]) -> Discovery {
 }
 
 /// FR-41: what discovery found, with paths redacted.
+/// FR-41: what discovery found, by position and code; no paths, file
+/// names or entry names (hardening 6).
 fn log_discovery(inputs: usize, d: &Discovery) {
-    use crate::redact;
-    for ig in &d.ignored {
-        tracing::info!(
-            path = %redact::path(&ig.path),
-            detail = %redact::text(&ig.detail),
-            "input ignored (INPUT_NOT_EXPORT)"
-        );
-    }
     for p in &d.parts {
+        let part = p.number().map(|n| n as usize).unwrap_or(p.id + 1);
         for issue in &p.issues {
-            tracing::warn!(
-                part = %redact::text(&p.label),
-                code = issue.code.as_str(),
-                detail = %redact::text(&issue.detail),
-                "part issue"
-            );
+            tracing::warn!(part, code = issue.code.as_str(), "part issue");
         }
         if p.duplicate_of.is_some() {
-            tracing::info!(part = %redact::text(&p.label), "duplicate download of a part; read once");
+            tracing::info!(part, "duplicate download of a part; read once");
         }
     }
     tracing::info!(

@@ -124,6 +124,17 @@ struct JobFile {
     output_root: PathBuf,
 }
 
+/// An engine error for the log: the kind and the OS message, without the
+/// path an I/O error carries.
+fn log_text(e: &JobError) -> String {
+    match e {
+        JobError::Io { source, .. } => format!("I/O: {source}"),
+        JobError::NoExport(_) => "no export among the inputs".into(),
+        JobError::TimeZone(_) => "unknown home time zone".into(),
+        other => mr_core::redact::text(&other.to_string()).to_string(),
+    }
+}
+
 /// What a worker tells the coordinator.
 enum WorkerMsg {
     /// Record what the attempt is about to place, then answer (hardening 3).
@@ -843,7 +854,7 @@ impl Job {
                 std::io::Error::new(std::io::ErrorKind::NotFound, "no such file or folder"),
             ));
         }
-        tracing::info!(job = %self.id, path = %mr_core::redact::path(&path), "part added");
+        tracing::info!(job = %self.id, inputs = self.row.inputs.len() + 1, "part added");
         if !self.row.inputs.contains(&path) {
             self.row.inputs.push(path);
         }
@@ -1102,7 +1113,13 @@ impl Job {
                     ..Finished::default()
                 },
             )?;
-            tracing::warn!(job = %self.id, starts = n, code = "MEDIA_DECODE", "item set aside after repeated interrupted starts");
+            tracing::warn!(
+                job = %self.id,
+                at = %crate::process::entry_label(&row.plan.main),
+                starts = n,
+                code = "MEDIA_DECODE",
+                "item set aside after repeated interrupted starts"
+            );
             sink.item(&ItemOutcome {
                 id: row.key().to_string(),
                 stage: Stage::Failed,
@@ -1156,7 +1173,24 @@ impl Job {
         let started = Instant::now();
         let _lock = self.run_lock()?;
         let job_id = self.id.clone();
-        let logged = crate::control::LoggedSink::new(sink, &job_id);
+        let mut places: HashMap<String, String> = self
+            .db
+            .items()?
+            .iter()
+            .map(|r| {
+                (
+                    r.key().to_string(),
+                    crate::process::entry_label(&r.plan.main),
+                )
+            })
+            .collect();
+        for (n, c) in self.db.clip_rows()?.iter().enumerate() {
+            places.insert(
+                format!("clip:{}", c.group.id),
+                format!("clip group {}", n + 1),
+            );
+        }
+        let logged = crate::control::LoggedSink::new(sink, &job_id, places);
         let sink: &dyn ProgressSink = &logged;
         let result = self.run_locked(sink, control, started);
         match &result {
@@ -1175,7 +1209,7 @@ impl Job {
             }
             Err(e) => tracing::error!(
                 job = %self.id,
-                error = %mr_core::redact::text(&e.to_string()),
+                error = %log_text(e),
                 "run stopped by an error"
             ),
         }
@@ -1376,6 +1410,11 @@ impl Job {
         self.db.checkpoint();
         if matches!(outcome, Outcome::Completed(_) | Outcome::Cancelled(_)) {
             self.clean_tmp();
+            // Hardening 9: no half-written archive stays beside the finished ones.
+            let n = zipout::clean_partials(&options.dest);
+            if n > 0 {
+                tracing::info!(job = %self.id, removed = n, "unfinished ZIP files removed");
+            }
         }
         Ok(outcome)
     }
@@ -1622,9 +1661,8 @@ impl Job {
                                 self.db.journal_event(&key, &format!("warning:{c}|{d}"))?;
                                 tracing::info!(
                                     job = %self.id,
-                                    item = %key,
+                                    at = %crate::process::entry_label(&row.plan.main),
                                     code = %c,
-                                    detail = %mr_core::redact::text(d),
                                     "item warning"
                                 );
                             }
@@ -2093,6 +2131,8 @@ impl Job {
         }
         if todo.is_empty() {
             tracing::debug!(job = %self.id, volumes = parts.len(), "ZIP output already complete");
+            // Hardening 9: every archive is in place, so a partial is stale.
+            zipout::clean_partials(&dest);
             return Ok(None);
         }
 
@@ -2307,6 +2347,7 @@ impl Job {
             seconds = format_args!("{:.1}", pack_started.elapsed().as_secs_f64()),
             "zip output finished"
         );
+        zipout::clean_partials(&dest);
         Ok(None)
     }
 

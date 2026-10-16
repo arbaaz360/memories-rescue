@@ -193,14 +193,12 @@ impl ZipIndex {
             Ok(archive) => Self::from_central_directory(path, file_size, &archive),
             Err(err) => {
                 tracing::warn!(
-                    path = %crate::redact::path(path),
-                    detail = %crate::redact::text(&err.to_string()),
+                    bytes = file_size,
                     "ZIP central directory unreadable; recovering entries from local headers"
                 );
                 let recovered = Self::recover(path, file_size, err.to_string());
                 if let Ok(z) = &recovered {
                     tracing::info!(
-                        path = %crate::redact::path(path),
                         entries = z.entries.len(),
                         truncated = z.integrity.is_truncated(),
                         "ZIP recovered"

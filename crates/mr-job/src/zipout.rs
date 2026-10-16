@@ -374,6 +374,28 @@ pub fn stamp(path: &Path) -> Option<(u64, i64)> {
     Some((m.len(), t))
 }
 
+/// Remove the archive partials a crash mid-pack left in `dest`: files named
+/// like this engine's archives with `.partial` added. Returns how many.
+pub fn clean_partials(dest: &Path) -> usize {
+    let Ok(rd) = fs::read_dir(dest) else {
+        return 0;
+    };
+    let mut removed = 0;
+    for e in rd.flatten() {
+        let name = e.file_name().to_string_lossy().into_owned();
+        let path = e.path();
+        if name.starts_with(layout::ROOT_DIR)
+            && name.ends_with(".zip.partial")
+            && !layout::is_redirected(&path)
+            && path.is_file()
+            && fs::remove_file(&path).is_ok()
+        {
+            removed += 1;
+        }
+    }
+    removed
+}
+
 /// Where an archive is written before it is verified.
 pub fn partial_of(path: &Path) -> PathBuf {
     let mut s = path.as_os_str().to_os_string();

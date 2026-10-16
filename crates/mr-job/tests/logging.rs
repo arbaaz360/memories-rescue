@@ -102,6 +102,12 @@ fn fr41_engine_events_are_emitted_and_redacted() {
         .map(|v| v["id"].as_str().unwrap().to_string())
         .collect();
     let inputs = zips_in(&fixture_dir("small-2026a"));
+    let all_ids: Vec<String> = t["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|v| v["id"].as_str().unwrap().to_string())
+        .collect();
     let e = env("logging");
     let mut o = options(&e.dest);
     o.test_hooks.fail_ids = ids.clone();
@@ -171,6 +177,12 @@ fn fr41_engine_events_are_emitted_and_redacted() {
             );
         }
         assert!(!lower.contains("://"), "URL in {text}");
+        // Hardening 6: positions and codes, never entry names or part files.
+        assert!(!lower.contains("memories/"), "entry name in {text}");
+        assert!(!lower.contains("mydata"), "part file name in {text}");
+        for id in &all_ids {
+            assert!(!text.contains(id.as_str()), "item id in {text}");
+        }
         for q in ["sid=", "mid=", "sig=", "expires=", "signature="] {
             assert!(!lower.contains(q), "query string in {text}");
         }

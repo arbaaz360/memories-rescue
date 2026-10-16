@@ -351,6 +351,30 @@ fn remove_if_ours(root: &Path, old: &str, own: &[Owned]) {
     }
 }
 
+/// Where an entry is, for messages and logs: its position, never its name.
+pub fn entry_label(src: &SourceRef) -> String {
+    format!("entry {} of {}", src.entry_index + 1, part_label(src))
+}
+
+fn part_label(src: &SourceRef) -> String {
+    match src.part_number {
+        Some(n) => format!("part {n}"),
+        None => "the export".to_string(),
+    }
+}
+
+/// A ZIP reading error without the part's path or the entry's name.
+fn zip_error_text(e: &ZipIndexError) -> String {
+    match e {
+        ZipIndexError::Io { source, .. } => source.to_string(),
+        ZipIndexError::NotZip { .. } => "not a ZIP archive".into(),
+        ZipIndexError::NoSuchEntry { .. } => "the entry is missing".into(),
+        ZipIndexError::UnsafeEntry { reason, .. } => format!("refused ({reason})"),
+        ZipIndexError::PartialEntry { .. } => "the entry is cut by the truncation".into(),
+        ZipIndexError::Zip { source, .. } => source.to_string(),
+    }
+}
+
 /// Remove `rel` if it still holds the bytes `sha` was recorded for.
 pub fn remove_if_unchanged(root: &Path, rel: &str, sha: &str) {
     let path = layout::to_fs(root, rel);
@@ -414,10 +438,11 @@ impl<'a> Worker<'a> {
 
     /// Stream one entry out of its part into `dst`.
     fn extract(&mut self, src: &SourceRef, dst: &Path) -> Result<(), Failure> {
+        let at = entry_label(src);
         let Some(&part_idx) = self.part_by_path.get(&src.part_path) else {
             return Err(job(
                 "INPUT_UNAVAILABLE",
-                format!("{} is no longer available", src.part_label),
+                format!("{} is no longer available", part_label(src)),
             ));
         };
         let part = self.d.part(part_idx);
@@ -459,7 +484,7 @@ impl<'a> Worker<'a> {
                         None => {
                             return Err(item(
                                 "MEDIA_DECODE",
-                                format!("{} is not in {} any more", src.entry_name, src.part_label),
+                                format!("{at} is not in the part any more"),
                             ));
                         }
                     },
@@ -470,7 +495,11 @@ impl<'a> Worker<'a> {
                         v.insert(z.reader().map_err(|e| {
                             job(
                                 "INPUT_UNAVAILABLE",
-                                format!("{} cannot be opened: {e}", src.part_label),
+                                format!(
+                                    "{} cannot be opened: {}",
+                                    part_label(src),
+                                    zip_error_text(&e)
+                                ),
                             )
                         })?)
                     }
@@ -478,7 +507,7 @@ impl<'a> Worker<'a> {
                 match reader.with_entry(index, |r| copy(r, &mut write_error)) {
                     Ok(n) => Ok(n),
                     Err(ZipIndexError::Io { source, .. }) => Err(source),
-                    Err(e) => Err(io::Error::other(e.to_string())),
+                    Err(e) => Err(io::Error::other(zip_error_text(&e))),
                 }
             }
             Source::Folder(folder) => {
@@ -490,7 +519,7 @@ impl<'a> Worker<'a> {
                     Err(e) if e.kind() == io::ErrorKind::NotFound => {
                         return Err(job(
                             "INPUT_UNAVAILABLE",
-                            format!("{} is no longer in {}", src.entry_name, src.part_label),
+                            format!("{at} is no longer in the extracted folder"),
                         ));
                     }
                     Err(e) => Err(e),
@@ -508,18 +537,9 @@ impl<'a> Worker<'a> {
                     io::ErrorKind::InvalidData | io::ErrorKind::UnexpectedEof
                 ) =>
             {
-                Err(item(
-                    "ZIP_ENTRY_CRC",
-                    format!("{} in {} is damaged", src.entry_name, src.part_label),
-                ))
+                Err(item("ZIP_ENTRY_CRC", format!("{at} is damaged")))
             }
-            Err(e) => Err(item(
-                "ZIP_ENTRY_CRC",
-                format!(
-                    "{} in {} cannot be read: {e}",
-                    src.entry_name, src.part_label
-                ),
-            )),
+            Err(e) => Err(item("ZIP_ENTRY_CRC", format!("{at} cannot be read: {e}"))),
         }
     }
 
@@ -552,7 +572,6 @@ impl<'a> Worker<'a> {
                 Ok(p) => {
                     if n > 1 {
                         tracing::debug!(
-                            name = %mr_core::redact::text(rel),
                             suffix = n,
                             "output name taken by another file; using a suffix"
                         );
@@ -563,7 +582,7 @@ impl<'a> Worker<'a> {
                 Err(e) => return Err(e),
             }
         }
-        Err(item("UNKNOWN", format!("no free name for {rel}")))
+        Err(item("UNKNOWN", "no free output name for this file"))
     }
 
     fn place(&self, tmp: &Path, rel: &str, placement: Placement) -> Result<(), Failure> {

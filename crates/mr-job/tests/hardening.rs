@@ -378,3 +378,35 @@ fn item5_a_user_edited_sidecar_is_neither_overwritten_nor_deleted() {
     run(&mut job);
     assert_eq!(fs::read(&sidecar).unwrap(), bytes, "not deleted either");
 }
+
+#[test]
+fn item9_leftover_zip_partials_are_removed_on_completion_and_cancel() {
+    let inputs = zips_in(&fixture_dir("small-2026a"));
+    for cancel in [false, true] {
+        let e = env(if cancel {
+            "partial-cancel"
+        } else {
+            "partial-done"
+        });
+        let stray = e.dest.join("Memories Rescue-002.zip.partial");
+        let other = e.dest.join("holiday.zip.partial");
+        fs::write(&stray, b"half an archive").unwrap();
+        fs::write(&other, b"not ours").unwrap();
+        let mut o = options(&e.dest);
+        o.zip_output = true;
+        let mut job = Job::create(&e.state, &inputs, o).unwrap();
+        let control = mr_job::Control::new();
+        if cancel {
+            control.cancel();
+        }
+        let outcome = job
+            .run(&mr_job::CollectingSink::default(), &control)
+            .unwrap();
+        assert!(
+            matches!(outcome, Outcome::Completed(_) | Outcome::Cancelled(_)),
+            "{outcome:?}"
+        );
+        assert!(!stray.exists(), "our partial is gone (cancel: {cancel})");
+        assert!(other.exists(), "a file not named like our archives stays");
+    }
+}
