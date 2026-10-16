@@ -141,6 +141,7 @@ pub fn to_engine(o: &JobOptions, template: &str, unlocked: bool) -> mr_job::Opti
     e.clip_rejoin = mr_job::ClipRejoin {
         enabled: o.clip_rejoin,
         year_range: o.clip_rejoin_years.map(|y| (y.from, y.to)),
+        skip_groups: o.excluded_clip_groups.clone(),
     };
     e.zip_output = o.zip_output;
     if o.metadata_only {
