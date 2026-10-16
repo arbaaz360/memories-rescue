@@ -13,9 +13,9 @@ Sources, all local and deterministic:
   copyright lines come from the LICENSE/COPYING files in each crate's source.
 - npm: `package-lock.json` entries that are not dev-only, with licence and
   copyright lines from node_modules.
-- Bundled data and sidecars: the time zone boundary data (ODbL) and the
-  ffmpeg sidecar (LGPL v2.1+), with their full licence texts from
-  tools/release/licenses/.
+- Bundled data and sidecars: the time zone boundary data (ODbL, text in
+  tools/release/licenses/) and the ffmpeg sidecar (LGPL v2.1+, text from
+  third_party/ffmpeg/COPYING.LGPLv2.1, the copy FFmpeg ships).
 
 The output is a resource of the app (`bundle.resources` in tauri.conf.json)
 and is opened from the About screen.
@@ -35,6 +35,8 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[2]
 OUT = REPO / "THIRD_PARTY_NOTICES.md"
 LICENSES = REPO / "tools" / "release" / "licenses"
+# The LGPL text FFmpeg ships (third_party/ffmpeg/build.sh builds LGPL v2.1+): one copy, used everywhere.
+LGPL_TEXT = REPO / "third_party" / "ffmpeg" / "COPYING.LGPLv2.1"
 APP_PACKAGE = "memories-rescue"
 
 # Crates whose licence expression does not tell the whole story.
@@ -217,8 +219,10 @@ def find_text(spdx: str, packages: list[dict]) -> str | None:
         return best[1]
     # Texts vendored under tools/release/licenses/ for licences whose crates
     # do not ship the text (MPL-2.0, Unlicense) or that point at a file.
-    vendored = {"LGPL-2.1-or-later": "LGPL-2.1.txt", "LGPL-2.1": "LGPL-2.1.txt"}.get(spdx, f"{spdx}.txt")
-    path = LICENSES / vendored
+    if spdx in ("LGPL-2.1-or-later", "LGPL-2.1"):
+        path = LGPL_TEXT
+    else:
+        path = LICENSES / f"{spdx}.txt"
     if path.is_file():
         return norm(path.read_text(encoding="utf-8"))
     return None
@@ -315,7 +319,7 @@ def render() -> str:
         else:
             parts.append("```text\n" + text + "```\n")
 
-    parts.append("### GNU Lesser General Public License v2.1 (ffmpeg)\n\n```text\n" + norm((LICENSES / "LGPL-2.1.txt").read_text(encoding="utf-8")) + "```\n")
+    parts.append("### GNU Lesser General Public License v2.1 (ffmpeg)\n\n```text\n" + norm(LGPL_TEXT.read_text(encoding="utf-8")) + "```\n")
     parts.append("### Open Database License v1.0 (time zone boundary data)\n\n```text\n" + norm((LICENSES / "ODbL-1.0.txt").read_text(encoding="utf-8")) + "```\n")
 
     return "\n".join(parts).rstrip("\n") + "\n"

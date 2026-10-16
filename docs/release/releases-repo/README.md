@@ -27,8 +27,10 @@ Developer ID and notarized by Apple. If an installer is not signed, or its
 checksum does not match, do not run it: tell us at
 support@novabyteworks.com.
 
-`latest.json` is the update manifest the installed app checks (daily, with
-your consent to install). `latest-beta.json` is the beta channel.
+`latest.json` on each release is the update manifest the installed app
+checks (daily, with your consent to install). The beta channel reads
+`latest-beta.json` from the fixed release tagged `channel-beta`, which is
+not a download page: pick the newest release instead.
 
 ## FFmpeg source code (LGPL)
 
@@ -38,11 +40,12 @@ licensed under the GNU Lesser General Public License v2.1 or later
 ([COPYING.LGPLv2.1](ffmpeg/COPYING.LGPLv2.1)). We ship our own build of the
 unmodified FFmpeg release with only the parts the app uses.
 
-Each release carries, as assets next to the installers, the complete
-corresponding source: the upstream tarball `ffmpeg-<version>.tar.xz` and its
-signature, `build.sh` (the script that builds it, including the exact
-configure options and the pinned toolchain), and `BUILDINFO-*.txt` (the
-compiler and library versions used). You may replace the `ffmpeg` program
+Each release carries, as downloadable files next to the installers, the
+complete corresponding source: the upstream tarball `ffmpeg-<version>.tar.xz`
+and its signature, `build.sh` (the script that builds it, including the
+exact configure options and the pinned toolchain), `BUILDINFO-*.txt` (the
+compiler and library versions used) and `COPYING.LGPLv2.1`. The same files
+are on the `sidecars-ffmpeg-<version>` release the binaries come from. You may replace the `ffmpeg` program
 inside the application folder with your own build; see
 [ffmpeg/SOURCE_OFFER.txt](ffmpeg/SOURCE_OFFER.txt) for the written offer.
 

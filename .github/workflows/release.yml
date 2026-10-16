@@ -1,7 +1,11 @@
 # Release: on a version tag (v1.0.0, v1.1.0-beta.1) build Windows x64 (NSIS +
 # MSI) and macOS universal (DMG), sign and notarize when the secrets exist,
-# produce updater artifacts and manifests, and leave a draft release on the
-# public releases repository for the owner to publish.
+# produce updater artifacts and latest.json, and leave a DRAFT release on the
+# public releases repository. The owner checks it and runs
+# `python tools/release/publish.py <tag>`, which publishes it and rewrites
+# `latest-beta.json` on the fixed `channel-beta` release (GitHub's
+# /releases/latest/ never resolves to a prerelease, so the beta feed cannot
+# live on the prerelease itself).
 #
 # Secrets (all optional except RELEASES_TOKEN; docs/release/README.md says
 # where each comes from and what happens without it):
@@ -308,8 +312,8 @@ jobs:
           path: build-info
           merge-multiple: true
 
-      # SHA256SUMS.txt, latest-beta.json for prereleases, the ffmpeg source
-      # bundle, and the "unsigned build" label when it applies.
+      # SHA256SUMS.txt, the ffmpeg source bundle, and the "unsigned build"
+      # label when it applies. The release stays a draft.
       - name: Checksums, updater channel, labels
         env:
           GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
