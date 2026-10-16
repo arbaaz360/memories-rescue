@@ -447,7 +447,16 @@ impl<'a> Worker<'a> {
                 layout::join_rel(folder, &layout::with_suffix(name, n))
             };
             match self.decide(&candidate, sha, own) {
-                Ok(p) => return Ok((candidate, p)),
+                Ok(p) => {
+                    if n > 1 {
+                        tracing::debug!(
+                            name = %mr_core::redact::text(rel),
+                            suffix = n,
+                            "output name taken by another file; using a suffix"
+                        );
+                    }
+                    return Ok((candidate, p));
+                }
                 Err(Failure::Item { code, .. }) if code == "NAME_TAKEN" => continue,
                 Err(e) => return Err(e),
             }

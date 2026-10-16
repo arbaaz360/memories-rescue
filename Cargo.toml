@@ -20,6 +20,8 @@ zip = { version = "9", default-features = false, features = ["deflate"] }
 flate2 = "1"
 crc32fast = "1"
 clap = { version = "4", features = ["derive"] }
+# FR-41: the engine emits events; the app installs the subscriber.
+tracing = { version = "0.1.44", default-features = false, features = ["std"] }
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
 [profile.release]

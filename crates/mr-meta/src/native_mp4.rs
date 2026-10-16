@@ -9,10 +9,13 @@
 //! path and the reason exiftool exists; this module is the M1 spike's measure
 //! of how much code the native route really needs (Q-02).
 //!
-//! Known limits, deliberate for the spike: an existing `moov/meta` is replaced
-//! rather than merged (other Keys are lost); `stco` offsets that would exceed
-//! 4 GiB after the shift are an error instead of a `co64` upgrade; only the
-//! first `moov` is handled.
+//! When the shift would push a 32-bit `stco` offset past 4 GiB, that table
+//! is upgraded to `co64` (and the growth this adds is part of the shift). An
+//! existing `moov/meta` with an `mdta` handler is merged: its other keys and
+//! values are kept, ours replace or join them. Limits (SRS v0.3 section
+//! 4.3): a `moov/meta` with another handler is replaced; only the first
+//! `moov` is handled; `moov` is read into memory (a few MB even for an hour
+//! of video, since it holds only the sample tables).
 
 use std::fs::File;
 use std::io::{self, BufReader, BufWriter, Read, Seek, SeekFrom, Write};
@@ -40,6 +43,10 @@ pub struct Patched {
     /// `moov` preceded `mdat` in the source, so chunk offsets had to shift.
     pub moov_first: bool,
     pub offsets_shifted: usize,
+    /// `stco` tables rewritten as `co64` because an offset passed 4 GiB.
+    pub tables_upgraded: usize,
+    /// Keys kept from an existing `mdta` `moov/meta`.
+    pub keys_kept: usize,
 }
 
 const META_KEY_CREATION_DATE: &str = "com.apple.quicktime.creationdate";
@@ -72,9 +79,11 @@ pub fn write_mp4(src: &Path, dst: &Path, cap: &Capture) -> Result<Patched, Error
     // New payload: original children minus meta/udta(©xyz), plus ours.
     let mut new_payload = Vec::with_capacity(payload_len + 512);
     let mut udta_children: Vec<Vec<u8>> = Vec::new();
+    let mut existing_keys: Vec<KeyEntry> = Vec::new();
     for child in children(&old_payload) {
         match &child.typ {
-            b"meta" => {} // replaced below
+            // Merged below when it is an `mdta` table, replaced otherwise.
+            b"meta" => existing_keys = mdta_entries(&old_payload[child.payload.clone()]),
             b"udta" => {
                 let udta = &old_payload[child.payload.clone()];
                 for grand in children(udta) {
@@ -91,9 +100,33 @@ pub fn write_mp4(src: &Path, dst: &Path, cap: &Capture) -> Result<Patched, Error
         keys.push((META_KEY_LOCATION, iso.clone()));
         udta_children.push(xyz_box(&iso));
     }
-    new_payload.extend_from_slice(&meta_box(&keys));
+    let ours: Vec<&str> = keys.iter().map(|(k, _)| *k).collect();
+    let keys_kept = existing_keys
+        .iter()
+        .filter(|e| !(e.namespace == *b"mdta" && ours.contains(&e.name.as_str())))
+        .count();
+    new_payload.extend_from_slice(&meta_box_merged(existing_keys, &keys));
     if !udta_children.is_empty() {
         new_payload.extend_from_slice(&boxed(b"udta", &udta_children.concat()));
+    }
+
+    // co64 upgrade: if the shift could push a 32-bit offset past 4 GiB,
+    // rewrite those tables as co64 first. The bound assumes every table is
+    // upgraded, so one pass is enough: the real growth is never larger.
+    let old_moov_end = moov.start + moov.size;
+    let delta0 = 8 + new_payload.len() as i64 - moov.size as i64;
+    let max_delta = delta0 + 4 * stco_entries(&new_payload) as i64;
+    let mut tables_upgraded = 0;
+    if max_delta > 0 {
+        let overflows = |stco: &[u8]| {
+            table_entries(stco, false)
+                .any(|o| o >= old_moov_end && o as i64 + max_delta > u32::MAX as i64)
+        };
+        let (rebuilt, n) = upgrade_tables(&new_payload, &overflows);
+        if n > 0 {
+            new_payload = rebuilt;
+            tables_upgraded = n;
+        }
     }
 
     // Times and chunk offsets, on the final layout.
@@ -102,7 +135,6 @@ pub fn write_mp4(src: &Path, dst: &Path, cap: &Capture) -> Result<Patched, Error
         return Err(Error::Unsupported("moov larger than 4 GiB"));
     }
     let delta = new_moov_size as i64 - moov.size as i64;
-    let old_moov_end = moov.start + moov.size;
     let qt = cap.qt_seconds();
     let mut offset_boxes = Vec::new();
     let payload_len_new = new_payload.len();
@@ -130,7 +162,176 @@ pub fn write_mp4(src: &Path, dst: &Path, cap: &Capture) -> Result<Patched, Error
         bytes_out,
         moov_first,
         offsets_shifted: shifted,
+        tables_upgraded,
+        keys_kept,
     })
+}
+
+/// One key of an `mdta` `keys` table with its `ilst` item (the item's
+/// children, usually one `data` box), if it has a value.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct KeyEntry {
+    namespace: [u8; 4],
+    name: String,
+    item: Option<Vec<u8>>,
+}
+
+/// The keys and values of a `moov/meta` payload whose handler is `mdta`;
+/// empty for any other handler (or a malformed box).
+fn mdta_entries(meta_payload: &[u8]) -> Vec<KeyEntry> {
+    // QuickTime writes `meta` as a plain box, ISO as a full box.
+    let inner = if meta_payload.len() >= 4 && meta_payload[..4] == [0, 0, 0, 0] {
+        &meta_payload[4..]
+    } else {
+        meta_payload
+    };
+    let kids = children(inner);
+    let is_mdta = kids.iter().any(|c| {
+        let p = &inner[c.payload.clone()];
+        &c.typ == b"hdlr" && p.len() >= 12 && &p[8..12] == b"mdta"
+    });
+    if !is_mdta {
+        return Vec::new();
+    }
+    let mut entries: Vec<KeyEntry> = Vec::new();
+    let mut items: Vec<(usize, Vec<u8>)> = Vec::new();
+    for c in &kids {
+        let p = &inner[c.payload.clone()];
+        match &c.typ {
+            b"keys" if p.len() >= 8 => {
+                let n = u32::from_be_bytes(p[4..8].try_into().unwrap()) as usize;
+                let mut q = 8;
+                for _ in 0..n {
+                    if q + 8 > p.len() {
+                        break;
+                    }
+                    let size = u32::from_be_bytes(p[q..q + 4].try_into().unwrap()) as usize;
+                    if size < 8 || q + size > p.len() {
+                        break;
+                    }
+                    entries.push(KeyEntry {
+                        namespace: p[q + 4..q + 8].try_into().unwrap(),
+                        name: String::from_utf8_lossy(&p[q + 8..q + size]).into_owned(),
+                        item: None,
+                    });
+                    q += size;
+                }
+            }
+            b"ilst" => {
+                for item in children(p) {
+                    items.push((
+                        u32::from_be_bytes(item.typ) as usize,
+                        p[item.payload].to_vec(),
+                    ));
+                }
+            }
+            _ => {}
+        }
+    }
+    for (idx, payload) in items {
+        if let Some(e) = idx.checked_sub(1).and_then(|i| entries.get_mut(i)) {
+            e.item = Some(payload);
+        }
+    }
+    entries
+}
+
+/// A UTF-8 `data` box as an `ilst` item payload.
+fn utf8_item(value: &str) -> Vec<u8> {
+    let mut data = Vec::new();
+    data.extend_from_slice(&1u32.to_be_bytes()); // type indicator: UTF-8
+    data.extend_from_slice(&0u32.to_be_bytes()); // locale
+    data.extend_from_slice(value.as_bytes());
+    boxed(b"data", &data)
+}
+
+/// `meta_box` over the keys an existing `mdta` table had: theirs kept in
+/// their order, ours replacing a key of the same name or appended.
+fn meta_box_merged(mut existing: Vec<KeyEntry>, ours: &[(&str, String)]) -> Vec<u8> {
+    for (name, value) in ours {
+        let item = Some(utf8_item(value));
+        match existing
+            .iter_mut()
+            .find(|e| e.namespace == *b"mdta" && e.name == *name)
+        {
+            Some(e) => e.item = item,
+            None => existing.push(KeyEntry {
+                namespace: *b"mdta",
+                name: name.to_string(),
+                item,
+            }),
+        }
+    }
+    existing.retain(|e| e.item.is_some());
+    meta_box_entries(&existing)
+}
+
+/// Entries of every `stco` in a `moov` payload.
+fn stco_entries(buf: &[u8]) -> usize {
+    let mut n = 0;
+    for c in children(buf) {
+        let p = &buf[c.payload.clone()];
+        match &c.typ {
+            b"trak" | b"mdia" | b"minf" | b"stbl" => n += stco_entries(p),
+            b"stco" if p.len() >= 8 => {
+                n += u32::from_be_bytes(p[4..8].try_into().unwrap()) as usize
+            }
+            _ => {}
+        }
+    }
+    n
+}
+
+/// The offsets of a `stco` (or `co64`) payload.
+fn table_entries(payload: &[u8], is64: bool) -> impl Iterator<Item = u64> + '_ {
+    let n = if payload.len() >= 8 {
+        u32::from_be_bytes(payload[4..8].try_into().unwrap()) as usize
+    } else {
+        0
+    };
+    let w = if is64 { 8 } else { 4 };
+    (0..n).map_while(move |i| {
+        let q = 8 + i * w;
+        let b = payload.get(q..q + w)?;
+        Some(if is64 {
+            u64::from_be_bytes(b.try_into().unwrap())
+        } else {
+            u32::from_be_bytes(b.try_into().unwrap()) as u64
+        })
+    })
+}
+
+/// Rebuild the containers down to `stbl`, rewriting each `stco` for which
+/// `upgrade` says so as a `co64` with the same offsets. Bytes after the
+/// last well-formed child of a container are kept. Returns the new payload
+/// and how many tables changed.
+fn upgrade_tables(buf: &[u8], upgrade: &dyn Fn(&[u8]) -> bool) -> (Vec<u8>, usize) {
+    let mut out = Vec::with_capacity(buf.len() + 1024);
+    let mut n = 0;
+    let mut end = 0;
+    for c in children(buf) {
+        end = c.whole.end;
+        let p = &buf[c.payload.clone()];
+        match &c.typ {
+            b"trak" | b"mdia" | b"minf" | b"stbl" => {
+                let (inner, k) = upgrade_tables(p, upgrade);
+                n += k;
+                out.extend_from_slice(&boxed(&c.typ, &inner));
+            }
+            b"stco" if p.len() >= 8 && upgrade(p) => {
+                let mut q = Vec::with_capacity(p.len() * 2);
+                q.extend_from_slice(&p[..8]); // version, flags, entry count
+                for o in table_entries(p, false) {
+                    q.extend_from_slice(&o.to_be_bytes());
+                }
+                out.extend_from_slice(&boxed(b"co64", &q));
+                n += 1;
+            }
+            _ => out.extend_from_slice(&buf[c.whole.clone()]),
+        }
+    }
+    out.extend_from_slice(&buf[end..]);
+    (out, n)
 }
 
 // ---- box plumbing -----------------------------------------------------------
@@ -234,7 +435,7 @@ fn full_box(typ: &[u8; 4], payload: &[u8]) -> Vec<u8> {
 /// plain box with no version/flags and a 32-byte `hdlr` with an empty name,
 /// byte for byte what exiftool writes for `-Keys:*` (ffmpeg's demuxer and
 /// exiftool read both this and the ISO full-box form).
-fn meta_box(keys: &[(&str, String)]) -> Vec<u8> {
+fn meta_box_entries(entries: &[KeyEntry]) -> Vec<u8> {
     let mut hdlr = Vec::new();
     hdlr.extend_from_slice(&[0, 0, 0, 0]); // pre_defined
     hdlr.extend_from_slice(b"mdta");
@@ -242,23 +443,18 @@ fn meta_box(keys: &[(&str, String)]) -> Vec<u8> {
     let hdlr = full_box(b"hdlr", &hdlr);
 
     let mut keys_payload = Vec::new();
-    keys_payload.extend_from_slice(&(keys.len() as u32).to_be_bytes());
-    for (name, _) in keys {
-        keys_payload.extend_from_slice(&((8 + name.len()) as u32).to_be_bytes());
-        keys_payload.extend_from_slice(b"mdta");
-        keys_payload.extend_from_slice(name.as_bytes());
+    keys_payload.extend_from_slice(&(entries.len() as u32).to_be_bytes());
+    for e in entries {
+        keys_payload.extend_from_slice(&((8 + e.name.len()) as u32).to_be_bytes());
+        keys_payload.extend_from_slice(&e.namespace);
+        keys_payload.extend_from_slice(e.name.as_bytes());
     }
     let keys_box = full_box(b"keys", &keys_payload);
 
     let mut ilst_payload = Vec::new();
-    for (i, (_, value)) in keys.iter().enumerate() {
-        let mut data = Vec::new();
-        data.extend_from_slice(&1u32.to_be_bytes()); // type indicator: UTF-8
-        data.extend_from_slice(&0u32.to_be_bytes()); // locale
-        data.extend_from_slice(value.as_bytes());
-        let data_box = boxed(b"data", &data);
+    for (i, e) in entries.iter().enumerate() {
         let item_type = ((i + 1) as u32).to_be_bytes();
-        ilst_payload.extend_from_slice(&boxed(&item_type, &data_box));
+        ilst_payload.extend_from_slice(&boxed(&item_type, e.item.as_deref().unwrap_or(&[])));
     }
     let ilst = boxed(b"ilst", &ilst_payload);
 
@@ -340,9 +536,8 @@ fn shift_offsets(
                 buf[p..p + 8].copy_from_slice(&new.to_be_bytes());
             } else {
                 if new > u32::MAX as u64 {
-                    return Err(Error::Unsupported(
-                        "stco offset would exceed 4 GiB; co64 upgrade not implemented",
-                    ));
+                    // Cannot happen after the co64 upgrade; kept as a guard.
+                    return Err(Error::Unsupported("stco offset would exceed 4 GiB"));
                 }
                 buf[p..p + 4].copy_from_slice(&(new as u32).to_be_bytes());
             }
@@ -364,6 +559,8 @@ pub struct Summary {
     pub keys: Vec<(String, String)>,
     pub xyz: Option<String>,
     pub chunk_offsets: Vec<u64>,
+    /// How many chunk offset tables are `co64`.
+    pub co64_tables: usize,
     pub top_level: Vec<String>,
 }
 
@@ -410,6 +607,7 @@ fn summarize_tree(buf: &[u8], s: &mut Summary) {
             b"mdhd" => s.mdhd_creations.extend(read_time(p)),
             b"trak" | b"mdia" | b"minf" | b"stbl" | b"udta" => summarize_tree(p, s),
             b"stco" | b"co64" if p.len() >= 8 => {
+                s.co64_tables += usize::from(&c.typ == b"co64");
                 let n = u32::from_be_bytes(p[4..8].try_into().unwrap()) as usize;
                 let w = if &c.typ == b"co64" { 8 } else { 4 };
                 for i in 0..n {
@@ -481,5 +679,129 @@ fn summarize_tree(buf: &[u8], s: &mut Summary) {
             }
             _ => {}
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::TimeZone;
+
+    fn cap() -> Capture {
+        let utc = chrono::Utc
+            .with_ymd_and_hms(2021, 12, 25, 18, 42, 7)
+            .unwrap();
+        Capture::new(utc, 0, Some((51.50735, -0.12776)))
+    }
+
+    fn times_box(typ: &[u8; 4]) -> Vec<u8> {
+        // version 0: creation, modification, then 12 bytes of the rest.
+        full_box(typ, &[0u8; 20])
+    }
+
+    fn stco(offsets: &[u32]) -> Vec<u8> {
+        let mut p = (offsets.len() as u32).to_be_bytes().to_vec();
+        for o in offsets {
+            p.extend_from_slice(&o.to_be_bytes());
+        }
+        full_box(b"stco", &p)
+    }
+
+    /// ftyp, moov (one trak with the given stco, optional extra moov
+    /// children), mdat. `moov` first, so offsets past it shift.
+    fn mp4(offsets: &[u32], extra: &[u8]) -> Vec<u8> {
+        let stbl = boxed(b"stbl", &stco(offsets));
+        let minf = boxed(b"minf", &stbl);
+        let mdia = boxed(b"mdia", &[times_box(b"mdhd"), minf].concat());
+        let trak = boxed(b"trak", &[times_box(b"tkhd"), mdia].concat());
+        let moov = boxed(
+            b"moov",
+            &[times_box(b"mvhd"), trak, extra.to_vec()].concat(),
+        );
+        let ftyp = boxed(b"ftyp", b"isom\0\0\x02\0isom");
+        [ftyp, moov, boxed(b"mdat", &[7u8; 64])].concat()
+    }
+
+    fn roundtrip(name: &str, bytes: &[u8]) -> (Patched, Summary) {
+        let dir = std::env::temp_dir().join(format!("mr-meta-mp4-{}-{name}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let (src, dst) = (dir.join("in.mp4"), dir.join("out.mp4"));
+        std::fs::write(&src, bytes).unwrap();
+        let p = write_mp4(&src, &dst, &cap()).unwrap();
+        let s = summarize(&dst).unwrap();
+        let _ = std::fs::remove_dir_all(&dir);
+        (p, s)
+    }
+
+    #[test]
+    fn offsets_past_4_gib_upgrade_the_table_to_co64() {
+        let base = mp4(&[0], b"");
+        let moov_end = (base.len() - 72) as u32; // ftyp + moov; mdat is 72 bytes
+        let near = u32::MAX - 40;
+        let file = mp4(&[moov_end + 8, near], b"");
+        let (p, s) = roundtrip("co64", &file);
+        assert_eq!(p.tables_upgraded, 1);
+        assert_eq!(s.co64_tables, 1);
+        let delta = p.bytes_out as i64 - p.bytes_in as i64;
+        assert!(delta > 40, "moov grew past the gap: {delta}");
+        assert_eq!(
+            s.chunk_offsets,
+            vec![
+                (moov_end + 8) as u64 + delta as u64,
+                near as u64 + delta as u64
+            ],
+            "both offsets shifted by the full growth, including the co64 upgrade"
+        );
+        assert!(s.chunk_offsets[1] > u32::MAX as u64);
+        assert_eq!(s.mvhd_creation, Some(cap().qt_seconds()));
+    }
+
+    #[test]
+    fn offsets_well_under_4_gib_stay_stco() {
+        let base = mp4(&[0], b"");
+        let moov_end = (base.len() - 72) as u32;
+        let (p, s) = roundtrip("stco", &mp4(&[moov_end + 8, 1 << 30], b""));
+        assert_eq!(p.tables_upgraded, 0);
+        assert_eq!(s.co64_tables, 0);
+        assert_eq!(s.chunk_offsets.len(), 2);
+    }
+
+    #[test]
+    fn an_existing_mdta_table_is_merged_not_replaced() {
+        let theirs = vec![
+            KeyEntry {
+                namespace: *b"mdta",
+                name: "com.apple.quicktime.make".into(),
+                item: Some(utf8_item("Apple")),
+            },
+            KeyEntry {
+                namespace: *b"mdta",
+                name: META_KEY_CREATION_DATE.into(),
+                item: Some(utf8_item("2000-01-01T00:00:00+0000")),
+            },
+        ];
+        let file = mp4(&[], &meta_box_entries(&theirs));
+        let (p, s) = roundtrip("merge", &file);
+        assert_eq!(p.keys_kept, 1);
+        let keys: std::collections::HashMap<String, String> = s.keys.into_iter().collect();
+        assert_eq!(keys["com.apple.quicktime.make"], "Apple", "their key kept");
+        assert_eq!(
+            keys[META_KEY_CREATION_DATE],
+            cap().iso8601_local(),
+            "ours replaces theirs"
+        );
+        assert!(keys.contains_key(META_KEY_LOCATION), "ours added");
+        assert_eq!(keys.len(), 3);
+    }
+
+    #[test]
+    fn a_meta_box_with_another_handler_is_replaced() {
+        let mut hdlr = vec![0u8; 4];
+        hdlr.extend_from_slice(b"mdir");
+        hdlr.extend_from_slice(&[0u8; 12]);
+        let meta = boxed(b"meta", &full_box(b"hdlr", &hdlr));
+        let (p, s) = roundtrip("mdir", &mp4(&[], &meta));
+        assert_eq!(p.keys_kept, 0);
+        assert_eq!(s.keys.len(), 2, "creation date and location");
     }
 }

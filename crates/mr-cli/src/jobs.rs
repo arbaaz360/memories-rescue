@@ -4,7 +4,8 @@
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
+use std::time::Instant;
 
 use clap::{Args, ValueEnum};
 use mr_job::{
@@ -70,9 +71,14 @@ pub struct OptionArgs {
     /// Clip groups not to join (FR-27 AC3), by group id as `plan` lists them.
     #[arg(long, value_delimiter = ',')]
     pub clip_skip: Vec<String>,
-    /// Package the output as ZIP (recorded; not implemented yet).
+    /// Also pack the output into ZIP64 archives once every item is
+    /// finished (FR-31); the folder tree is kept.
     #[arg(long)]
     pub zip_output: bool,
+    /// Largest size of one ZIP archive: `fat32` (4 GiB minus one byte), or
+    /// a size such as `700M`, `2G` or a byte count. Default: one archive.
+    #[arg(long, value_name = "SIZE")]
+    pub zip_volume: Option<String>,
     /// Start even when the disk-space precheck fails.
     #[arg(long)]
     pub ignore_space_check: bool,
@@ -91,6 +97,8 @@ pub struct TestArgs {
     pub test_fake_free_bytes: Option<u64>,
     #[arg(long, hide = true)]
     pub test_recheck_every: Option<usize>,
+    #[arg(long, hide = true, default_value_t = 0)]
+    pub test_zip_delay_ms: u64,
 }
 
 impl OptionArgs {
@@ -109,14 +117,39 @@ impl OptionArgs {
             year_range: parse_years(&self.clip_years)?,
             skip_groups: self.clip_skip.clone(),
         };
-        o.zip_output = self.zip_output;
+        o.zip_output = self.zip_output || self.zip_volume.is_some();
+        o.zip_volume_bytes = self.zip_volume.as_deref().map(parse_size).transpose()?;
         o.ignore_space_check = self.ignore_space_check;
         o.test_hooks.fail_ids = self.test.test_fail_ids.clone();
         o.test_hooks.delay_ms = self.test.test_delay_ms;
         o.test_hooks.fake_free_bytes = self.test.test_fake_free_bytes;
         o.test_hooks.recheck_every = self.test.test_recheck_every;
+        o.test_hooks.zip_delay_ms = self.test.test_zip_delay_ms;
         Ok(o)
     }
+}
+
+/// `fat32`, `700M`, `2G`, `1.5G` or a byte count (K, M, G are powers of 1024).
+pub fn parse_size(s: &str) -> Result<u64, String> {
+    let t = s.trim();
+    if t.eq_ignore_ascii_case("fat32") {
+        return Ok(mr_job::ZIP_VOLUME_FAT32);
+    }
+    let (num, mul) = match t.chars().last().map(|c| c.to_ascii_uppercase()) {
+        Some('K') => (&t[..t.len() - 1], 1u64 << 10),
+        Some('M') => (&t[..t.len() - 1], 1 << 20),
+        Some('G') => (&t[..t.len() - 1], 1 << 30),
+        _ => (t, 1),
+    };
+    let v: f64 = num
+        .trim()
+        .parse()
+        .map_err(|_| format!("--zip-volume: {s:?} is not a size (try fat32, 700M or 2G)"))?;
+    let bytes = (v * mul as f64) as u64;
+    if bytes < 64 << 10 {
+        return Err(format!("--zip-volume: {s:?} is smaller than 64K"));
+    }
+    Ok(bytes)
 }
 
 fn parse_years(s: &str) -> Result<Option<(i32, i32)>, String> {
@@ -153,6 +186,169 @@ pub fn default_state_dir() -> PathBuf {
 
 /// Prints progress to stderr once per callback (the engine calls at most
 /// once per second) and issues as they happen.
+static PROCESS_START: OnceLock<Instant> = OnceLock::new();
+static FIRST_ITEM: OnceLock<Instant> = OnceLock::new();
+static LAST_OUTCOME: Mutex<Option<serde_json::Value>> = Mutex::new(None);
+
+/// When this process started, for `MR_BENCH_JSON`.
+pub fn process_start() -> Instant {
+    *PROCESS_START.get_or_init(Instant::now)
+}
+
+/// Append one JSON line to `MR_BENCH_JSON`, if set: wall time, time to the
+/// first finished item (NFR-PERF-06), peak resident memory, the outcome.
+pub fn bench_line(command: &str, started: Instant, code: ExitCode) {
+    let Some(path) = std::env::var_os("MR_BENCH_JSON") else {
+        return;
+    };
+    let v = json!({
+        "command": command,
+        "elapsed_s": started.elapsed().as_secs_f64(),
+        "first_item_s": FIRST_ITEM.get().map(|t| t.duration_since(started).as_secs_f64()),
+        "peak_rss_bytes": mr_job::platform::peak_rss_bytes(),
+        "exit_ok": code == ExitCode::SUCCESS,
+        "outcome": LAST_OUTCOME.lock().ok().and_then(|o| o.clone()),
+    });
+    if let Ok(mut f) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)
+    {
+        let _ = writeln!(f, "{v}");
+    }
+}
+
+/// `mr-cli bench verify`: see the command's help.
+pub fn bench_verify(state: &Path, id: &str) -> ExitCode {
+    use std::collections::{BTreeMap, HashMap, HashSet};
+    let job = match Job::open(state, id) {
+        Ok(j) => j,
+        Err(e) => return fail(e),
+    };
+    let items = match job.items() {
+        Ok(i) => i,
+        Err(e) => return fail(e),
+    };
+    let root = job.output_root().to_path_buf();
+    let mut stages: BTreeMap<String, usize> = BTreeMap::new();
+    let mut expected: HashSet<String> = HashSet::new();
+    let (mut sha_mismatch, mut metadata_fail, mut missing_output) = (Vec::new(), Vec::new(), 0);
+    for i in &items {
+        *stages.entry(i.stage.as_str().to_string()).or_default() += 1;
+        for rel in i.recorded_outputs() {
+            expected.insert(rel);
+        }
+        if i.stage != mr_job::Stage::Done {
+            continue;
+        }
+        let Some(rel) = &i.output_path else {
+            missing_output += 1;
+            continue;
+        };
+        let path = mr_job::layout::to_fs(&root, rel);
+        match mr_job::fingerprint::sha256_file(&path) {
+            Ok(h) if Some(&h) == i.output_sha256.as_ref() => {}
+            _ => sha_mismatch.push(rel.clone()),
+        }
+        if let Err(e) = mr_job::process::verify(&i.plan.ext, &path, &i.plan.capture()) {
+            metadata_fail.push(format!("{rel}: {e}"));
+        }
+    }
+    if let Ok(groups) = job.clip_groups() {
+        expected.extend(
+            groups
+                .into_iter()
+                .filter(|g| g.stage == "done")
+                .filter_map(|g| g.output_path),
+        );
+    }
+    let mut actual: HashSet<String> = HashSet::new();
+    let mut stack = vec![root.clone()];
+    while let Some(dir) = stack.pop() {
+        let Ok(rd) = std::fs::read_dir(&dir) else {
+            continue;
+        };
+        for e in rd.flatten() {
+            let p = e.path();
+            let rel = p
+                .strip_prefix(&root)
+                .map(|r| r.to_string_lossy().replace('\\', "/"))
+                .unwrap_or_default();
+            if rel.starts_with(mr_job::layout::STATE_DIR)
+                || rel.starts_with(mr_job::layout::REPORT_DIR)
+            {
+                continue;
+            }
+            if p.is_dir() {
+                stack.push(p);
+            } else {
+                actual.insert(rel);
+            }
+        }
+    }
+    let extra: Vec<&String> = actual.difference(&expected).collect();
+    let missing: Vec<&String> = expected.difference(&actual).collect();
+    // Journal: starts per item, and starts of items already finished.
+    let mut finished: HashSet<String> = HashSet::new();
+    let mut starts: HashMap<String, usize> = HashMap::new();
+    let mut redone_after_done = 0usize;
+    for ev in job.journal().unwrap_or_default() {
+        match ev.event.as_str() {
+            "done" => {
+                finished.insert(ev.item);
+            }
+            "start" => {
+                if finished.contains(&ev.item) {
+                    redone_after_done += 1;
+                }
+                *starts.entry(ev.item).or_default() += 1;
+            }
+            _ => {}
+        }
+    }
+    let total_starts: usize = starts.values().sum();
+    let restarted = starts.values().filter(|&&n| n > 1).count();
+    let report_rows = job.report_data().map(|d| d.rows.len()).unwrap_or(0);
+    let tmp_left = root
+        .join(mr_job::layout::STATE_DIR)
+        .join(mr_job::layout::TMP_DIR)
+        .read_dir()
+        .map(|mut d| d.next().is_some())
+        .unwrap_or(false);
+    let v = json!({
+        "job": id,
+        "items": items.len(),
+        "stages": stages,
+        "report_rows": report_rows,
+        "files_expected": expected.len(),
+        "files_on_disk": actual.len(),
+        "extra_files": extra.len(),
+        "missing_files": missing.len(),
+        "extra_sample": extra.iter().take(5).collect::<Vec<_>>(),
+        "missing_sample": missing.iter().take(5).collect::<Vec<_>>(),
+        "done_without_output": missing_output,
+        "sha_mismatch": sha_mismatch.len(),
+        "metadata_fail": metadata_fail.len(),
+        "metadata_fail_sample": metadata_fail.iter().take(5).collect::<Vec<_>>(),
+        "journal_starts": total_starts,
+        "items_started_more_than_once": restarted,
+        "finished_items_started_again": redone_after_done,
+        "temp_left": tmp_left,
+        "zip_volumes": job.zip_volumes().unwrap_or_default().len(),
+    });
+    println!("{}", serde_json::to_string_pretty(&v).expect("json"));
+    let ok = extra.is_empty()
+        && missing.is_empty()
+        && sha_mismatch.is_empty()
+        && metadata_fail.is_empty()
+        && redone_after_done == 0;
+    if ok {
+        ExitCode::SUCCESS
+    } else {
+        ExitCode::FAILURE
+    }
+}
+
 pub struct ConsoleSink {
     pub quiet: bool,
     last_len: Mutex<usize>,
@@ -198,6 +394,22 @@ impl ProgressSink for ConsoleSink {
     }
 
     fn item(&self, o: &ItemOutcome) {
+        if FIRST_ITEM.get().is_none() {
+            let t = *FIRST_ITEM.get_or_init(Instant::now);
+            // Written at once, so a run killed later still leaves it (NFR-PERF-06).
+            if let Some(path) = std::env::var_os("MR_BENCH_JSON")
+                && let Ok(mut f) = std::fs::OpenOptions::new()
+                    .create(true)
+                    .append(true)
+                    .open(path)
+            {
+                let v = json!({
+                    "event": "first_item",
+                    "first_item_s": t.duration_since(process_start()).as_secs_f64(),
+                });
+                let _ = writeln!(f, "{v}");
+            }
+        }
         if self.quiet {
             return;
         }
@@ -240,6 +452,7 @@ fn print_outcome(job: &Job, o: &Outcome, json: bool) {
             "detail": o,
             "counts": job.counts().unwrap_or_default(),
             "output_root": job.output_root(),
+            "zip_volumes": job.zip_volumes().unwrap_or_default(),
         });
         println!("{}", serde_json::to_string_pretty(&v).expect("json"));
         return;
@@ -295,6 +508,28 @@ fn print_outcome(job: &Job, o: &Outcome, json: bool) {
         }
     }
     println!("output: {}", job.output_root().display());
+    for v in job.zip_volumes().unwrap_or_default() {
+        match v.state.as_str() {
+            "done" => println!(
+                "zip: {} ({} files, {}){}",
+                v.name,
+                v.files,
+                mr_job::space::gb(v.size),
+                if v.oversize {
+                    ", larger than the volume size"
+                } else {
+                    ""
+                }
+            ),
+            _ => println!(
+                "zip: {} {} ({}: {})",
+                v.name,
+                v.state,
+                v.error_code.as_deref().unwrap_or("-"),
+                v.error_detail.as_deref().unwrap_or("")
+            ),
+        }
+    }
 }
 
 /// The ffmpeg for burn-in, compatibility and clip joins, named by
@@ -319,6 +554,14 @@ fn drive(job: &mut Job, quiet: bool, json: bool) -> ExitCode {
     let sink = ConsoleSink::new(quiet);
     match job.run(&sink, &Control::new()) {
         Ok(o) => {
+            if let Ok(mut last) = LAST_OUTCOME.lock() {
+                *last = Some(json!({
+                    "job": job.id(),
+                    "status": o.status(),
+                    "stats": o.stats(),
+                    "counts": job.counts().unwrap_or_default(),
+                }));
+            }
             if matches!(o, Outcome::Completed(_))
                 && let Err(e) = job.report()
             {
@@ -474,11 +717,27 @@ pub fn cmd_run(
     drive(&mut job, quiet, json)
 }
 
-pub fn cmd_resume(state: &Path, id: &str, unlock: bool, quiet: bool, json: bool) -> ExitCode {
+/// `zip`: `Some(volume size)` turns ZIP output on for the job first.
+pub fn cmd_resume(
+    state: &Path,
+    id: &str,
+    unlock: bool,
+    zip: Option<Option<u64>>,
+    quiet: bool,
+    json: bool,
+) -> ExitCode {
     let mut job = match Job::open(state, id) {
         Ok(j) => j,
         Err(e) => return fail(e),
     };
+    if let Some(volume) = zip {
+        let mut o = job.options().clone();
+        o.zip_output = true;
+        o.zip_volume_bytes = volume;
+        if let Err(e) = job.set_options(o) {
+            return fail(e);
+        }
+    }
     if let Some(why) = job.rebuilt() {
         eprintln!("note: {why}");
     }

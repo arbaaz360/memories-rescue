@@ -44,7 +44,8 @@ o.unlocked = license_is_valid;               // false: first 100 items (FR-44)
 | `apply_uncertain_locations: bool` | `false` | 3.6 step 4, FR-48 |
 | `windows_compat: bool` | `false` | FR-51: videos the compositor finds HEVC are saved as H.264 (`compat_transcode`); burn-ins are H.264 anyway |
 | `clip_rejoin: ClipRejoin { enabled, year_range, skip_groups }` | off, `2017-2021`, none | FR-27: groups found in the dry run are joined after the items; `skip_groups` holds the group ids the user unticked (AC3) |
-| `zip_output: bool` | `false` | FR-31; recorded and counted in the space estimate, not yet written |
+| `zip_output: bool` | `false` | FR-31: once every item is finished, the tree is also packed into ZIP64 archives in `dest` (see "ZIP output") |
+| `zip_volume_bytes: Option<u64>` | `None` (one archive) | FR-31 volume size; `mr_job::ZIP_VOLUME_FAT32` (4 GiB - 1 byte) is the FAT32 preset |
 | `ignore_space_check: bool` | `false` | FR-28 AC1 "continue anyway" |
 | `test_hooks: TestHooks` | empty | debug builds only (fault injection) |
 
@@ -216,6 +217,99 @@ URLs and absolute paths. Joined clip groups are rows of kind `joined_clip`
 the compositor's notes from its latest attempt (`OVERLAY_ASPECT_MISMATCH`,
 `H264_COMPAT`, `ODD_SIZE_SCALED`, `AUDIO_REENCODED`), kept as `warning:`
 journal events.
+
+## ZIP output (FR-31)
+
+With `zip_output`, `run` packs the job's recorded outputs (items, overlays,
+`originals/`, joined clips; not `_report/` or `.memories-rescue/`) after the
+last item and clip join, before it returns `Completed`. The folder tree is
+kept. The archives go into `dest`, next to the `Memories Rescue` folder:
+
+```text
+<dest>/Memories Rescue.zip                      one archive (no volume size)
+<dest>/Memories Rescue-001.zip, -002.zip, ...   with zip_volume_bytes
+```
+
+Entries are `Memories Rescue/YYYY/MM/...`, stored (media is compressed
+already), ZIP64 where needed, with the DOS time in local time plus an
+extended-timestamp field (0x5455) holding the exact UTC time, so extraction
+restores each file's capture time. Each archive is written as
+`<name>.partial`, read back with mr-core's ZIP reader (central directory,
+names, sizes, CRCs against the source bytes, every entry read to the end),
+then renamed. A single file larger than the volume size gets an archive of
+its own (`oversize`).
+
+```rust
+for v in job.zip_volumes()? {   // ZipVolume { seq, name, files, data_bytes, size, state, error_code, error_detail, oversize }
+    // state: "done", or "failed" with ZIP_WRITE / ZIP_VERIFY; a later run retries failed ones
+}
+```
+
+During the pack `Progress::stage` is `packing ZIP file 2 of 5`, with
+`bytes_done` / `bytes_total` and the ETA over the archive bytes; item counts
+stay at their final values. Pause and cancel take effect within one 1 MiB
+chunk; the archive being written is removed and redone on the next run.
+Interruptions resume: finished archives are kept (recorded with size and
+time), and a crash between verification and the final rename is recognised.
+When the recorded outputs change (retry, added part, unlock), the next run
+removes the archives it made, while they are unchanged, and packs again. A
+file that is not the job's own at an archive's name makes it `_2.zip`.
+
+Space: the FR-28 estimate counts the ZIP as final + originals + a header
+allowance per file, plus, on a later run, everything earlier runs wrote
+(the pack holds the whole job). The pack checks free space again before it
+starts (`DISK_FULL`, `Blocked`) and stops at the 2 GB floor while writing
+(`DISK_FULL_IMMINENT`). The report's notes list the archives, failures and
+oversize archives.
+
+## Logging (FR-41)
+
+The engine emits [`tracing`](https://docs.rs/tracing) events and installs
+nothing: the app sets the subscriber, writes the rotating file (50 MB cap)
+and builds the diagnostics ZIP. Without a subscriber the events cost nothing.
+
+```rust
+// src-tauri, once at start-up (tracing-subscriber and a rolling writer are the app's choice)
+tracing_subscriber::fmt().with_writer(rotating_file).with_max_level(Level::INFO).init();
+```
+
+Every path and free-text value goes through `mr_core::redact::path` or
+`mr_core::redact::text` before it reaches an event: the home directory
+(`USERPROFILE` / `HOME`, case-insensitive on Windows, either separator, with
+or without `\\?\`) becomes `~`, URLs become `<link removed>`, and a stray
+query string becomes `?<query removed>`. GPS coordinates, captions, JSON
+content and media bytes are never logged; item keys (`YYYY-MM-DD_ID`) and
+archive entry names are. Use the same helpers for anything the app logs
+itself.
+
+| Target | Level | Message | Fields |
+|---|---|---|---|
+| `mr_core::discover` | info | `inputs discovered` | `inputs`, `parts`, `exports`, `ignored` |
+| | info | `input ignored (INPUT_NOT_EXPORT)` | `path`, `detail` |
+| | warn | `part issue` | `part`, `code` (`PART_TRUNCATED`, `ENTRY_REFUSED`, ...), `detail` |
+| `mr_core::zipindex` | warn, info | `ZIP central directory unreadable; ...`, `ZIP recovered` | `path`, `detail` / `entries`, `truncated` |
+| `mr_core::index` | info, warn | `memories_history.json read`, `... stopped parsing`, `... entries skipped` | `entries`, `exact`, `ordinal`, `links`; `code` = `JSON_PARSE` |
+| `mr_job::plan` | info | `plan` | `profile`, `parts`, `missing_parts`, `items`, `exact`, `ordinal`, `none`, `missing_media`, `to_process`, `required_bytes`, `free_bytes`, `warnings` (codes) |
+| `mr_job::job` | info | `job created`, `run started`, `run finished`, `re-planned`, `part added`, `failed items queued for retry`, `unlocked: ...`, `report written`, `joining clips` | `job`, `dest`, counts, `outcome`, `seconds` |
+| | info | `zip output started`, `zip volume written and verified`, `zip output finished`, `output changed since the last ZIP; packing again` | `volumes`, `to_write`, `files`, `missing`, `bytes`, `volume_bytes`, `volume`, `oversize`, `failed` |
+| | warn | `job state rebuilt from the output folder` | `code` = `JOB_STATE_CORRUPT`, `detail`, `adopted` |
+| | error | `run stopped by an error` | `error` |
+| `mr_job::control` | info | `progress` (on every stage change and at most every 30 s) | `stage`, `done`, `failed`, `total`, `percent`, `items_per_s`, `eta_s` |
+| | warn | `item failed` | `item`, `code`, `detail`, `kept` (output written anyway) |
+| | warn, info | `issue`, `issue cleared` | `code` (`DISK_FULL_IMMINENT`, `DEST_UNAVAILABLE`, ...), `detail` |
+| | debug | `item done` | `item`, `seconds` |
+| `mr_job::job` | info | `item warning` | `item`, `code` (`overlay_aspect_mismatch`, `h264_compat`, ...), `detail` |
+| `mr_job::process` | debug | `output name taken by another file; using a suffix` | `name`, `suffix` |
+
+For "Export diagnostics", `job.diagnostics()` returns the job summary as
+JSON: status, profile, counts, error codes and how often each occurred, part
+numbers and sizes, warnings, options, ZIP volumes, peak memory. Paths are
+redacted; no item names, captions, locations or JSON content. Put it in the
+ZIP next to the log files.
+
+`crates/mr-job/tests/logging.rs` runs a job under a capturing subscriber and
+checks that these events arrive and that none carries the home directory, a
+URL or a query string (`MR_LOG_DUMP=1` prints them).
 
 ## The compositor seam
 

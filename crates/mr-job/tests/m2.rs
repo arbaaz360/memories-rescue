@@ -1496,3 +1496,73 @@ fn composite_pending_warning_and_note_follow_the_compositor() {
         "nothing pending once every overlay was burned in"
     );
 }
+
+#[test]
+fn f03_mixed_export_runs_each_entry_on_its_path() {
+    let t = truth("mixed-format");
+    let count = |k: &str| t["counts"][k].as_u64().unwrap() as usize;
+    let inputs = zips_in(&fixture_dir("mixed-format"));
+    let e = env("mixed");
+    let p = plan(&inputs, &options(&e.dest)).unwrap();
+    assert_eq!(p.profile, "mixed");
+    let mut job = Job::create(&e.state, &inputs, options(&e.dest)).unwrap();
+    let (outcome, _) = run(&mut job);
+    assert!(
+        matches!(outcome, mr_job::Outcome::Completed(_)),
+        "{outcome:?}"
+    );
+    let report = job.report_data().unwrap();
+    let rows = |s: Status| report.rows.iter().filter(|r| r.status == Some(s)).count();
+    assert_eq!(rows(Status::Done), count("main_files"));
+    assert_eq!(rows(Status::MissingMedia), count("expected_missing_media"));
+    let conf = |c: &str| {
+        report
+            .rows
+            .iter()
+            .filter(|r| r.status == Some(Status::Done) && r.match_confidence.as_deref() == Some(c))
+            .count()
+    };
+    assert_eq!(conf("exact"), count("expected_exact"));
+    assert_eq!(conf("ordinal"), count("expected_ordinal"));
+    let outputs = files_under(&e.dest.join(mr_job::layout::ROOT_DIR))
+        .into_keys()
+        .filter(|k| !k.starts_with(mr_job::layout::REPORT_DIR))
+        .count();
+    assert_eq!(
+        outputs,
+        count("main_files") + count("overlays"),
+        "mains plus overlays beside them"
+    );
+}
+
+#[test]
+fn template_without_shortid_is_refused() {
+    let inputs = zips_in(&fixture_dir("small-2026a"));
+    let e = env("template");
+    let mut o = options(&e.dest);
+    for (template, ok) in [
+        ("{date}_{time}_{shortid}.{ext}", true),
+        ("{id}.{ext}", true),
+        ("{date}_{time}.{ext}", false),
+        ("{date}_{shortid}", false),
+        ("{date}_{shortid}_{camera}.{ext}", false),
+        ("   ", false),
+    ] {
+        o.output_template = template.into();
+        let r = plan(&inputs, &o);
+        assert_eq!(r.is_ok(), ok, "{template:?}: {:?}", r.err());
+        if !ok {
+            assert!(
+                matches!(&r, Err(mr_job::JobError::State(s)) if s.starts_with("invalid options"))
+            );
+        }
+    }
+    let mut job = Job::create(&e.state, &inputs, options(&e.dest)).unwrap();
+    let mut bad = options(&e.dest);
+    bad.output_template = "{date}.{ext}".into();
+    assert!(matches!(
+        job.set_options(bad),
+        Err(mr_job::JobError::State(s)) if s.starts_with("invalid options")
+    ));
+    run(&mut job);
+}

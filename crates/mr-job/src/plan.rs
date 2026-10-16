@@ -352,6 +352,9 @@ pub(crate) fn plan_with(
     options: &Options,
     naming: &Naming,
 ) -> Result<(Plan, Discovery)> {
+    if let Some(problem) = options.template_problem() {
+        return Err(JobError::State(format!("invalid options: {problem}")));
+    }
     let d = discover(inputs);
     let export = match d.exports.len() {
         0 => {
@@ -643,7 +646,7 @@ pub(crate) fn plan_with(
         });
     }
 
-    let space = estimate_space(&items, options, &root, |i| {
+    let space = estimate_space(&items, options, &root, 0, |i| {
         options.unlocked || i.chrono_rank < FREE_TIER_ITEMS
     });
 
@@ -675,6 +678,22 @@ pub(crate) fn plan_with(
         tz_data_version: resolver.boundary_data_version().to_string(),
         home_zone: resolver.home_zone().map(str::to_string),
     };
+    let codes: Vec<&str> = plan.warnings.iter().map(|w| w.code.as_str()).collect();
+    tracing::info!(
+        profile = %plan.profile,
+        parts = plan.parts.len(),
+        missing_parts = plan.missing_parts.len(),
+        items = plan.totals.items,
+        exact = plan.totals.exact,
+        ordinal = plan.totals.ordinal,
+        none = plan.totals.none,
+        missing_media = plan.totals.missing_media,
+        to_process = plan.totals.to_process,
+        required_bytes = plan.space.required_bytes,
+        free_bytes = plan.space.free_bytes,
+        warnings = %codes.join(","),
+        "plan"
+    );
     Ok((plan, d))
 }
 
@@ -728,29 +747,50 @@ fn assign_names(items: &mut [PlannedItem], root: &Path, options: &Options, namin
 }
 
 /// FR-28 for the items `selected` picks.
+/// What one item writes, as the FR-28 estimate counts it: (output bytes,
+/// `originals/` bytes, files).
+pub(crate) fn item_output_bytes(it: &PlannedItem, options: &Options) -> (u64, u64, u64) {
+    let overlay = it.overlay.as_ref().map(|o| o.size).unwrap_or(0);
+    let mut final_bytes = it.main.size + METADATA_OVERHEAD;
+    let mut files = 1;
+    if options.overlay_mode != OverlayMode::Ignore && it.overlay.is_some() {
+        final_bytes += overlay;
+        if !options.overlay_mode.burns_in() {
+            files += 1;
+        }
+    }
+    let mut originals = 0;
+    if options.keep_originals
+        && options.overlay_mode == OverlayMode::BurnInKeepOriginals
+        && it.overlay.is_some()
+    {
+        originals = it.main.size + overlay + METADATA_OVERHEAD;
+        files += 2;
+    }
+    (final_bytes, originals, files)
+}
+
+/// FR-28 for `items` (those `selected`). `zip_carry_bytes` is what earlier
+/// runs wrote that the ZIP output must hold as well.
 pub(crate) fn estimate_space(
     items: &[PlannedItem],
     options: &Options,
     root: &Path,
+    zip_carry_bytes: u64,
     selected: impl Fn(&PlannedItem) -> bool,
 ) -> SpaceEstimate {
     let mut inputs = SpaceInputs {
         workers: options.worker_count(),
         zip_output: options.zip_output,
+        zip_carry_bytes,
         ..SpaceInputs::default()
     };
     for it in items.iter().filter(|i| selected(i)) {
         let overlay = it.overlay.as_ref().map(|o| o.size).unwrap_or(0);
-        inputs.final_bytes += it.main.size + METADATA_OVERHEAD;
-        if options.overlay_mode != OverlayMode::Ignore {
-            inputs.final_bytes += overlay;
-        }
-        if options.keep_originals
-            && options.overlay_mode == OverlayMode::BurnInKeepOriginals
-            && it.overlay.is_some()
-        {
-            inputs.originals_bytes += it.main.size + overlay + METADATA_OVERHEAD;
-        }
+        let (final_bytes, originals, files) = item_output_bytes(it, options);
+        inputs.final_bytes += final_bytes;
+        inputs.originals_bytes += originals;
+        inputs.zip_entries += files;
         inputs.largest_item = inputs.largest_item.max(it.main.size + overlay);
     }
     let free = options

@@ -18,6 +18,17 @@ use crate::error::{JobError, Result};
 use crate::fingerprint::PartFingerprint;
 use crate::options::Options;
 use crate::plan::{ClipGroup, ExtraRow, PlanPart, PlannedItem, Warning};
+use crate::zipout::ZipVolume;
+
+/// One recorded archive of the ZIP output (FR-31): the volume, the manifest
+/// of the pack it belongs to, and its modification time (Unix seconds) for
+/// the ownership check.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ZipRecord {
+    pub volume: ZipVolume,
+    pub manifest: String,
+    pub mtime: i64,
+}
 
 pub const SCHEMA_VERSION: i64 = 1;
 
@@ -49,6 +60,10 @@ CREATE TABLE IF NOT EXISTS clip_output (
     output_path TEXT, output_sha256 TEXT, error_code TEXT, error_detail TEXT, done_utc TEXT);
 CREATE TABLE IF NOT EXISTS journal (
     seq INTEGER PRIMARY KEY AUTOINCREMENT, item_id TEXT, event TEXT, at_utc TEXT);
+CREATE TABLE IF NOT EXISTS zip_volume (
+    seq INTEGER PRIMARY KEY, name TEXT, manifest TEXT, files INTEGER, data_bytes INTEGER,
+    size INTEGER, mtime INTEGER, state TEXT, error_code TEXT, error_detail TEXT,
+    oversize INTEGER, done_utc TEXT);
 "#;
 
 /// The job row.
@@ -889,6 +904,62 @@ impl Db {
                 })
             })
             .collect()
+    }
+
+    /// The recorded archives of the ZIP output, in order.
+    pub fn zip_volumes(&self) -> Result<Vec<ZipRecord>> {
+        let mut st = self.conn.prepare(
+            "SELECT seq, name, manifest, files, data_bytes, size, mtime, state, error_code,
+                    error_detail, oversize
+             FROM zip_volume ORDER BY seq",
+        )?;
+        let rows = st.query_map([], |r| {
+            Ok(ZipRecord {
+                volume: ZipVolume {
+                    seq: r.get::<_, i64>(0)? as usize,
+                    name: r.get(1)?,
+                    files: r.get::<_, i64>(3)? as usize,
+                    data_bytes: r.get::<_, i64>(4)? as u64,
+                    size: r.get::<_, i64>(5)? as u64,
+                    state: r.get(7)?,
+                    error_code: r.get(8)?,
+                    error_detail: r.get(9)?,
+                    oversize: r.get::<_, i64>(10)? != 0,
+                },
+                manifest: r.get(2)?,
+                mtime: r.get(6)?,
+            })
+        })?;
+        Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
+    }
+
+    pub fn put_zip_volume(&self, z: &ZipRecord) -> Result<()> {
+        let v = &z.volume;
+        self.conn.execute(
+            "INSERT OR REPLACE INTO zip_volume(seq, name, manifest, files, data_bytes, size, mtime,
+                state, error_code, error_detail, oversize, done_utc)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+            params![
+                v.seq as i64,
+                v.name,
+                z.manifest,
+                v.files as i64,
+                v.data_bytes as i64,
+                v.size as i64,
+                z.mtime,
+                v.state,
+                v.error_code,
+                v.error_detail,
+                v.oversize as i64,
+                (v.state == "done").then(|| Utc::now().to_rfc3339()),
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn clear_zip_volumes(&self) -> Result<()> {
+        self.conn.execute("DELETE FROM zip_volume", [])?;
+        Ok(())
     }
 
     /// Checkpoint the WAL into the main file (on clean shutdown).

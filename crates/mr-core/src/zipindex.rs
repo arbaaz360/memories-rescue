@@ -191,7 +191,23 @@ impl ZipIndex {
         let file_size = file.metadata().map_err(io_err)?.len();
         match ZipArchive::new(BufReader::new(file)) {
             Ok(archive) => Self::from_central_directory(path, file_size, &archive),
-            Err(err) => Self::recover(path, file_size, err.to_string()),
+            Err(err) => {
+                tracing::warn!(
+                    path = %crate::redact::path(path),
+                    detail = %crate::redact::text(&err.to_string()),
+                    "ZIP central directory unreadable; recovering entries from local headers"
+                );
+                let recovered = Self::recover(path, file_size, err.to_string());
+                if let Ok(z) = &recovered {
+                    tracing::info!(
+                        path = %crate::redact::path(path),
+                        entries = z.entries.len(),
+                        truncated = z.integrity.is_truncated(),
+                        "ZIP recovered"
+                    );
+                }
+                recovered
+            }
         }
     }
 

@@ -7,10 +7,11 @@ use std::process::Command;
 use std::sync::Once;
 
 /// Every fixture `tools/make_fixture --all` produces.
-pub const ALL_FIXTURES: [&str; 11] = [
+pub const ALL_FIXTURES: [&str; 12] = [
     "small-2026b",
     "small-2026a",
     "small-legacy",
+    "mixed-format",
     "weird-json",
     "multipart",
     "missing-part",

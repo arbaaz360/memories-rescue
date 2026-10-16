@@ -169,6 +169,80 @@ pub trait ProgressSink: Send + Sync {
     fn issue(&self, code: &str, detail: &str);
 }
 
+/// FR-41: forwards everything to the caller's sink and logs what matters:
+/// every issue, every failed item, stage changes, and a progress line at most
+/// every 30 seconds. Paths and details go through `mr_core::redact`.
+pub(crate) struct LoggedSink<'a> {
+    inner: &'a dyn ProgressSink,
+    job: &'a str,
+    last: Mutex<(String, Option<std::time::Instant>)>,
+}
+
+impl<'a> LoggedSink<'a> {
+    pub(crate) fn new(inner: &'a dyn ProgressSink, job: &'a str) -> LoggedSink<'a> {
+        LoggedSink {
+            inner,
+            job,
+            last: Mutex::new((String::new(), None)),
+        }
+    }
+}
+
+impl ProgressSink for LoggedSink<'_> {
+    fn progress(&self, p: &Progress) {
+        self.inner.progress(p);
+        let mut last = self.last.lock().unwrap_or_else(|e| e.into_inner());
+        let stage_changed = last.0 != p.stage;
+        let due = last
+            .1
+            .is_none_or(|t| t.elapsed() >= std::time::Duration::from_secs(30));
+        if stage_changed || due {
+            tracing::info!(
+                job = self.job,
+                stage = %p.stage,
+                done = p.items_done,
+                failed = p.items_failed,
+                total = p.items_total,
+                percent = format_args!("{:.1}", p.percent),
+                items_per_s = format_args!("{:.2}", p.throughput),
+                eta_s = p.eta_seconds.map(|s| s.round() as u64),
+                "progress"
+            );
+            *last = (p.stage.clone(), Some(std::time::Instant::now()));
+        }
+    }
+
+    fn item(&self, o: &ItemOutcome) {
+        self.inner.item(o);
+        match (&o.stage, &o.error_code) {
+            (Stage::Failed, code) | (_, code @ Some(_)) => tracing::warn!(
+                job = self.job,
+                item = %o.id,
+                code = code.as_deref().unwrap_or("UNKNOWN"),
+                detail = %mr_core::redact::text(o.error_detail.as_deref().unwrap_or("")),
+                kept = o.output_path.is_some(),
+                "item failed"
+            ),
+            _ => tracing::debug!(
+                job = self.job,
+                item = %o.id,
+                seconds = format_args!("{:.3}", o.seconds),
+                "item done"
+            ),
+        }
+    }
+
+    fn issue(&self, code: &str, detail: &str) {
+        self.inner.issue(code, detail);
+        let detail = mr_core::redact::text(detail);
+        if code.ends_with("_AVAILABLE") {
+            tracing::info!(job = self.job, code, detail = %detail, "issue cleared");
+        } else {
+            tracing::warn!(job = self.job, code, detail = %detail, "issue");
+        }
+    }
+}
+
 /// A sink that keeps everything it is told, for tests and the CLI.
 #[derive(Default, Debug)]
 pub struct CollectingSink {

@@ -1,5 +1,5 @@
 """The fixture definitions (SRS v0.2 §11.2): F-01 small-2026b, F-15 small-2026a,
-F-02 small-legacy, F-10 weird-json. Each writes <out>/<name>/<zip> and <out>/<name>/truth.json.
+F-02 small-legacy, F-03 mixed-format, F-10 weird-json. Each writes <out>/<name>/<zip> and <out>/<name>/truth.json.
 
 truth.json layout (schema 1):
 
@@ -333,6 +333,207 @@ def build_small_legacy(ctx: Context) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# F-03 mixed-format
+# ---------------------------------------------------------------------------
+
+# Matching paths an F-03 entry is built for (SRS v0.3 section 3.3), cycled.
+F03_PATHS = (
+    # Legacy-style signed URLs that carry sid/mid, media bundled: exact.
+    ["exact"] * 4
+    # URL fields empty, N/A or absent: ordinal.
+    + ["ordinal_empty"] * 2
+    # A legacy-style signed URL without usable parameters: ordinal.
+    + ["ordinal_tokenless"]
+    # sid/mid present but the media is not in the export: missing_media.
+    + ["missing"]
+)
+
+
+def build_mixed_format(ctx: Context) -> dict:
+    """F-03: 40 entries whose JSON mixes the legacy shape with the 2026 ones,
+    media bundled for 35 of them. Classified ``mixed`` (FR-13 AC2): 20 exact
+    (legacy-style signed URLs carrying lower-case sid/mid; for some only
+    ``Media Download Url`` carries them), 10 ordinal with empty or absent URL
+    fields, 5 ordinal whose signed URL has no usable parameters, and 5 with
+    sid/mid but no media (``missing_media``). Ordinal entries sit on days of
+    their own except one same-day pair of photos, so the expected matches
+    hold for ``--zip-order json``.
+    """
+    name = "mixed-format"
+    rng = ctx.rng(name)
+    out = ctx.out_dir / name
+    reset_dir(out)
+
+    n = 40
+    start = dt.datetime(2016, 1, 1, tzinfo=UTC)
+    end = dt.datetime(2022, 12, 31, tzinfo=UTC)
+    drafts = []
+    for i in range(n):
+        drafts.append(
+            {
+                "id": new_id(rng),
+                "when": random_instant(rng, start, end),
+                "kind": "video" if i % 4 == 1 else "photo",
+                "path": F03_PATHS[i % len(F03_PATHS)],
+                "overlay": i % 5 == 2,
+                "gps": i % 10 not in (0, 4, 7),
+                "colour": _colour(rng),
+                "loc": random_location(rng),
+            }
+        )
+    # Ordinal entries on days of their own (per media type), except one pair:
+    # the second ordinal photo moves to the first one's day and place (a pair
+    # more than 100 m apart would be location_uncertain and drop to the day,
+    # section 3.6 step 4, which F-11 covers).
+    ordinal = [d for d in drafts if d["path"].startswith("ordinal")]
+    photos = [d for d in ordinal if d["kind"] == "photo"]
+    first = photos[0]["when"]
+    photos[1]["when"] = first.replace(hour=(first.hour + 7) % 24 if first.hour < 16 else first.hour - 9)
+    photos[1]["gps"], photos[1]["loc"] = photos[0]["gps"], photos[0]["loc"]
+    pair_day = filename_date(first)
+    taken = {(pair_day, "photo")}
+    for d in ordinal:
+        if d is photos[0] or d is photos[1]:
+            continue
+        while (filename_date(d["when"]), d["kind"]) in taken:
+            d["when"] += dt.timedelta(days=1)
+        taken.add((filename_date(d["when"]), d["kind"]))
+    drafts.sort(key=lambda d: d["when"], reverse=True)  # newest first, like the export
+
+    uid = new_id(rng, upper=False)
+    expired_ts = int(dt.datetime(2021, 3, 1, tzinfo=UTC).timestamp())
+    empty_variants = [
+        {"Download Link": "", "Media Download Url": ""},
+        {"Download Link": "N/A"},
+        {},
+    ]
+    zipb = ZipBuilder()
+    entries = []
+    items = []
+    skipped = 0
+    for i, d in enumerate(drafts):
+        ext = "mp4" if d["kind"] == "video" else "jpg"
+        date_str = filename_date(d["when"])
+        token = d["id"].lower()
+        sig = hashlib.sha1(f"{d['id']}{ctx.seed}".encode()).hexdigest()
+        loc_field = location_field(*d["loc"]) if d["gps"] else NO_LOCATION_FIELD
+        entry = {
+            "Date": export_date(d["when"]),
+            "Media Type": media_type_field(d["kind"]),
+            "Location": loc_field,
+        }
+        signed_media_url = (
+            f"https://cdn.example.invalid/dmd/memories/{token}.{ext}"
+            f"?Expires={expired_ts}&Signature={sig[:20]}&Key-Pair-Id=EXAMPLEKEY"
+        )
+        path = d["path"]
+        if path in ("exact", "missing"):
+            if i % 3 == 0:
+                # Only the legacy media URL carries the parameters.
+                entry["Media Download Url"] = f"{signed_media_url}&sid={token}&mid={token}"
+            else:
+                entry["Download Link"] = (
+                    f"https://app.example.invalid/dmd/memories?uid={uid}&sid={token}&mid={token}"
+                    f"&ts={expired_ts}&sig={sig}"
+                )
+                entry["Media Download Url"] = signed_media_url
+        elif path == "ordinal_tokenless":
+            entry["Download Link"] = f"https://app.example.invalid/dmd/memories?uid={uid}&ts={expired_ts}&sig={sig}"
+            entry["Media Download Url"] = signed_media_url
+        else:
+            entry.update(empty_variants[i % len(empty_variants)])
+        entries.append(entry)
+
+        bundled = path != "missing"
+        main_name = f"memories/{date_str}_{d['id']}-main.{ext}" if bundled else None
+        overlay_name = f"memories/{date_str}_{d['id']}-overlay.png" if bundled and d["overlay"] else None
+        main_skipped = None
+        if bundled:
+            if d["kind"] == "video":
+                if ctx.ffmpeg:
+                    zipb.add_media(main_name, media.make_video(ctx.ffmpeg, d["id"]))
+                else:
+                    main_skipped = "ffmpeg_missing"
+                    skipped += 1
+            else:
+                zipb.add_media(main_name, media.make_photo(d["id"], d["colour"], ext, export_date(d["when"])))
+            if overlay_name and not main_skipped:
+                zipb.add_media(overlay_name, media.make_overlay(d["id"], f"caption for {d['id'][:8]}"))
+            elif main_skipped:
+                overlay_name = None
+        if not bundled or main_skipped:
+            expected = "missing_media"
+        elif path == "exact":
+            expected = "exact"
+        else:
+            expected = "ordinal"
+        items.append(
+            {
+                "json_index": i,
+                "id": d["id"],
+                "date_utc": iso_utc(d["when"]),
+                "date_field": entry["Date"],
+                "filename_date": date_str,
+                "media_type": d["kind"],
+                "ext": ext,
+                "built_as": path,
+                "expected_match": expected,
+                "main": None if (main_skipped or not bundled) else main_name,
+                "main_skipped": main_skipped,
+                "overlay": overlay_name,
+                "location": {"lat": d["loc"][0], "lon": d["loc"][1]} if d["gps"] else None,
+                "location_field": loc_field,
+                "download_link_field": entry.get("Download Link"),
+                "media_download_url_field": entry.get("Media Download Url"),
+                "sid": d["id"] if path in ("exact", "missing") else None,
+                "mid": d["id"] if path in ("exact", "missing") else None,
+                "ordinal_pair": date_str == pair_day and path.startswith("ordinal") and d["kind"] == "photo",
+            }
+        )
+
+    zipb.add_header("index.html", INDEX_HTML)
+    zipb.add_header("html/memories_history.html", MEMORIES_HTML)
+    zipb.add_header("json/memories_history.json", json_bytes({"Saved Media": entries}))
+    zip_path = out / part_name()
+    order = zipb.write(zip_path, ctx.zip_order, rng)
+
+    def count(pred) -> int:
+        return sum(1 for it in items if pred(it))
+
+    truth = {
+        "schema": TRUTH_SCHEMA,
+        "fixture": name,
+        "srs_id": "F-03",
+        "format": "mixed",
+        "generator": _generator_block(ctx),
+        "parts": [{"file": zip_path.name, "role": "primary", "entries": order}],
+        "json": {"bom": False, "crlf": False, "indent": 2, "top_level_keys_before": [], "top_level_keys_after": []},
+        "counts": {
+            "json_entries": n,
+            "items": n,
+            "photos": count(lambda it: it["media_type"] == "photo"),
+            "videos": count(lambda it: it["media_type"] == "video"),
+            "overlays": count(lambda it: it["overlay"] is not None),
+            "with_location": count(lambda it: it["location"] is not None),
+            "with_url": count(lambda it: it["built_as"] in ("exact", "missing", "ordinal_tokenless")),
+            "with_tokens": count(lambda it: it["built_as"] in ("exact", "missing")),
+            "media_files": len(zipb.media),
+            "main_files": count(lambda it: it["main"] is not None),
+            "main_files_skipped": skipped,
+            "path_exact": count(lambda it: it["built_as"] in ("exact", "missing")),
+            "path_ordinal": count(lambda it: it["built_as"].startswith("ordinal")),
+            "expected_exact": count(lambda it: it["expected_match"] == "exact"),
+            "expected_ordinal": count(lambda it: it["expected_match"] == "ordinal"),
+            "expected_missing_media": count(lambda it: it["expected_match"] == "missing_media"),
+        },
+        "items": items,
+    }
+    write_truth(out / "truth.json", truth)
+    ctx.log(f"{name}: {zip_path.name} with {len(order)} entries, {skipped} video mains skipped")
+    return truth
+
+
+# ---------------------------------------------------------------------------
 # F-10 weird-json
 # ---------------------------------------------------------------------------
 
@@ -596,6 +797,7 @@ BUILDERS = {
     "small-2026b": build_small_2026b,
     "small-2026a": build_small_2026a,
     "small-legacy": build_small_legacy,
+    "mixed-format": build_mixed_format,
     "weird-json": build_weird_json,
 }
 

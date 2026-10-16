@@ -25,7 +25,10 @@ use crate::plan::{
 use crate::platform::KeepAwake;
 use crate::process::{Failure, GroupWork, WorkSettings, Worker, Written, adopt_check};
 use crate::space::{MIN_FREE_WHILE_RUNNING, SpaceEstimate, available_space, gb};
-use crate::state::{ClipRow, Db, Finished, ItemRow, JobRow, JournalEvent, OpenError, PartRow};
+use crate::state::{
+    ClipRow, Db, Finished, ItemRow, JobRow, JournalEvent, OpenError, PartRow, ZipRecord,
+};
+use crate::zipout::{self, ZipVolume};
 
 pub const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
 const JOBS_DIR: &str = "jobs";
@@ -282,6 +285,14 @@ impl Job {
         fs::create_dir_all(marker.parent().expect("marker dir"))
             .map_err(|e| JobError::io(&marker, e))?;
         fs::write(&marker, format!("{id}\n")).map_err(|e| JobError::io(&marker, e))?;
+        tracing::info!(
+            job = %job.id,
+            dest = %mr_core::redact::path(&job.root),
+            inputs = job.row.inputs.len(),
+            items = plan.items.len(),
+            adopted = adopt.is_some(),
+            "job created"
+        );
         Ok(job)
     }
 
@@ -314,6 +325,7 @@ impl Job {
                 }
             }
         };
+        tracing::debug!(job = %job.id, status = %job.row.status, "job opened");
         Ok(job)
     }
 
@@ -370,6 +382,13 @@ impl Job {
         job.rebuilt = Some(format!(
             "saved progress was damaged ({why}); rebuilt from {n} finished files in the output folder"
         ));
+        tracing::warn!(
+            job = %id,
+            code = "JOB_STATE_CORRUPT",
+            detail = %mr_core::redact::text(why),
+            adopted = n,
+            "job state rebuilt from the output folder"
+        );
         Ok(job)
     }
 
@@ -546,6 +565,72 @@ impl Job {
         })
     }
 
+    /// FR-41 "Export diagnostics": the job summary for the support ZIP, as
+    /// JSON with every path redacted (`~` for the home directory) and no
+    /// JSON content, captions, locations or file names of items: counts,
+    /// codes, options, parts (sizes and numbers), ZIP volumes, and how often
+    /// each error code occurred. The app adds it next to the log files.
+    pub fn diagnostics(&self) -> Result<serde_json::Value> {
+        use mr_core::redact;
+        let o = &self.row.options;
+        let items = self.db.items()?;
+        let mut codes: BTreeMap<String, usize> = BTreeMap::new();
+        for i in &items {
+            if let Some(c) = &i.last_error_code {
+                *codes.entry(c.clone()).or_default() += 1;
+            }
+        }
+        let parts: Vec<serde_json::Value> = self
+            .db
+            .parts()?
+            .iter()
+            .map(|p| {
+                serde_json::json!({
+                    "number": p.number,
+                    "primary": p.primary,
+                    "zip": p.zip,
+                    "truncated": p.truncated,
+                    "size": p.fingerprint.size,
+                })
+            })
+            .collect();
+        Ok(serde_json::json!({
+            "job": self.id,
+            "app_version": self.row.app_version,
+            "created_utc": self.row.created_utc,
+            "status": self.row.status,
+            "profile": self.row.format_profile,
+            "output": redact::path(&self.root).to_string(),
+            "inputs": self.row.inputs.iter().map(|p| redact::path(p).to_string()).collect::<Vec<_>>(),
+            "parts": parts,
+            "missing_parts": self.row.missing_parts,
+            "warnings": self.row.warnings.iter().map(|w| w.code.clone()).collect::<Vec<_>>(),
+            "counts": self.db.counts()?,
+            "error_codes": codes,
+            "rebuilt": self.rebuilt.is_some(),
+            "compositor": self.compositor.name(),
+            "tz_data": self.row.tz_data_version,
+            "home_zone": self.row.home_zone,
+            "options": {
+                "overlay_mode": o.overlay_mode.as_str(),
+                "keep_originals": o.keep_originals,
+                "workers": o.workers,
+                "output_template": o.output_template,
+                "unlocked": o.unlocked,
+                "apply_uncertain_locations": o.apply_uncertain_locations,
+                "windows_compat": o.windows_compat,
+                "clip_rejoin": o.clip_rejoin.enabled,
+                "zip_output": o.zip_output,
+                "zip_volume_bytes": o.zip_volume_bytes,
+            },
+            "zip_volumes": self.zip_volumes()?.iter().map(|v| serde_json::json!({
+                "seq": v.seq, "files": v.files, "size": v.size, "state": v.state,
+                "error_code": v.error_code, "oversize": v.oversize,
+            })).collect::<Vec<_>>(),
+            "peak_rss_bytes": crate::platform::peak_rss_bytes(),
+        }))
+    }
+
     /// Inputs that changed since they were recorded (FR-33 AC2).
     pub fn check_inputs(&self) -> Result<Vec<InputChange>> {
         Ok(fingerprint::changes(
@@ -561,6 +646,9 @@ impl Job {
     /// Change the options. A change of home zone, template or the
     /// uncertain-location setting re-plans the items not yet written.
     pub fn set_options(&mut self, options: Options) -> Result<Option<Replanned>> {
+        if let Some(problem) = options.template_problem() {
+            return Err(JobError::State(format!("invalid options: {problem}")));
+        }
         let mut options = options;
         options.dest = self.row.options.dest.clone();
         let replan = options.home_tz != self.row.options.home_tz
@@ -580,7 +668,9 @@ impl Job {
         let mut o = self.row.options.clone();
         o.unlocked = true;
         self.set_options(o)?;
-        Ok(before - self.db.items_in(Stage::SkippedFreeLimit)?.len())
+        let released = before - self.db.items_in(Stage::SkippedFreeLimit)?.len();
+        tracing::info!(job = %self.id, released, "unlocked: free-tier items queued");
+        Ok(released)
     }
 
     /// First 100 items in chronological order without a licence (FR-44).
@@ -634,6 +724,7 @@ impl Job {
             .map(|i| i.key().to_string())
             .collect();
         self.db.set_stage(&failed, Stage::Pending)?;
+        tracing::info!(job = %self.id, items = failed.len(), "failed items queued for retry");
         Ok(failed.len())
     }
 
@@ -651,6 +742,7 @@ impl Job {
             }
         }
         self.db.upsert_items(&rows)?;
+        tracing::info!(job = %self.id, items = rows.len(), "composite-pending items queued");
         Ok(rows.len())
     }
 
@@ -663,6 +755,7 @@ impl Job {
                 std::io::Error::new(std::io::ErrorKind::NotFound, "no such file or folder"),
             ));
         }
+        tracing::info!(job = %self.id, path = %mr_core::redact::path(&path), "part added");
         if !self.row.inputs.contains(&path) {
             self.row.inputs.push(path);
         }
@@ -771,6 +864,15 @@ impl Job {
         self.db.delete_items(&gone)?;
         self.store_plan(&plan, Some(rows))?;
         self.apply_free_tier()?;
+        tracing::info!(
+            job = %self.id,
+            items = result.items,
+            new_items = result.new_items,
+            requeued = result.requeued.len(),
+            removed = result.removed,
+            missing_parts = result.missing_parts.len(),
+            "re-planned"
+        );
         Ok(result)
     }
 
@@ -792,9 +894,12 @@ impl Job {
             .map_err(|e| JobError::io(&path, e))?;
         match file.try_lock() {
             Ok(()) => Ok(file),
-            Err(fs::TryLockError::WouldBlock) => Err(JobError::Busy {
-                job_id: self.id.clone(),
-            }),
+            Err(fs::TryLockError::WouldBlock) => {
+                tracing::info!(job = %self.id, "job is already running in another process");
+                Err(JobError::Busy {
+                    job_id: self.id.clone(),
+                })
+            }
             Err(fs::TryLockError::Error(e)) => Err(JobError::io(&path, e)),
         }
     }
@@ -825,6 +930,39 @@ impl Job {
     pub fn run(&mut self, sink: &dyn ProgressSink, control: &Control) -> Result<Outcome> {
         let started = Instant::now();
         let _lock = self.run_lock()?;
+        let job_id = self.id.clone();
+        let logged = crate::control::LoggedSink::new(sink, &job_id);
+        let sink: &dyn ProgressSink = &logged;
+        let result = self.run_locked(sink, control, started);
+        match &result {
+            Ok(outcome) => {
+                let s = outcome.stats();
+                tracing::info!(
+                    job = %self.id,
+                    outcome = outcome.status(),
+                    done = s.map(|s| s.done),
+                    failed = s.map(|s| s.failed),
+                    pending = s.map(|s| s.pending),
+                    this_run = s.map(|s| s.processed_this_run),
+                    seconds = format_args!("{:.1}", started.elapsed().as_secs_f64()),
+                    "run finished"
+                );
+            }
+            Err(e) => tracing::error!(
+                job = %self.id,
+                error = %mr_core::redact::text(&e.to_string()),
+                "run stopped by an error"
+            ),
+        }
+        result
+    }
+
+    fn run_locked(
+        &mut self,
+        sink: &dyn ProgressSink,
+        control: &Control,
+        started: Instant,
+    ) -> Result<Outcome> {
         // Temp left by a crash is removed at the next start (NFR-PRV-09).
         self.clean_tmp();
         if let Some(why) = &self.rebuilt {
@@ -847,7 +985,12 @@ impl Job {
         let options = self.row.options.clone();
         if !options.ignore_space_check && !open.is_empty() {
             let plans: Vec<PlannedItem> = open.iter().map(|r| r.plan.clone()).collect();
-            let est = estimate_space(&plans, &options, &self.root, |_| true);
+            let carry = if options.zip_output {
+                self.zip_carry_bytes()?
+            } else {
+                0
+            };
+            let est = estimate_space(&plans, &options, &self.root, carry, |_| true);
             if !est.sufficient {
                 sink.issue(
                     "DISK_FULL",
@@ -861,6 +1004,16 @@ impl Job {
         }
         let joins_pending = self.db.clip_rows()?.iter().any(|g| g.stage == "pending");
         if open.is_empty() && !joins_pending {
+            if options.zip_output {
+                let awake = KeepAwake::new("Memories Rescue is packing your ZIP files");
+                let stopped = self.zip_pass(sink, control, started, awake.active())?;
+                drop(awake);
+                if let Some(o) = stopped {
+                    self.db.set_status(o.status())?;
+                    self.row.status = o.status().to_string();
+                    return Ok(o);
+                }
+            }
             let stats = self.stats(0, started)?;
             self.db.set_status("completed")?;
             return Ok(Outcome::Completed(stats));
@@ -885,6 +1038,15 @@ impl Job {
         let workers = options.worker_count();
         let compositor = self.compositor.clone();
         let root = self.root.clone();
+        tracing::info!(
+            job = %self.id,
+            pending = open.len(),
+            clip_joins_pending = joins_pending,
+            workers,
+            compositor = compositor.name(),
+            dest = %mr_core::redact::path(&root),
+            "run started"
+        );
         self.db.set_status("running")?;
         let awake = KeepAwake::new("Memories Rescue is repairing your export");
         let awake_active = awake.active();
@@ -950,6 +1112,14 @@ impl Job {
         if joins_pending && matches!(outcome, Ok(Outcome::Completed(_))) {
             self.rejoin_pass(sink, control, &d, &part_by_path, &settings, &*compositor)?;
         }
+        // FR-31: pack once everything is written.
+        let mut outcome = outcome;
+        if options.zip_output
+            && matches!(outcome, Ok(Outcome::Completed(_)))
+            && let Some(stopped) = self.zip_pass(sink, control, started, awake_active)?
+        {
+            outcome = Ok(stopped);
+        }
         drop(awake);
         let outcome = outcome?;
         self.db.set_status(outcome.status())?;
@@ -1006,6 +1176,9 @@ impl Job {
         let mut processed = 0usize;
         let mut since_check = 0usize;
         let mut bytes_done = 0u64;
+        // What the FR-28 estimate counts for the items finished this run;
+        // the fake free-space hook shrinks by it (H-03).
+        let mut estimated_written = 0u64;
         let mut warnings = 0usize;
         let mut blocked: Option<(String, String)> = None;
         let mut offline_until: Option<Instant> = None;
@@ -1169,6 +1342,13 @@ impl Job {
                             )?;
                             for (c, d) in &w.warnings {
                                 self.db.journal_event(&key, &format!("warning:{c}|{d}"))?;
+                                tracing::info!(
+                                    job = %self.id,
+                                    item = %key,
+                                    code = %c,
+                                    detail = %mr_core::redact::text(d),
+                                    "item warning"
+                                );
                             }
                             if stage == Stage::Done {
                                 done += 1;
@@ -1178,6 +1358,10 @@ impl Job {
                             processed += 1;
                             since_check += 1;
                             bytes_done += w.bytes;
+                            if hooks_on {
+                                let (f, o, _) = crate::plan::item_output_bytes(&row.plan, &options);
+                                estimated_written += f + o;
+                            }
                             eta.record(is_video, secs);
                             ItemOutcome {
                                 id: key.clone(),
@@ -1248,9 +1432,11 @@ impl Job {
                     }
                     if since_check >= recheck_every {
                         since_check = 0;
+                        // The fake drive shrinks by what this run has written (H-03).
                         let free = hooks
                             .fake_free_bytes
                             .filter(|_| hooks_on)
+                            .map(|f| f.saturating_sub(estimated_written))
                             .or_else(|| available_space(&self.root));
                         if let Some(free) = free
                             && free < MIN_FREE_WHILE_RUNNING
@@ -1370,6 +1556,7 @@ impl Job {
         if groups.is_empty() {
             return Ok(());
         }
+        tracing::info!(job = %self.id, groups = groups.len(), compositor = compositor.name(), "joining clips");
         let items: HashMap<String, ItemRow> = self
             .db
             .items()?
@@ -1465,6 +1652,403 @@ impl Job {
             });
         }
         Ok(())
+    }
+
+    /// FR-31: the archives of the ZIP output, as recorded (empty until the
+    /// first pack).
+    pub fn zip_volumes(&self) -> Result<Vec<ZipVolume>> {
+        Ok(self
+            .db
+            .zip_volumes()?
+            .into_iter()
+            .map(|r| r.volume)
+            .collect())
+    }
+
+    /// Every output file this job recorded writing, relative to the root.
+    fn recorded_files(&self) -> Result<Vec<String>> {
+        let mut rels: Vec<String> = self
+            .db
+            .items()?
+            .iter()
+            .flat_map(|r| r.recorded_outputs())
+            .collect();
+        rels.extend(
+            self.db
+                .clip_rows()?
+                .into_iter()
+                .filter(|c| c.stage == "done")
+                .filter_map(|c| c.output_path),
+        );
+        Ok(rels)
+    }
+
+    /// FR-28 for the ZIP output: the bytes earlier runs wrote, which the
+    /// pack must hold next to this run's.
+    fn zip_carry_bytes(&self) -> Result<u64> {
+        let options = &self.row.options;
+        Ok(self
+            .db
+            .items()?
+            .iter()
+            .filter(|r| r.output_path.is_some())
+            .map(|r| {
+                let (f, o, n) = crate::plan::item_output_bytes(&r.plan, options);
+                f + o + n * crate::space::ZIP_ENTRY_ALLOWANCE
+            })
+            .sum())
+    }
+
+    /// FR-31: pack the recorded outputs into verified archives. `None` when
+    /// the pack is complete, or when an archive failed in a way the report
+    /// explains (the next run retries it); `Some` when the pack stopped the
+    /// run (paused, cancelled, out of space, the drive gone).
+    fn zip_pass(
+        &mut self,
+        sink: &dyn ProgressSink,
+        control: &Control,
+        started: Instant,
+        sleep_prevented: bool,
+    ) -> Result<Option<Outcome>> {
+        let options = self.row.options.clone();
+        let dest = options.dest.clone();
+        let limit = options.zip_volume_bytes.filter(|&b| b > 0);
+        let (files, missing) = zipout::collect(&self.root, self.recorded_files()?);
+        let manifest = zipout::manifest(&files, limit);
+        let parts = zipout::partition(&files, limit);
+        let names = zipout::volume_names(parts.len());
+
+        // A pack of different contents: remove the archives it made (while
+        // they are still what was recorded) and start over.
+        let mut recorded = self.db.zip_volumes()?;
+        if recorded.iter().any(|r| r.manifest != manifest) {
+            let mut removed = 0;
+            for r in &recorded {
+                let path = dest.join(&r.volume.name);
+                if zipout::stamp(&path) == Some((r.volume.size, r.mtime))
+                    && fs::remove_file(&path).is_ok()
+                {
+                    removed += 1;
+                }
+                let _ = fs::remove_file(zipout::partial_of(&path));
+            }
+            self.db.clear_zip_volumes()?;
+            recorded.clear();
+            tracing::info!(job = %self.id, removed, "output changed since the last ZIP; packing again");
+        }
+        let by_seq: HashMap<usize, ZipRecord> =
+            recorded.into_iter().map(|r| (r.volume.seq, r)).collect();
+
+        let data_of = |i: usize| -> u64 { files[parts[i].clone()].iter().map(|f| f.size).sum() };
+        let bytes_total: u64 = (0..parts.len()).map(data_of).sum();
+        let mut bytes_done = 0u64;
+        let mut todo = Vec::new();
+        for i in 0..parts.len() {
+            let seq = i + 1;
+            if let Some(r) = by_seq.get(&seq) {
+                let path = dest.join(&r.volume.name);
+                let stamp = Some((r.volume.size, r.mtime));
+                let finished = match r.volume.state.as_str() {
+                    "done" => zipout::stamp(&path) == stamp,
+                    // Verified, then interrupted around the final rename.
+                    "verified" => {
+                        let partial = zipout::partial_of(&path);
+                        zipout::stamp(&path) == stamp
+                            || (zipout::stamp(&partial) == stamp
+                                && fs::rename(&partial, &path).is_ok())
+                    }
+                    _ => false,
+                };
+                if finished {
+                    if r.volume.state != "done" {
+                        let mut done = r.clone();
+                        done.volume.state = "done".into();
+                        self.db.put_zip_volume(&done)?;
+                    }
+                    bytes_done += data_of(i);
+                    continue;
+                }
+            }
+            todo.push(i);
+        }
+        if todo.is_empty() {
+            tracing::debug!(job = %self.id, volumes = parts.len(), "ZIP output already complete");
+            return Ok(None);
+        }
+
+        let hooks = options.test_hooks.clone();
+        let free_now = || {
+            hooks
+                .fake_free_bytes
+                .filter(|_| hooks.enabled())
+                .or_else(|| available_space(&dest))
+        };
+        let need: u64 = todo
+            .iter()
+            .map(|&i| {
+                zipout::VOLUME_OVERHEAD
+                    + files[parts[i].clone()]
+                        .iter()
+                        .map(zipout::PackFile::cost)
+                        .sum::<u64>()
+            })
+            .sum();
+        let need = need + need.div_ceil(10);
+        if !options.ignore_space_check
+            && let Some(free) = free_now()
+            && free < need
+        {
+            let detail = format!(
+                "Not enough space on the output drive for the ZIP files: need {} more.",
+                gb(need - free)
+            );
+            sink.issue("DISK_FULL", &detail);
+            return Ok(Some(Outcome::Blocked {
+                code: "DISK_FULL".into(),
+                detail,
+                stats: self.stats(0, started)?,
+            }));
+        }
+        tracing::info!(
+            job = %self.id,
+            volumes = parts.len(),
+            to_write = todo.len(),
+            files = files.len(),
+            missing = missing.len(),
+            bytes = bytes_total,
+            volume_bytes = limit,
+            "zip output started"
+        );
+
+        let counts = self.db.counts()?;
+        let get = |k: &str| counts.get(k).copied().unwrap_or(0);
+        let (items_done, items_failed) = (get("done"), get("failed"));
+        let items_total = items_done + items_failed + get("pending");
+        let pack_started = Instant::now();
+        let bytes_at_start = bytes_done;
+        let mut ticker = Ticker::new(Duration::from_secs(1));
+        let mut failures = 0usize;
+        for &i in &todo {
+            let seq = i + 1;
+            let vol_files = &files[parts[i].clone()];
+            let data = data_of(i);
+            let oversize = limit.is_some_and(|l| {
+                vol_files.len() == 1 && zipout::VOLUME_OVERHEAD + vol_files[0].cost() > l
+            });
+            // Any file already at the name is not one of ours: ours were kept
+            // above or removed with the earlier pack.
+            let (name, path) = zipout::free_name(&dest, &names[i], |p| p.exists());
+            let partial = zipout::partial_of(&path);
+            let _ = fs::remove_file(&partial);
+            let stage = format!("packing ZIP file {seq} of {}", parts.len());
+            // FR-28 AC2 while packing: stop when free space drops under 2 GB.
+            let mut low_space = free_now().filter(|&f| f < MIN_FREE_WHILE_RUNNING);
+            let start_blocked = low_space.is_some();
+            let mut since_check = 0u64;
+            let mut on_bytes = |n: u64| -> bool {
+                bytes_done += n;
+                since_check += n;
+                if since_check >= 256 << 20 {
+                    since_check = 0;
+                    if let Some(free) = free_now()
+                        && free < MIN_FREE_WHILE_RUNNING
+                    {
+                        low_space = Some(free);
+                        return false;
+                    }
+                }
+                if ticker.due() {
+                    let secs = pack_started.elapsed().as_secs_f64();
+                    let rate = (bytes_done - bytes_at_start) as f64 / secs.max(0.001);
+                    sink.progress(&Progress {
+                        percent: if bytes_total == 0 {
+                            100.0
+                        } else {
+                            bytes_done as f64 * 100.0 / bytes_total as f64
+                        },
+                        items_done,
+                        items_failed,
+                        items_total,
+                        bytes_done,
+                        bytes_total,
+                        stage: stage.clone(),
+                        throughput: 0.0,
+                        eta_seconds: (rate > 0.0).then(|| (bytes_total - bytes_done) as f64 / rate),
+                        recent: Vec::new(),
+                        warnings: 0,
+                        failures,
+                        elapsed_seconds: started.elapsed().as_secs_f64(),
+                        sleep_prevented,
+                    });
+                }
+                !(control.is_cancelled() || control.is_paused())
+            };
+            let written = if start_blocked {
+                Ok(zipout::Written::Stopped)
+            } else {
+                zipout::write_volume(
+                    &self.root,
+                    &dest,
+                    vol_files,
+                    &partial,
+                    control,
+                    hooks.zip_delay(),
+                    &mut on_bytes,
+                )
+            };
+            let mut record = ZipRecord {
+                volume: ZipVolume {
+                    seq,
+                    name: name.clone(),
+                    files: vol_files.len(),
+                    data_bytes: data,
+                    size: 0,
+                    state: "failed".into(),
+                    error_code: None,
+                    error_detail: None,
+                    oversize,
+                },
+                manifest: manifest.clone(),
+                mtime: 0,
+            };
+            let crcs = match written {
+                Ok(zipout::Written::Done(crcs)) => crcs,
+                Ok(zipout::Written::Stopped) => {
+                    let _ = fs::remove_file(&partial);
+                    let stats = self.stats(0, started)?;
+                    if let Some(free) = low_space {
+                        let detail = format!(
+                            "Only {} left on the output drive; paused before it fills up.",
+                            gb(free)
+                        );
+                        sink.issue("DISK_FULL_IMMINENT", &detail);
+                        return Ok(Some(Outcome::Blocked {
+                            code: "DISK_FULL_IMMINENT".into(),
+                            detail,
+                            stats,
+                        }));
+                    }
+                    return Ok(Some(if control.is_cancelled() {
+                        Outcome::Cancelled(stats)
+                    } else {
+                        Outcome::Paused(stats)
+                    }));
+                }
+                Err(e @ (zipout::PackError::DiskFull(_) | zipout::PackError::DestGone(_))) => {
+                    let _ = fs::remove_file(&partial);
+                    sink.issue(e.code(), e.detail());
+                    return Ok(Some(Outcome::Blocked {
+                        code: e.code().into(),
+                        detail: e.detail().into(),
+                        stats: self.stats(0, started)?,
+                    }));
+                }
+                Err(e) => {
+                    let _ = fs::remove_file(&partial);
+                    record.volume.error_code = Some(e.code().into());
+                    record.volume.error_detail = Some(e.detail().into());
+                    self.db.put_zip_volume(&record)?;
+                    sink.issue(e.code(), &format!("{name}: {}", e.detail()));
+                    failures += 1;
+                    continue;
+                }
+            };
+            if let Err(why) = zipout::verify_volume(&partial, vol_files, &crcs) {
+                let _ = fs::remove_file(&partial);
+                record.volume.error_code = Some("ZIP_VERIFY".into());
+                record.volume.error_detail = Some(why.clone());
+                self.db.put_zip_volume(&record)?;
+                sink.issue("ZIP_VERIFY", &format!("{name}: {why}"));
+                failures += 1;
+                continue;
+            }
+            let (size, mtime) = zipout::stamp(&partial)
+                .ok_or_else(|| JobError::State(format!("{name} vanished after it was verified")))?;
+            record.volume.size = size;
+            record.mtime = mtime;
+            record.volume.state = "verified".into();
+            self.db.put_zip_volume(&record)?;
+            fs::rename(&partial, &path).map_err(|e| JobError::io(&path, e))?;
+            record.volume.state = "done".into();
+            self.db.put_zip_volume(&record)?;
+            tracing::info!(
+                job = %self.id,
+                volume = %name,
+                files = vol_files.len(),
+                bytes = size,
+                oversize,
+                "zip volume written and verified"
+            );
+        }
+        tracing::info!(
+            job = %self.id,
+            volumes = parts.len(),
+            failed = failures,
+            seconds = format_args!("{:.1}", pack_started.elapsed().as_secs_f64()),
+            "zip output finished"
+        );
+        Ok(None)
+    }
+
+    /// The report's lines about the ZIP output.
+    fn zip_notes(&self) -> Result<Vec<String>> {
+        let mut notes = Vec::new();
+        if !self.row.options.zip_output {
+            return Ok(notes);
+        }
+        let vols = self.db.zip_volumes()?;
+        if vols.is_empty() {
+            notes.push(
+                "ZIP output is on: the ZIP files are made once every item is finished.".into(),
+            );
+            return Ok(notes);
+        }
+        let done: Vec<&ZipVolume> = vols
+            .iter()
+            .map(|r| &r.volume)
+            .filter(|v| v.state == "done")
+            .collect();
+        if !done.is_empty() {
+            let names = if done.len() <= 3 {
+                done.iter()
+                    .map(|v| v.name.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            } else {
+                format!("{} to {}", done[0].name, done[done.len() - 1].name)
+            };
+            let files: usize = done.iter().map(|v| v.files).sum();
+            let size: u64 = done.iter().map(|v| v.size).sum();
+            notes.push(format!(
+                "Packed into {} ZIP file{} in the destination folder ({names}): {files} files, {}. Each was read back and checked.",
+                done.len(),
+                if done.len() == 1 { "" } else { "s" },
+                gb(size)
+            ));
+        }
+        for v in vols.iter().map(|r| &r.volume) {
+            if v.state == "failed" {
+                notes.push(format!(
+                    "{} could not be made ({}): {}. Run the job again to retry it.",
+                    v.name,
+                    v.error_code.as_deref().unwrap_or("UNKNOWN"),
+                    redact(v.error_detail.as_deref().unwrap_or(""))
+                ));
+            } else if v.oversize {
+                notes.push(format!(
+                    "{} is larger than the volume size because one file in it is larger on its own.",
+                    v.name
+                ));
+            }
+        }
+        let (_, missing) = zipout::collect(&self.root, self.recorded_files()?);
+        if !missing.is_empty() {
+            notes.push(format!(
+                "{} files this job wrote are no longer in the output folder and are not in the ZIP files.",
+                missing.len()
+            ));
+        }
+        Ok(notes)
     }
 
     pub fn report_data(&self) -> Result<ReportData> {
@@ -1630,6 +2214,7 @@ impl Job {
                 "{pending} items have their overlay saved next to the file; burning it in needs the overlay component."
             ));
         }
+        notes.extend(self.zip_notes()?);
         if let Some(why) = &self.rebuilt {
             notes.push(format!("Saved progress was rebuilt: {why}."));
         }
@@ -1649,7 +2234,14 @@ impl Job {
     pub fn report(&self) -> Result<ReportFiles> {
         let data = self.report_data()?;
         let dir = layout::long_path(&self.root.join(layout::REPORT_DIR));
-        mr_report::write_report(&dir, &data).map_err(|e| JobError::io(&dir, e))
+        let files = mr_report::write_report(&dir, &data).map_err(|e| JobError::io(&dir, e))?;
+        tracing::info!(
+            job = %self.id,
+            rows = data.rows.len(),
+            dir = %mr_core::redact::path(&dir),
+            "report written"
+        );
+        Ok(files)
     }
 }
 

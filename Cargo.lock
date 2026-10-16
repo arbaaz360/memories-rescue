@@ -2685,6 +2685,7 @@ dependencies = [
  "mr-core",
  "mr-job",
  "serde_json",
+ "zip",
 ]
 
 [[package]]
@@ -2712,6 +2713,7 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror 2.0.21",
+ "tracing",
  "zip",
 ]
 
@@ -2720,6 +2722,7 @@ name = "mr-job"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "crc32fast",
  "crossbeam-channel",
  "filetime_creation",
  "fs4",
@@ -2736,6 +2739,7 @@ dependencies = [
  "serde_json",
  "sha2 0.11.1",
  "thiserror 2.0.21",
+ "tracing",
  "unicode-normalization",
  "uuid",
  "windows-sys 0.61.2",
