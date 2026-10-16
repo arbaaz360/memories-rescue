@@ -164,14 +164,14 @@ fn a_different_export_after_60_used_gets_the_40_left() {
     assert_eq!(keys_in(&big, Stage::Done).len(), 60);
     assert_eq!(free::for_state(&e.state).used(), 60);
 
-    // small-2026a shares no memories with free-limit: the 40 places left.
-    let n = items_of("small-2026a");
+    // multipart shares no memories with free-limit: the 40 places left.
+    let n = items_of("multipart");
     assert!(n > 40, "{n}");
-    let (to_process, skipped, keys) = preview(&e.state, "small-2026a", &e.dest.join("small"));
+    let (to_process, skipped, keys) = preview(&e.state, "multipart", &e.dest.join("small"));
     assert_eq!((to_process, skipped), (40, n - 40));
     let mut small = Job::create(
         &e.state,
-        &zips_in(&fixture_dir("small-2026a")),
+        &zips_in(&fixture_dir("multipart")),
         free_options(&e.dest.join("small")),
     )
     .unwrap();
