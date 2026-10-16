@@ -92,7 +92,7 @@ describe("plan (dry run)", () => {
     expect(p.samples.length).toBeGreaterThan(20);
     expect(p.samples.some((x) => x.match_confidence === "none")).toBe(true);
     expect(p.samples.some((x) => x.location_decision === "uncertain")).toBe(true);
-    expect(p.free_limit).toEqual({ applies: true, limit: FREE_LIMIT, items_beyond: p.totals.items - FREE_LIMIT });
+    expect(p.free_limit).toEqual({ applies: true, limit: FREE_LIMIT, free_items: FREE_LIMIT, items_beyond: p.totals.items - FREE_LIMIT });
   });
 
   it("estimates space per FR-28 and flags a small drive", async () => {
@@ -128,6 +128,29 @@ describe("processing", () => {
     expect(report.counts.missing_media).toBe(1262);
     expect(report.can_unlock).toBe(true);
     expect(report.can_add_part).toBe(true);
+  });
+
+  it("counts the free tier per install: another folder gets the same 100 and no more", async () => {
+    const m = engine();
+    const { ids, options } = await setup(m);
+    const rec = record(m);
+    const done = (job: string) =>
+      rec.items
+        .filter((e) => e.job_id === job && e.item.status !== "skipped_free_limit")
+        .map((e) => e.item.item_id)
+        .sort();
+    const first = await m.call("start", { input_ids: ids, options });
+    runUntil(m, rec.states, settled);
+    await m.call("resume", { job_id: first }); // Later
+    expect((await m.call("license_status", {})).free_used).toBe(FREE_LIMIT);
+    const other = { ...options, destination: "D:\\Other" };
+    const plan = await m.call("plan", { input_ids: ids, options: other });
+    expect(plan.free_limit).toEqual({ applies: true, limit: FREE_LIMIT, free_items: FREE_LIMIT, items_beyond: plan.totals.items - FREE_LIMIT });
+    const second = await m.call("start", { input_ids: ids, options: other });
+    runUntil(m, rec.states, settled);
+    expect(rec.states.at(-1)).toBe("free_limit_reached");
+    expect(done(second)).toEqual(done(first));
+    expect((await m.call("license_status", {})).free_used).toBe(FREE_LIMIT);
   });
 
   it("after unlocking, resume processes only the skipped items", async () => {

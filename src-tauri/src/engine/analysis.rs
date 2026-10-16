@@ -32,7 +32,11 @@ const SAMPLES: usize = 22;
 
 impl Engine {
     fn plan_for(&self, inputs: &[PathBuf], options: &mr_job::Options) -> IpcResult<Plan> {
-        mr_job::plan_for(inputs, options, self.compositor.as_ref()).map_err(job_error)
+        let mut plan =
+            mr_job::plan_for(inputs, options, self.compositor.as_ref()).map_err(job_error)?;
+        // FR-44 per install: the free-tier figures use this computer's free set.
+        plan.fit_free_tier(options, &self.license.free);
+        Ok(plan)
     }
 
     /// Why videos cannot be encoded on this computer, when the plan needs it
@@ -258,6 +262,7 @@ impl Engine {
             free_limit: FreeLimitInfo {
                 applies: !opts.unlocked,
                 limit: mr_job::FREE_TIER_ITEMS as u64,
+                free_items: t.to_process as u64,
                 items_beyond: t.skipped_free_limit as u64,
             },
             hevc_notice: hevc_notice_of(&plan),
@@ -300,7 +305,10 @@ impl Engine {
                 p
             }
         };
-        Ok(space_of(&estimate(&plan.items, &opts), &opts.dest))
+        Ok(space_of(
+            &estimate(&plan.items, &opts, &self.license.free),
+            &opts.dest,
+        ))
     }
 
     pub fn export_preview_report(&self, plan_id: &str) -> IpcResult<String> {
@@ -472,17 +480,24 @@ pub fn volume_label(p: &Path) -> String {
     }
 }
 
-/// Same formula as mr-job's FR-28 estimate, for other options on the same items.
-fn estimate(items: &[PlannedItem], o: &mr_job::Options) -> mr_job::SpaceEstimate {
+/// Same formula as mr-job's FR-28 estimate, for other options on the same
+/// items: only the items the free tier lets run now (FR-44, per install).
+fn estimate(
+    items: &[PlannedItem],
+    o: &mr_job::Options,
+    free: &mr_job::FreeSet,
+) -> mr_job::SpaceEstimate {
     use mr_job::space::{METADATA_OVERHEAD, SpaceInputs, available_space};
     let mut inputs = SpaceInputs {
         workers: o.worker_count(),
         zip_output: o.zip_output,
         ..SpaceInputs::default()
     };
+    let runs = (!o.unlocked)
+        .then(|| free.select(None, items.iter().map(|i| (i.key.as_str(), i.chrono_rank))));
     for it in items
         .iter()
-        .filter(|i| o.unlocked || i.chrono_rank < mr_job::FREE_TIER_ITEMS)
+        .filter(|i| runs.as_ref().is_none_or(|r| r.contains(&i.key)))
     {
         let overlay = it.overlay.as_ref().map(|x| x.size).unwrap_or(0);
         inputs.final_bytes += it.main.size + METADATA_OVERHEAD;
@@ -523,7 +538,7 @@ fn estimate_seconds(plan: &Plan, o: &mr_job::Options) -> f64 {
     let run: Vec<&PlannedItem> = plan
         .items
         .iter()
-        .filter(|i| o.unlocked || i.chrono_rank < mr_job::FREE_TIER_ITEMS)
+        .filter(|i| o.unlocked || plan.free_tier_processes(i))
         .collect();
     let photos = run.iter().filter(|i| i.kind == MediaKind::Photo).count() as f64;
     let videos = run.len() as f64 - photos;

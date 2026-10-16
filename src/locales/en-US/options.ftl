@@ -60,7 +60,7 @@ options-metadata-only-desc = Skips captions and joining videos. Photos and video
 options-timezone = Home time zone
 options-timezone-desc = Used for memories without a location. Memories with a location use the time zone of the place.
 
-options-free-note = The free version rescues the first { $limit } memories of each job. You can unlock the rest at any time without starting again.
+options-free-note = The free version rescues { $limit } memories on this computer; rescuing the same ones again, into any folder, stays free. You can unlock the rest at any time without starting again.
 options-preview = Preview first
 
 ## FR-51: HEVC playback on Windows

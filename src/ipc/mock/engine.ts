@@ -235,8 +235,6 @@ class MockJob {
   failed: ItemOutcome[] = [];
   failedIdx: number[] = [];
   skipped: number[] = [];
-  /** Items the free tier has covered; retries of these stay free (FR-44 counts the first 100 items). */
-  freeSet = new Set<number>();
   remaining = { photo: 0, video: 0 };
   missingAccounted = false;
   faultsFixed = false;
@@ -308,6 +306,8 @@ export class MockBackend implements Backend {
   private timer: ReturnType<typeof setInterval> | null = null;
   private settings: Settings;
   private license: LicenseStatus;
+  /** FR-44 per install: the items the free tier has covered, in any job; these stay free to process again. */
+  private freeSet = new Set<number>();
   private plans = new Map<string, { inputIds: string[]; options: JobOptions }>();
   private resumable: ResumableJob[] = [];
   /** Last path passed to open_path, for tests. */
@@ -355,6 +355,7 @@ export class MockBackend implements Backend {
       product_url: PRODUCT_URL,
       price_display: null,
       free_limit: FREE_LIMIT,
+      free_used: 0,
       activation_limit: 5,
     };
     if (this.has("resume")) {
@@ -645,6 +646,19 @@ export class MockBackend implements Backend {
     return { path, volume: "Macintosh HD", free_bytes: 88.2 * gb, total_bytes: 494.4 * gb, writable: true };
   }
 
+  /** FR-44 per install: the parts' items already in the free set, plus the places left. */
+  private freeLimit(parts: number[], items: number) {
+    const applies = this.license.tier === "free";
+    let known = 0;
+    for (const part of parts) {
+      const spec = PARTS.find((p) => p.part === part);
+      const start = firstIndexOfPart(part);
+      for (let i = start; spec && i < start + spec.mains; i++) if (this.freeSet.has(i)) known += 1;
+    }
+    const free = applies ? Math.min(items, known + Math.max(0, FREE_LIMIT - this.freeSet.size)) : items;
+    return { applies, limit: FREE_LIMIT, free_items: free, items_beyond: items - free };
+  }
+
   private estimate(parts: number[], options: JobOptions): SpaceEstimate {
     const agg = sumAgg(parts);
     const burnIn = !options.metadata_only && (options.overlay_mode === "burn_in_keep_originals" || options.overlay_mode === "burn_in_only");
@@ -790,11 +804,7 @@ export class MockBackend implements Backend {
       warnings,
       space: this.estimate(parts, options),
       estimated_seconds: Math.round(seconds + postSeconds),
-      free_limit: {
-        applies: this.license.tier === "free",
-        limit: FREE_LIMIT,
-        items_beyond: this.license.tier === "free" ? Math.max(0, agg.items - FREE_LIMIT) : 0,
-      },
+      free_limit: this.freeLimit(parts, agg.items),
       hevc_notice: this.hevcNotice(options.windows_compatibility),
     };
   }
@@ -1006,7 +1016,7 @@ export class MockBackend implements Backend {
     let finished = 0;
     while (job.cursor < job.queue.length) {
       const next = job.queue[job.cursor];
-      if (this.license.tier === "free" && !job.freeSet.has(next) && job.freeSet.size >= FREE_LIMIT) {
+      if (this.license.tier === "free" && !this.freeSet.has(next) && this.freeSet.size >= FREE_LIMIT) {
         job.carry = 0;
         job.stage = "idle";
         this.setState(job, "free_limit_reached", null);
@@ -1061,7 +1071,10 @@ export class MockBackend implements Backend {
     job.cursor += 1;
     const it = fakeItem(index);
     job.remaining[it.media_type] -= 1;
-    job.freeSet.add(index);
+    if (this.license.tier === "free") {
+      this.freeSet.add(index);
+      this.license.free_used = Math.min(FREE_LIMIT, this.freeSet.size);
+    }
     const failCode = job.faultsFixed ? undefined : failureCode(index, it);
     const status: ItemStatus = failCode ? "failed" : statusFor(it);
     const outcome: ItemOutcome = {
@@ -1135,7 +1148,7 @@ export class MockBackend implements Backend {
     let photos = job.remaining.photo;
     let videos = job.remaining.video;
     if (this.license.tier === "free") {
-      const left = Math.max(0, FREE_LIMIT - job.freeSet.size);
+      const left = Math.max(0, FREE_LIMIT - this.freeSet.size);
       const ratio = photos + videos === 0 ? 0 : Math.min(1, left / (photos + videos));
       photos *= ratio;
       videos *= ratio;

@@ -83,6 +83,9 @@ enum Command {
         /// Sample size in text mode.
         #[arg(long, default_value_t = 20)]
         limit: usize,
+        /// Whose free tier the figures use (FR-44: per install, here per state directory).
+        #[arg(long)]
+        state_dir: Option<PathBuf>,
     },
     /// Create a job for these inputs and process it.
     Run {
@@ -272,7 +275,15 @@ fn dispatch(cli: Cli) -> ExitCode {
             export,
             json,
             limit,
-        } => jobs::cmd_plan(&inputs, &options, json, export.as_deref(), limit),
+            state_dir,
+        } => jobs::cmd_plan(
+            &state(&state_dir),
+            &inputs,
+            &options,
+            json,
+            export.as_deref(),
+            limit,
+        ),
         Command::Run {
             inputs,
             options,

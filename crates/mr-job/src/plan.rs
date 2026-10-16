@@ -1,7 +1,7 @@
 //! Planning: everything a dry run shows (FR-29) and everything a job needs
 //! to start. Reads indexes and the JSON; writes nothing.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
 use chrono::{DateTime, FixedOffset, Utc};
@@ -15,6 +15,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::compositor::MediaKind;
 use crate::error::{JobError, Result};
+use crate::free::FreeSet;
 use crate::layout;
 use crate::options::{FREE_TIER_ITEMS, Options, OverlayMode};
 use crate::space::{METADATA_OVERHEAD, SpaceEstimate, SpaceInputs, available_space};
@@ -286,9 +287,65 @@ pub struct Plan {
     /// Version of the bundled time zone boundaries.
     pub tz_data_version: String,
     pub home_zone: Option<String>,
+    /// Without a licence, the keys of the items the free tier processes
+    /// ([`Plan::fit_free_tier`]); `None` when unlocked.
+    #[serde(default)]
+    pub free_items: Option<BTreeSet<String>>,
 }
 
 impl Plan {
+    /// Fit the free-tier figures to an install's free set (FR-44, per
+    /// install): which items run (`free_items`), `to_process`,
+    /// `skipped_free_limit`, the `FREE_LIMIT` warning and the FR-28
+    /// estimate, which covers only the items that run. [`plan`] fits them
+    /// to a fresh allowance; the app fits them to its own set.
+    pub fn fit_free_tier(&mut self, options: &Options, set: &FreeSet) {
+        let free: Option<BTreeSet<String>> = (!options.unlocked).then(|| {
+            set.select(
+                None,
+                self.items.iter().map(|i| (i.key.as_str(), i.chrono_rank)),
+            )
+            .into_iter()
+            .collect()
+        });
+        let n = self.items.len();
+        self.totals.to_process = free.as_ref().map_or(n, BTreeSet::len);
+        self.totals.skipped_free_limit = n - self.totals.to_process;
+        let warning = (self.totals.skipped_free_limit > 0).then(|| Warning {
+            code: "FREE_LIMIT".into(),
+            detail: match set.used() {
+                0 => format!(
+                    "The free version processes {FREE_TIER_ITEMS} items on this computer; {} more need the unlock.",
+                    self.totals.skipped_free_limit
+                ),
+                used => format!(
+                    "The free version processes {FREE_TIER_ITEMS} items on this computer and {used} are used; {} of these are covered and {} more need the unlock.",
+                    self.totals.to_process, self.totals.skipped_free_limit
+                ),
+            },
+        });
+        let at = self.warnings.iter().position(|w| w.code == "FREE_LIMIT");
+        match (at, warning) {
+            (Some(i), Some(w)) => self.warnings[i] = w,
+            (Some(i), None) => {
+                self.warnings.remove(i);
+            }
+            (None, Some(w)) => self.warnings.push(w),
+            (None, None) => {}
+        }
+        self.space = estimate_space(&self.items, options, &self.output_root, 0, |i| {
+            free.as_ref().is_none_or(|f| f.contains(&i.key))
+        });
+        self.free_items = free;
+    }
+
+    /// Whether the free tier lets `item` run (always, when unlocked).
+    pub fn free_tier_processes(&self, item: &PlannedItem) -> bool {
+        self.free_items
+            .as_ref()
+            .is_none_or(|f| f.contains(&item.key))
+    }
+
     /// Fit the warnings to the compositor the job will use: with one that
     /// can burn in, overlays are not left pending, so `COMPOSITE_PENDING`
     /// is dropped.
@@ -336,8 +393,10 @@ pub fn plan_for(
 }
 
 /// The dry run (FR-29): analyse the inputs and report the planned output
-/// without writing anything. Not limited by the free tier. Warnings assume
-/// the pass-through compositor; use [`plan_for`] when a real one is set.
+/// without writing anything. Not limited by the free tier; its free-tier
+/// figures assume a fresh allowance, see [`Plan::fit_free_tier`]. Warnings
+/// assume the pass-through compositor; use [`plan_for`] when a real one is
+/// set.
 pub fn plan(inputs: &[PathBuf], options: &Options) -> Result<Plan> {
     let naming = Naming {
         keep: HashMap::new(),
@@ -592,12 +651,8 @@ pub(crate) fn plan_with(
             ExtraKind::Duplicate => t.duplicates += 1,
         }
     }
-    t.to_process = if options.unlocked {
-        items.len()
-    } else {
-        items.len().min(FREE_TIER_ITEMS)
-    };
-    t.skipped_free_limit = items.len() - t.to_process;
+    // Set by `fit_free_tier` below.
+    t.to_process = items.len();
 
     // Warnings.
     let mut warnings: Vec<Warning> = summary
@@ -626,15 +681,6 @@ pub(crate) fn plan_with(
             ),
         });
     }
-    if t.skipped_free_limit > 0 {
-        warnings.push(Warning {
-            code: "FREE_LIMIT".into(),
-            detail: format!(
-                "The free version processes the first {FREE_TIER_ITEMS} items; {} more need the unlock.",
-                t.skipped_free_limit
-            ),
-        });
-    }
     warnings.extend(hevc_notice);
     if t.with_overlay > 0 && options.overlay_mode.burns_in() {
         warnings.push(Warning {
@@ -646,9 +692,8 @@ pub(crate) fn plan_with(
         });
     }
 
-    let space = estimate_space(&items, options, &root, 0, |i| {
-        options.unlocked || i.chrono_rank < FREE_TIER_ITEMS
-    });
+    // Refitted to the free tier by `fit_free_tier` below.
+    let space = estimate_space(&items, options, &root, 0, |_| true);
 
     let parts = d
         .parts_of(export)
@@ -677,7 +722,10 @@ pub(crate) fn plan_with(
         date_range: summary.date_range,
         tz_data_version: resolver.boundary_data_version().to_string(),
         home_zone: resolver.home_zone().map(str::to_string),
+        free_items: None,
     };
+    let mut plan = plan;
+    plan.fit_free_tier(options, &FreeSet::memory());
     let codes: Vec<&str> = plan.warnings.iter().map(|w| w.code.as_str()).collect();
     tracing::info!(
         profile = %plan.profile,

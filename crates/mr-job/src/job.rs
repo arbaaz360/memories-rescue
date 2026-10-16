@@ -17,8 +17,9 @@ use crate::compositor::{Compositor, PassThrough};
 use crate::control::{Control, Eta, ItemOutcome, Progress, ProgressSink, Stage, Ticker};
 use crate::error::{JobError, Result};
 use crate::fingerprint::{self, InputChange};
+use crate::free::{self, FreeSet};
 use crate::layout;
-use crate::options::{FREE_TIER_ITEMS, Options};
+use crate::options::Options;
 use crate::plan::{
     ClipGroup, ExtraKind, ExtraRow, Naming, Plan, PlannedItem, estimate_space, plan_with,
 };
@@ -772,7 +773,22 @@ impl Job {
         Ok(released)
     }
 
-    /// First 100 items in chronological order without a licence (FR-44).
+    /// The state directory this job lives in.
+    fn state_dir(&self) -> &Path {
+        self.dir
+            .parent()
+            .and_then(Path::parent)
+            .unwrap_or(&self.dir)
+    }
+
+    /// This install's free set (FR-44), shared by every job of the state directory.
+    pub fn free_set(&self) -> Arc<FreeSet> {
+        free::for_state(self.state_dir())
+    }
+
+    /// Without a licence, the open items the install's free set lets in
+    /// (FR-44, [`crate::free`]) are pending and the rest
+    /// `skipped_free_limit`.
     fn apply_free_tier(&mut self) -> Result<()> {
         let items = self.db.items()?;
         let mut to_pending = Vec::new();
@@ -785,19 +801,16 @@ impl Job {
                     .map(|i| i.key().to_string()),
             );
         } else {
-            let used = items
-                .iter()
-                .filter(|i| matches!(i.stage, Stage::Done | Stage::Failed))
-                .count();
-            let mut allowed = FREE_TIER_ITEMS.saturating_sub(used);
-            let mut open: Vec<&ItemRow> = items
+            let open: Vec<&ItemRow> = items
                 .iter()
                 .filter(|i| matches!(i.stage, Stage::Pending | Stage::SkippedFreeLimit))
                 .collect();
-            open.sort_by_key(|i| i.plan.chrono_rank);
+            let allowed = self.free_set().select(
+                Some(&self.id),
+                open.iter().map(|i| (i.key(), i.plan.chrono_rank)),
+            );
             for i in open {
-                if allowed > 0 {
-                    allowed -= 1;
+                if allowed.contains(i.key()) {
                     if i.stage != Stage::Pending {
                         to_pending.push(i.key().to_string());
                     }
@@ -1193,6 +1206,8 @@ impl Job {
         let logged = crate::control::LoggedSink::new(sink, &job_id, places);
         let sink: &dyn ProgressSink = &logged;
         let result = self.run_locked(sink, control, started);
+        // Items let in on the free tier but not finished give their places back.
+        self.free_set().release(&self.id);
         match &result {
             Ok(outcome) => {
                 let s = outcome.stats();
@@ -1419,6 +1434,31 @@ impl Job {
         Ok(outcome)
     }
 
+    /// Whether the free tier lets `row` start now (always, when unlocked).
+    /// One it does not is marked `skipped_free_limit`.
+    fn admit_free(&mut self, free_set: Option<&FreeSet>, row: &ItemRow) -> Result<bool> {
+        let Some(set) = free_set else {
+            return Ok(true);
+        };
+        if set.admit(&self.id, row.key()) {
+            return Ok(true);
+        }
+        self.db
+            .set_stage(&[row.key().to_string()], Stage::SkippedFreeLimit)?;
+        Ok(false)
+    }
+
+    /// A finished item joins the install's free set (FR-44 counts done and
+    /// failed items). Saving it is not worth stopping the job for; the set
+    /// is written whole the next time.
+    fn record_free(&self, free_set: Option<&FreeSet>, key: &str) {
+        if let Some(set) = free_set
+            && let Err(e) = set.record(key)
+        {
+            tracing::warn!(job = %self.id, "free set not saved: {e}");
+        }
+    }
+
     #[allow(clippy::too_many_arguments)]
     fn coordinate(
         &mut self,
@@ -1455,7 +1495,10 @@ impl Job {
         let get = |k: &str| counts.get(k).copied().unwrap_or(0);
         let mut done = get("done");
         let mut failed = get("failed");
-        let total = done + failed + photos.len() + videos.len() + solo.len();
+        let mut total = done + failed + photos.len() + videos.len() + solo.len();
+        // FR-44 per install: each item is let in again as it starts, so jobs
+        // running at the same time cannot spend the same places.
+        let free_set = (!options.unlocked).then(|| self.free_set());
         let mut in_flight: HashMap<String, (ItemRow, bool)> = HashMap::new();
         let mut videos_in_flight = 0usize;
         let mut eta = Eta::default();
@@ -1503,6 +1546,10 @@ impl Job {
                     let Some(mut row) = solo.pop_front() else {
                         break;
                     };
+                    if !self.admit_free(free_set.as_deref(), &row)? {
+                        total -= 1;
+                        continue;
+                    }
                     row.attempts = self.db.mark_started(row.key())?;
                     let is_video = row.plan.is_video();
                     if is_video {
@@ -1526,6 +1573,10 @@ impl Job {
                     photos.pop_front()
                 };
                 let Some(mut row) = next else { break };
+                if !self.admit_free(free_set.as_deref(), &row)? {
+                    total -= 1;
+                    continue;
+                }
                 row.attempts = self.db.mark_started(row.key())?;
                 let is_video = row.plan.is_video();
                 if is_video {
@@ -1657,6 +1708,7 @@ impl Job {
                                     output_hashes: w.hashes.iter().cloned().collect(),
                                 },
                             )?;
+                            self.record_free(free_set.as_deref(), &key);
                             for (c, d) in &w.warnings {
                                 self.db.journal_event(&key, &format!("warning:{c}|{d}"))?;
                                 tracing::info!(
@@ -1700,6 +1752,7 @@ impl Job {
                                     ..Finished::default()
                                 },
                             )?;
+                            self.record_free(free_set.as_deref(), &key);
                             failed += 1;
                             processed += 1;
                             since_check += 1;

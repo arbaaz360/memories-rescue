@@ -53,7 +53,7 @@ pub struct OptionArgs {
     /// Output file name template: {date} {time} {shortid} {id} {ext}.
     #[arg(long, default_value = mr_job::options::DEFAULT_TEMPLATE)]
     pub template: String,
-    /// Licensed: process every item (otherwise the first 100, FR-44).
+    /// Licensed: process every item (otherwise 100 per state directory, FR-44).
     #[arg(long)]
     pub unlocked: bool,
     /// Write the ordinal match's location even when the day group disagrees.
@@ -575,6 +575,7 @@ fn drive(job: &mut Job, quiet: bool, json: bool) -> ExitCode {
 }
 
 pub fn cmd_plan(
+    state: &Path,
     inputs: &[PathBuf],
     opts: &OptionArgs,
     json: bool,
@@ -591,10 +592,11 @@ pub fn cmd_plan(
         Some(ffmpeg) => mr_job::plan_for(inputs, &options, &MediaCompositor::new(ffmpeg)),
         None => plan(inputs, &options),
     };
-    let p = match planned {
+    let mut p = match planned {
         Ok(p) => p,
         Err(e) => return fail(e),
     };
+    p.fit_free_tier(&options, &mr_job::free::for_state(state));
     if let Some(path) = export
         && let Err(e) = std::fs::write(path, serde_json::to_vec_pretty(&p).expect("json"))
     {

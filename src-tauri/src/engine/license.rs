@@ -14,6 +14,11 @@
 //!   "not valid" from Gumroad must not cost a customer their licence, so a
 //!   valid answer restores it. Further rejections keep the period's end
 //!   date; they never extend it.
+//! * The free tier counts per install (FR-44, `mr_job::free`): the free
+//!   set's file lives in the state directory under an HMAC with the same
+//!   per-install secret, and its size is also kept in the keychain
+//!   (`free-count`), so deleting the file gives no new free items. The
+//!   licenser installs the set for the state directory at start.
 //! * Q-06 (provisional): one key may be active on `activation_limit`
 //!   computers (build configuration, default 5). Activation first asks
 //!   Gumroad without incrementing and reads `uses`; a key already at the
@@ -34,6 +39,8 @@ use crate::ipc::{ErrorCode, IpcError, IpcResult, LicenseStatus, LicenseTier};
 const CACHE_FILE: &str = "license.json";
 const KEY_ENTRY: &str = "license-key";
 const SECRET_ENTRY: &str = "install-secret";
+/// The free set's size (`mr_job::free::Seal`).
+const FREE_COUNT_ENTRY: &str = "free-count";
 const RECHECK_DAYS: i64 = 30;
 const GRACE_DAYS: i64 = 14;
 /// How often a key in its grace period is checked again.
@@ -105,6 +112,30 @@ impl SecretStore for MemorySecrets {
     }
 }
 
+/// The free set's count in the keychain (`mr_job::free`).
+struct KeychainSeal(Arc<dyn SecretStore>);
+
+impl mr_job::free::Seal for KeychainSeal {
+    fn get(&self) -> Option<String> {
+        self.0.get(FREE_COUNT_ENTRY)
+    }
+    fn set(&self, value: &str) -> Result<(), String> {
+        self.0.set(FREE_COUNT_ENTRY, value)
+    }
+}
+
+/// The per-install secret, made on first use.
+fn install_secret(secrets: &dyn SecretStore) -> String {
+    if let Some(s) = secrets.get(SECRET_ENTRY) {
+        return s;
+    }
+    let s = uuid::Uuid::new_v4().simple().to_string() + &uuid::Uuid::new_v4().simple().to_string();
+    if let Err(e) = secrets.set(SECRET_ENTRY, &s) {
+        tracing::warn!("per-install secret not saved in the keychain: {e}");
+    }
+    s
+}
+
 /// Build configuration for the Gumroad product (§9.1: identifiers live in build configuration).
 #[derive(Debug, Clone)]
 pub struct GumroadConfig {
@@ -174,6 +205,8 @@ pub struct Licenser {
     secrets: Arc<dyn SecretStore>,
     pub config: GumroadConfig,
     cache: Mutex<Cache>,
+    /// This install's free set (FR-44), shared with every job of the state directory.
+    pub free: Arc<mr_job::FreeSet>,
 }
 
 impl Licenser {
@@ -182,11 +215,20 @@ impl Licenser {
         secrets: Arc<dyn SecretStore>,
         config: GumroadConfig,
     ) -> Licenser {
+        let free = mr_job::free::install(
+            &state_dir,
+            mr_job::FreeSet::open(
+                state_dir.join(mr_job::free::FREE_FILE),
+                install_secret(secrets.as_ref()).as_bytes(),
+                Some(Box::new(KeychainSeal(secrets.clone()))),
+            ),
+        );
         let l = Licenser {
             state_dir,
             secrets,
             config,
             cache: Mutex::new(Cache::default()),
+            free,
         };
         let loaded = l.load();
         *l.cache.lock().expect("licence") = loaded;
@@ -194,13 +236,7 @@ impl Licenser {
     }
 
     fn install_secret(&self) -> String {
-        if let Some(s) = self.secrets.get(SECRET_ENTRY) {
-            return s;
-        }
-        let s =
-            uuid::Uuid::new_v4().simple().to_string() + &uuid::Uuid::new_v4().simple().to_string();
-        let _ = self.secrets.set(SECRET_ENTRY, &s);
-        s
+        install_secret(self.secrets.as_ref())
     }
 
     fn mac(&self, c: &Cache) -> String {
@@ -272,6 +308,7 @@ impl Licenser {
             product_url: self.config.product_url.clone(),
             price_display: self.config.price_display.clone(),
             free_limit: mr_job::FREE_TIER_ITEMS as u64,
+            free_used: self.free.used() as u64,
             activation_limit: self.config.activation_limit,
         }
     }

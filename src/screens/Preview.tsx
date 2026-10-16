@@ -227,7 +227,7 @@ export function Preview() {
           title={t("preview-free-title", { limit: plan.free_limit.limit })}
           actions={<Button onClick={() => store.openUnlock("header")}>{t("preview-free-unlock")}</Button>}
         >
-          <p>{t("preview-free-body", { limit: plan.free_limit.limit, beyond: plan.free_limit.items_beyond, total: tot.items })}</p>
+          <p>{t("preview-free-body", { limit: plan.free_limit.limit, free: plan.free_limit.free_items, beyond: plan.free_limit.items_beyond, total: tot.items })}</p>
         </Callout>
       ) : null}
 

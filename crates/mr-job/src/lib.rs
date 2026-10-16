@@ -23,6 +23,7 @@ pub mod compositor;
 pub mod control;
 pub mod error;
 pub mod fingerprint;
+pub mod free;
 pub mod job;
 pub mod layout;
 pub mod media;
@@ -41,6 +42,7 @@ pub use compositor::{
 pub use control::{CollectingSink, Control, ItemOutcome, Progress, ProgressSink, Stage};
 pub use error::{JobError, Result};
 pub use fingerprint::InputChange;
+pub use free::FreeSet;
 pub use job::{Job, JobSummary, Outcome, Replanned, RunStats, find_job_for_output, list_jobs};
 pub use media::MediaCompositor;
 pub use options::{ClipRejoin, FREE_TIER_ITEMS, Options, OverlayMode, TestHooks, ZIP_VOLUME_FAT32};
