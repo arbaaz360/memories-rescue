@@ -225,6 +225,11 @@ the item is reported `failed` with that code, and the original plus the
 separate overlay are still written. The default is `PassThrough`
 (`NotSupported`). The compositor runs on worker threads, several at once.
 
+When a real compositor becomes available for a job that already ran with the
+pass-through, `job.requeue_composite_pending()` queues the items marked
+`composite_pending`; the next `run` composites them, writes `originals/` as
+configured and removes the overlays that were saved beside the files.
+
 ## What happens to one item
 
 1. Temp folder `<output>/.memories-rescue/tmp/<key>/` on the destination volume.

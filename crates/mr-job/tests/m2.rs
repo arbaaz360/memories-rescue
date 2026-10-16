@@ -1314,3 +1314,69 @@ fn a_job_runs_once_at_a_time_and_open_does_not_touch_its_temp() {
     assert!(matches!(out, mr_job::Outcome::Completed(_)), "{out:?}");
     assert_eq!(done_items(&second).len(), f01_items());
 }
+
+#[test]
+fn composite_pending_items_are_composited_once_a_compositor_is_available() {
+    let e = env("pending");
+    let mut job = Job::create(
+        &e.state,
+        &zips_in(&fixture_dir("small-2026b")),
+        options(&e.dest),
+    )
+    .unwrap();
+    run(&mut job);
+    let pending = job
+        .items()
+        .unwrap()
+        .iter()
+        .filter(|i| i.composite_pending)
+        .count();
+    assert!(pending > 0);
+    let before = files_under(job.output_root());
+    assert_eq!(
+        before
+            .keys()
+            .filter(|k| k.ends_with("-overlay.png"))
+            .count(),
+        pending
+    );
+    let boundary = job.journal().unwrap().last().unwrap().seq;
+    job.set_compositor(Arc::new(CopyCompositor));
+    assert_eq!(job.requeue_composite_pending().unwrap(), pending);
+    let (outcome, _) = run(&mut job);
+    assert!(
+        matches!(outcome, mr_job::Outcome::Completed(_)),
+        "{outcome:?}"
+    );
+    let restarted = job
+        .journal()
+        .unwrap()
+        .into_iter()
+        .filter(|ev| ev.seq > boundary && ev.event == "start")
+        .count();
+    assert_eq!(restarted, pending, "only the pending items were processed");
+    assert_eq!(
+        job.items()
+            .unwrap()
+            .iter()
+            .filter(|i| i.composite_pending)
+            .count(),
+        0
+    );
+    let after = files_under(job.output_root());
+    let beside = after
+        .keys()
+        .filter(|k| k.ends_with("-overlay.png") && !k.contains("/originals/"))
+        .count();
+    let originals = after.keys().filter(|k| k.contains("/originals/")).count();
+    assert_eq!(
+        beside, 0,
+        "overlays saved beside were removed after burn-in"
+    );
+    assert_eq!(
+        originals,
+        2 * pending,
+        "originals/ kept for every composited item"
+    );
+    assert!(after.keys().all(|k| !k.contains("_2.")), "no duplicates");
+}

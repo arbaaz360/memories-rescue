@@ -609,6 +609,23 @@ impl Job {
         Ok(failed.len())
     }
 
+    /// Queue the items that were finished without burn-in (`composite_pending`,
+    /// the pass-through compositor) so that a real compositor set with
+    /// [`Job::set_compositor`] composites them. Their earlier files are
+    /// replaced or removed when they are written again. Returns how many.
+    pub fn requeue_composite_pending(&mut self) -> Result<usize> {
+        let mut rows = Vec::new();
+        for mut r in self.db.items()? {
+            if r.stage == Stage::Done && r.composite_pending {
+                r.previous_outputs = r.recorded_outputs();
+                r.stage = Stage::Pending;
+                rows.push(r);
+            }
+        }
+        self.db.upsert_items(&rows)?;
+        Ok(rows.len())
+    }
+
     /// FR-40: add a part that was missing; only what it brings is processed.
     pub fn add_part(&mut self, path: &Path) -> Result<Replanned> {
         let path = layout::absolute(path);
