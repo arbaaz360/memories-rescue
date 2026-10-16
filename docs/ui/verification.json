@@ -1,6 +1,6 @@
 {
   "url": "http://localhost:1420/",
-  "when": "2026-10-16T07:36:56.414Z",
+  "when": "2026-10-16T07:48:49.058Z",
   "modes": {
     "light": {
       "s0-welcome": {
@@ -214,12 +214,12 @@
       {
         "screen": "Add your export files",
         "action": "Get started",
-        "tabs": 2
+        "tabs": 1
       },
       {
         "screen": "Add your export files",
         "action": "Add files…",
-        "tabs": 2
+        "tabs": 1
       },
       {
         "screen": "Check your export",
@@ -269,11 +269,11 @@
       {
         "screen": "Add your export files",
         "action": "Back",
-        "tabs": 25
+        "tabs": 20
       }
     ],
     "h1FocusedOnScreenChange": [
-      false,
+      true,
       true,
       true,
       true,
