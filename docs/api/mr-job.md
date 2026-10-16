@@ -273,6 +273,11 @@ and builds the diagnostics ZIP. Without a subscriber the events cost nothing.
 tracing_subscriber::fmt().with_writer(rotating_file).with_max_level(Level::INFO).init();
 ```
 
+Events and failure details name an item by its position (`at`: "entry 12
+of part 3", or "clip group 2"), never by entry name, item id, part file name
+or path. Job-level events keep the output folder, with the home directory
+as `~`.
+
 Every path and free-text value goes through `mr_core::redact::path` or
 `mr_core::redact::text` before it reaches an event: the home directory
 (`USERPROFILE` / `HOME`, case-insensitive on Windows, either separator, with
@@ -285,9 +290,8 @@ itself.
 | Target | Level | Message | Fields |
 |---|---|---|---|
 | `mr_core::discover` | info | `inputs discovered` | `inputs`, `parts`, `exports`, `ignored` |
-| | info | `input ignored (INPUT_NOT_EXPORT)` | `path`, `detail` |
-| | warn | `part issue` | `part`, `code` (`PART_TRUNCATED`, `ENTRY_REFUSED`, ...), `detail` |
-| `mr_core::zipindex` | warn, info | `ZIP central directory unreadable; ...`, `ZIP recovered` | `path`, `detail` / `entries`, `truncated` |
+| | warn | `part issue` | `part` (number), `code` (`PART_TRUNCATED`, `ENTRY_REFUSED`, ...) |
+| `mr_core::zipindex` | warn, info | `ZIP central directory unreadable; ...`, `ZIP recovered` | `bytes` / `entries`, `truncated` |
 | `mr_core::index` | info, warn | `memories_history.json read`, `... stopped parsing`, `... entries skipped` | `entries`, `exact`, `ordinal`, `links`; `code` = `JSON_PARSE` |
 | `mr_job::plan` | info | `plan` | `profile`, `parts`, `missing_parts`, `items`, `exact`, `ordinal`, `none`, `missing_media`, `to_process`, `required_bytes`, `free_bytes`, `warnings` (codes) |
 | `mr_job::job` | info | `job created`, `run started`, `run finished`, `re-planned`, `part added`, `failed items queued for retry`, `unlocked: ...`, `report written`, `joining clips` | `job`, `dest`, counts, `outcome`, `seconds` |
@@ -295,11 +299,13 @@ itself.
 | | warn | `job state rebuilt from the output folder` | `code` = `JOB_STATE_CORRUPT`, `detail`, `adopted` |
 | | error | `run stopped by an error` | `error` |
 | `mr_job::control` | info | `progress` (on every stage change and at most every 30 s) | `stage`, `done`, `failed`, `total`, `percent`, `items_per_s`, `eta_s` |
-| | warn | `item failed` | `item`, `code`, `detail`, `kept` (output written anyway) |
+| | warn | `item failed` | `at` ("entry 12 of part 3"), `code`, `detail`, `kept` (output written anyway) |
 | | warn, info | `issue`, `issue cleared` | `code` (`DISK_FULL_IMMINENT`, `DEST_UNAVAILABLE`, ...), `detail` |
-| | debug | `item done` | `item`, `seconds` |
-| `mr_job::job` | info | `item warning` | `item`, `code` (`overlay_aspect_mismatch`, `h264_compat`, ...), `detail` |
-| `mr_job::process` | debug | `output name taken by another file; using a suffix` | `name`, `suffix` |
+| | debug | `item done` | `at`, `seconds` |
+| `mr_job::job` | info | `item warning` | `at`, `code` (`overlay_aspect_mismatch`, `h264_compat`, ...) |
+| | warn | `item set aside after repeated interrupted starts` | `at`, `starts`, `code` = `MEDIA_DECODE` |
+| | info | `interrupted items finished from their recorded outputs` | `items` |
+| `mr_job::process` | debug | `output name taken by another file; using a suffix` | `suffix` |
 
 For "Export diagnostics", `job.diagnostics()` returns the job summary as
 JSON: status, profile, counts, error codes and how often each occurred, part
@@ -310,6 +316,23 @@ ZIP next to the log files.
 `crates/mr-job/tests/logging.rs` runs a job under a capturing subscriber and
 checks that these events arrive and that none carries the home directory, a
 URL or a query string (`MR_LOG_DUMP=1` prints them).
+
+## Robustness and trust boundaries
+
+What the engine guarantees about hostile or damaged input, for the UI's
+texts and for support:
+
+| Situation | What happens |
+|---|---|
+| A file that panics a parser | The item fails (`UNKNOWN`), or, inside metadata writing, the file is kept as it is with `METADATA_WRITE`. Release builds unwind (`panic = "unwind"`), so the job goes on |
+| A file that crashes or hangs the app | Each start of an item is journaled. An item started 3 times (`POISON_STARTS`) with no outcome is set aside as failed with `MEDIA_DECODE` ("Memories Rescue stopped 3 times while working on this file..."); Retry tries it again. Items that were in flight when a run died are run first and one at a time, so only the culprit collects interrupted starts |
+| Crafted sizes and counts | MP4 `moov` over 256 MiB, photos over 200 MiB (`MEDIA_DECODE`), EXIF that would make little_exif allocate gigabytes, recurse or loop (`METADATA_WRITE`, file kept unchanged). `mr_meta::guard` holds the limits |
+| Crash after an output's rename, before its checkpoint | The attempt's files and hashes were recorded before the first rename. The next run finishes the item from them if they are all there, or redoes it with them counted as its own: no `_2`, no orphan |
+| A user edits or replaces an output or a sidecar | Every output has a recorded hash. A file whose bytes differ from the record, or that has no record, is never overwritten or deleted; a rewrite takes the next name |
+| The output folder's marker | A hint only: used when it is a lower-case UUID naming a job of this state directory that writes to this folder. Job ids are validated everywhere they name a folder (`mr_job::job::valid_job_id`) |
+| A junction or symlink at `Memories Rescue`, `.memories-rescue` or `tmp` | `Job::create` and `clean_temp` fail with `PermissionDenied`; `run` returns `Blocked` with `PERMISSION_DENIED` and a plain message; nothing is written or cleaned through the link |
+| report.csv | Cells that would start a spreadsheet formula get a leading apostrophe |
+| An interrupted ZIP pack | Its `.partial` files are removed when a pack finishes and when a run completes or is cancelled |
 
 ## The compositor seam
 
