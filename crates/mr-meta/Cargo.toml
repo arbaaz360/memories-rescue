@@ -9,6 +9,7 @@ publish.workspace = true
 
 [dependencies]
 chrono.workspace = true
+crc32fast.workspace = true
 little_exif = "0.6"
 serde_json.workspace = true
 thiserror.workspace = true

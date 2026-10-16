@@ -42,8 +42,8 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Pillow
-        run: python -m pip install --upgrade pip pillow
+      - name: Pillow and tzdata
+        run: python -m pip install --upgrade pip pillow tzdata
 
       - name: Generate fixtures
         run: python tools/make_fixture --all

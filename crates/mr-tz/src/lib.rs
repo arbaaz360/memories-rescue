@@ -15,7 +15,7 @@
 use std::fmt;
 use std::str::FromStr;
 
-use chrono::{DateTime, FixedOffset, Offset, TimeZone, Utc};
+use chrono::{DateTime, FixedOffset, NaiveDate, NaiveTime, Offset, TimeZone, Utc};
 use chrono_tz::Tz;
 use thiserror::Error;
 use tzf_rs::DefaultFinder;
@@ -215,6 +215,79 @@ impl Resolver {
             },
         }
     }
+
+    /// The zone that applies at `gps` (or at home) and how it was chosen;
+    /// `None` zone means UTC.
+    pub fn zone_for(&self, gps: Option<(f64, f64)>) -> (Option<Tz>, Method) {
+        let at_home = |unknown_gps: bool| match self.home {
+            Some(tz) if unknown_gps => (
+                Some(tz),
+                Method::GpsUnknown {
+                    fallback_zone: tz.name().to_string(),
+                },
+            ),
+            Some(tz) => (
+                Some(tz),
+                match self.home_source {
+                    HomeSource::User => Method::Home {
+                        zone: tz.name().to_string(),
+                    },
+                    HomeSource::System | HomeSource::Utc => Method::System {
+                        zone: tz.name().to_string(),
+                    },
+                },
+            ),
+            None => (None, Method::Utc),
+        };
+        match gps {
+            Some((lat, lon)) => match self.zone_at(lat, lon) {
+                Some(tz) => (
+                    Some(tz),
+                    Method::Gps {
+                        zone: tz.name().to_string(),
+                    },
+                ),
+                None => at_home(true),
+            },
+            None => at_home(false),
+        }
+    }
+
+    /// The day-precision placeholder for a capture whose time is unknown:
+    /// 12:00 local time on `date` in the zone that applies. Using local noon
+    /// (not 12:00 UTC) keeps the local date, and therefore the `YYYY/MM`
+    /// folder, equal to the filename date in every zone, including +13/+14.
+    pub fn resolve_day(
+        &self,
+        date: NaiveDate,
+        gps: Option<(f64, f64)>,
+    ) -> (DateTime<Utc>, Resolved) {
+        let noon = date.and_time(NaiveTime::from_hms_opt(12, 0, 0).expect("noon"));
+        let (tz, method) = self.zone_for(gps);
+        match tz {
+            Some(tz) => {
+                let local = tz
+                    .from_local_datetime(&noon)
+                    .earliest()
+                    .unwrap_or_else(|| tz.from_utc_datetime(&noon));
+                let utc = local.with_timezone(&Utc);
+                (
+                    utc,
+                    Resolved {
+                        offset: offset_in(tz, utc),
+                        method,
+                    },
+                )
+            }
+            None => (
+                noon.and_utc(),
+                Resolved {
+                    offset: FixedOffset::east_opt(0).expect("zero offset"),
+                    method,
+                },
+            ),
+        }
+    }
 }
 
 /// Offset of `tz` at the instant `utc`, DST included.
@@ -360,6 +433,28 @@ mod tests {
                 fallback_zone: "Asia/Kolkata".into()
             }
         );
+    }
+
+    #[test]
+    fn day_precision_is_local_noon_and_never_shifts_the_date() {
+        let d = chrono::NaiveDate::from_ymd_opt(2021, 1, 1).unwrap();
+        let kiritimati = Resolver::new(Some("Pacific/Kiritimati")).unwrap();
+        let (utc, r) = kiritimati.resolve_day(d, None);
+        assert_eq!(r.offset_string(), "+14:00");
+        assert_eq!(
+            r.local(utc).format("%Y-%m-%d %H:%M").to_string(),
+            "2021-01-01 12:00"
+        );
+        assert_eq!(utc.format("%Y-%m-%d %H:%M").to_string(), "2020-12-31 22:00");
+        let (utc, r) = RESOLVER.resolve_day(d, Some((40.7128, -74.0060)));
+        assert_eq!(r.method.zone(), Some("America/New_York"));
+        assert_eq!(
+            r.local(utc).format("%Y-%m-%d %H:%M %:z").to_string(),
+            "2021-01-01 12:00 -05:00"
+        );
+        let (zone, method) = RESOLVER.zone_for(None);
+        assert_eq!(zone.map(|z| z.name()), Some("Asia/Kolkata"));
+        assert_eq!(method.tag(), "home");
     }
 
     #[test]
