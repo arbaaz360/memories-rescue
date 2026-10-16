@@ -1,0 +1,32 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "bundle": {
+    "externalBin": [
+      "binaries/ffmpeg"
+    ],
+    "resources": {
+      "binaries/exiftool_files/": null,
+      "../docs/release/releases-repo/ffmpeg/COPYING.LGPLv2.1": "COPYING.LGPLv2.1",
+      "../docs/release/releases-repo/ffmpeg/SOURCE_OFFER.txt": "SOURCE_OFFER.txt"
+    },
+    "windows": {
+      "signCommand": {
+        "cmd": "powershell",
+        "args": [
+          "-NoProfile",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-File",
+          "../tools/release/sign-windows.ps1",
+          "-Path",
+          "%1"
+        ]
+      }
+    },
+    "macOS": {
+      "hardenedRuntime": true,
+      "entitlements": "../tools/release/entitlements.plist",
+      "minimumSystemVersion": "12.0"
+    }
+  }
+}
