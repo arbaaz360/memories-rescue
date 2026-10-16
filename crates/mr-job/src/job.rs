@@ -124,6 +124,22 @@ struct JobFile {
     output_root: PathBuf,
 }
 
+/// What a worker tells the coordinator.
+enum WorkerMsg {
+    /// Record what the attempt is about to place, then answer (hardening 3).
+    Intent {
+        key: String,
+        written: Written,
+        ack: Sender<bool>,
+    },
+    Done {
+        key: String,
+        is_video: bool,
+        result: std::result::Result<Written, Failure>,
+        secs: f64,
+    },
+}
+
 /// Starts without an outcome after which an item is set aside (hardening 1c).
 pub const POISON_STARTS: u32 = 3;
 
@@ -524,6 +540,8 @@ impl Job {
             if let Some(sha) = adopt_check(&self.root, &row) {
                 row.stage = Stage::Done;
                 row.output_path = Some(row.plan.output_rel.clone());
+                row.output_hashes
+                    .insert(row.plan.output_rel.clone(), sha.clone());
                 row.output_sha256 = Some(sha);
                 let beside = layout::overlay_beside(&row.plan.output_rel);
                 if row.plan.overlay.is_some() && layout::to_fs(&self.root, &beside).is_file() {
@@ -536,6 +554,21 @@ impl Job {
                     let oo = layout::original_overlay(&row.plan.output_rel);
                     if layout::to_fs(&self.root, &oo).is_file() {
                         row.originals_overlay = Some(oo);
+                    }
+                }
+                // Adopted sidecars become ours with the bytes they hold now.
+                for rel in [
+                    &row.overlay_output,
+                    &row.originals_main,
+                    &row.originals_overlay,
+                ]
+                .into_iter()
+                .flatten()
+                .cloned()
+                .collect::<Vec<_>>()
+                {
+                    if let Ok(h) = fingerprint::sha256_file(&layout::to_fs(&self.root, &rel)) {
+                        row.output_hashes.insert(rel, h);
                     }
                 }
                 row.done_utc = Some(now());
@@ -962,6 +995,77 @@ impl Job {
         }
     }
 
+    /// Hardening 3: an attempt that placed its files but was interrupted
+    /// before its checkpoint left an intent. When every file it names is
+    /// there with the hash recorded before the rename, the item is finished
+    /// from it instead of being redone (a re-encoded burn-in would not be
+    /// byte-identical, so a redo would write `_2` and orphan the first).
+    fn accept_intents(&mut self, sink: &dyn ProgressSink) -> Result<usize> {
+        let mut accepted = 0;
+        for row in self.db.items_in(Stage::Pending)? {
+            let Some(w) = row.intent.clone() else {
+                continue;
+            };
+            let all_there = !w.hashes.is_empty()
+                && w.hashes.iter().all(|(rel, sha)| {
+                    fingerprint::sha256_file(&layout::to_fs(&self.root, rel))
+                        .is_ok_and(|h| &h == sha)
+                });
+            if !all_there {
+                continue;
+            }
+            crate::process::remove_previous_outputs(&self.root, &row, &w);
+            let stage = if w.kept_with_error.is_some() {
+                Stage::Failed
+            } else {
+                Stage::Done
+            };
+            let (code, detail) = w.kept_with_error.clone().unzip();
+            self.db.mark_finished(
+                row.key(),
+                &Finished {
+                    stage: Some(stage),
+                    error_code: code.clone(),
+                    error_detail: detail.clone(),
+                    output_path: Some(w.output_rel.clone()),
+                    output_sha256: Some(w.output_sha256.clone()),
+                    overlay_output: w.overlay_rel.clone(),
+                    originals_main: w.originals_main.clone(),
+                    originals_overlay: w.originals_overlay.clone(),
+                    composite_pending: w.composite_pending,
+                    seconds: 0.0,
+                    output_hashes: w.hashes.iter().cloned().collect(),
+                },
+            )?;
+            self.db.journal_event(row.key(), "adopted")?;
+            for (c, d) in &w.warnings {
+                self.db
+                    .journal_event(row.key(), &format!("warning:{c}|{d}"))?;
+            }
+            sink.item(&ItemOutcome {
+                id: row.key().to_string(),
+                stage,
+                media_type: Some(
+                    if row.plan.is_video() {
+                        "video"
+                    } else {
+                        "photo"
+                    }
+                    .into(),
+                ),
+                output_path: Some(w.output_rel.clone()),
+                error_code: code,
+                error_detail: detail,
+                seconds: 0.0,
+            });
+            accepted += 1;
+        }
+        if accepted > 0 {
+            tracing::info!(job = %self.id, items = accepted, "interrupted items finished from their recorded outputs");
+        }
+        Ok(accepted)
+    }
+
     /// A file that crashes or hangs the app would otherwise do so on every
     /// resume. An item started [`POISON_STARTS`] times without an outcome
     /// (each time the process went away while it was in flight) is marked
@@ -1110,6 +1214,7 @@ impl Job {
             return Ok(Outcome::InputsChanged(changes));
         }
         self.apply_free_tier()?;
+        self.accept_intents(sink)?;
         let suspects = self.fail_poison_items(sink)?;
         let open = self.db.items_in(Stage::Pending)?;
         let options = self.row.options.clone();
@@ -1186,12 +1291,7 @@ impl Job {
         } else {
             std::thread::scope(|scope| -> Result<Outcome> {
                 let (job_tx, job_rx) = crossbeam_channel::bounded::<ItemRow>(workers);
-                let (res_tx, res_rx) = crossbeam_channel::unbounded::<(
-                    String,
-                    bool,
-                    std::result::Result<Written, Failure>,
-                    f64,
-                )>();
+                let (res_tx, res_rx) = crossbeam_channel::unbounded::<WorkerMsg>();
                 for _ in 0..workers {
                     let job_rx = job_rx.clone();
                     let res_tx = res_tx.clone();
@@ -1204,21 +1304,39 @@ impl Job {
                         let mut worker = Worker::new(d, part_by_path, root, compositor, settings);
                         for row in job_rx.iter() {
                             let t = Instant::now();
-                            let r =
-                                std::panic::catch_unwind(AssertUnwindSafe(|| worker.process(&row)))
-                                    .unwrap_or_else(|_| {
-                                        Err(Failure::Item {
-                                            code: "UNKNOWN".into(),
-                                            detail: "internal error while processing this item"
+                            let key = row.plan.key.clone();
+                            let mut intent = |w: &Written| -> std::result::Result<(), Failure> {
+                                let (ack, answer) = crossbeam_channel::bounded(1);
+                                let sent = res_tx.send(WorkerMsg::Intent {
+                                    key: key.clone(),
+                                    written: w.clone(),
+                                    ack,
+                                });
+                                match (sent, answer.recv()) {
+                                    (Ok(()), Ok(true)) => Ok(()),
+                                    _ => Err(Failure::Job {
+                                        code: "UNKNOWN".into(),
+                                        detail:
+                                            "the output could not be recorded before it was placed"
                                                 .into(),
-                                        })
-                                    });
-                            let _ = res_tx.send((
-                                row.plan.key.clone(),
-                                row.plan.is_video(),
-                                r,
-                                t.elapsed().as_secs_f64(),
-                            ));
+                                    }),
+                                }
+                            };
+                            let r = std::panic::catch_unwind(AssertUnwindSafe(|| {
+                                worker.process(&row, &mut intent)
+                            }))
+                            .unwrap_or_else(|_| {
+                                Err(Failure::Item {
+                                    code: "UNKNOWN".into(),
+                                    detail: "internal error while processing this item".into(),
+                                })
+                            });
+                            let _ = res_tx.send(WorkerMsg::Done {
+                                key,
+                                is_video: row.plan.is_video(),
+                                result: r,
+                                secs: t.elapsed().as_secs_f64(),
+                            });
                         }
                     });
                 }
@@ -1266,12 +1384,7 @@ impl Job {
     fn coordinate(
         &mut self,
         job_tx: &Sender<ItemRow>,
-        res_rx: &crossbeam_channel::Receiver<(
-            String,
-            bool,
-            std::result::Result<Written, Failure>,
-            f64,
-        )>,
+        res_rx: &crossbeam_channel::Receiver<WorkerMsg>,
         sink: &dyn ProgressSink,
         control: &Control,
         open: Vec<ItemRow>,
@@ -1464,7 +1577,17 @@ impl Job {
             }
 
             match res_rx.recv_timeout(Duration::from_millis(100)) {
-                Ok((key, is_video, result, secs)) => {
+                Ok(WorkerMsg::Intent { key, written, ack }) => {
+                    let ok = self.db.mark_intent(&key, &written).is_ok();
+                    let _ = ack.send(ok);
+                    continue;
+                }
+                Ok(WorkerMsg::Done {
+                    key,
+                    is_video,
+                    result,
+                    secs,
+                }) => {
                     let Some((row, _)) = in_flight.remove(&key) else {
                         continue;
                     };
@@ -1492,6 +1615,7 @@ impl Job {
                                     originals_overlay: w.originals_overlay.clone(),
                                     composite_pending: w.composite_pending,
                                     seconds: secs,
+                                    output_hashes: w.hashes.iter().cloned().collect(),
                                 },
                             )?;
                             for (c, d) in &w.warnings {
@@ -1718,6 +1842,7 @@ impl Job {
             .map(|r| (r.key().to_string(), r))
             .collect();
         let mut worker = Worker::new(d, part_by_path, self.root.clone(), compositor, settings);
+        let intents = self.db.clip_intents()?;
         for g in groups {
             if control.is_cancelled() || control.is_paused() {
                 break;
@@ -1753,20 +1878,61 @@ impl Job {
                 )?;
                 continue;
             }
+            // Hardening 3 for joins: an interrupted join whose file is there
+            // with the recorded hash is finished from it.
+            if let Some((rel, sha)) = intents.get(&id)
+                && fingerprint::sha256_file(&layout::to_fs(&self.root, rel))
+                    .is_ok_and(|h| &h == sha)
+            {
+                if let (Some(old), Some(old_sha)) = (&g.output_path, &g.output_sha256)
+                    && !old.eq_ignore_ascii_case(rel)
+                {
+                    crate::process::remove_if_unchanged(&self.root, old, old_sha);
+                }
+                self.db.finish_clip(&id, "done", Some((rel, sha)), None)?;
+                sink.item(&ItemOutcome {
+                    id: format!("clip:{id}"),
+                    stage: Stage::Done,
+                    media_type: Some("video".into()),
+                    output_path: Some(rel.clone()),
+                    error_code: None,
+                    error_detail: None,
+                    seconds: 0.0,
+                });
+                continue;
+            }
+            let mut previous: Vec<(String, Option<String>)> = g
+                .output_path
+                .clone()
+                .map(|p| (p, g.output_sha256.clone()))
+                .into_iter()
+                .collect();
+            if let Some((rel, sha)) = intents.get(&id) {
+                previous.push((rel.clone(), Some(sha.clone())));
+            }
             let work = GroupWork {
                 id: id.clone(),
                 output_rel: g.group.output_rel.clone(),
                 members,
-                previous: g.output_path.clone().map(|p| (p, g.output_sha256.clone())),
+                previous,
             };
             let t = Instant::now();
-            let result = std::panic::catch_unwind(AssertUnwindSafe(|| worker.process_group(&work)))
-                .unwrap_or_else(|_| {
-                    Err(Failure::Item {
-                        code: "UNKNOWN".into(),
-                        detail: "internal error while joining clips".into(),
-                    })
-                });
+            let db = &self.db;
+            let mut record = |rel: &str, sha: &str| -> std::result::Result<(), Failure> {
+                db.set_clip_intent(&id, rel, sha).map_err(|e| Failure::Job {
+                    code: "UNKNOWN".into(),
+                    detail: format!("the joined clip could not be recorded: {e}"),
+                })
+            };
+            let result = std::panic::catch_unwind(AssertUnwindSafe(|| {
+                worker.process_group(&work, &mut record)
+            }))
+            .unwrap_or_else(|_| {
+                Err(Failure::Item {
+                    code: "UNKNOWN".into(),
+                    detail: "internal error while joining clips".into(),
+                })
+            });
             let (stage, output, code, detail) = match result {
                 Ok(Some(w)) => {
                     for (c, dt) in &w.warnings {

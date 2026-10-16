@@ -49,7 +49,8 @@ CREATE TABLE IF NOT EXISTS item (
     stage TEXT, attempts INTEGER, last_error_code TEXT, output_path TEXT, output_sha256 TEXT,
     chrono_rank INTEGER, last_error_detail TEXT, overlay_output TEXT,
     originals_main TEXT, originals_overlay TEXT, composite_pending INTEGER,
-    previous_outputs TEXT, done_utc TEXT, seconds REAL, plan_json TEXT);
+    previous_outputs TEXT, done_utc TEXT, seconds REAL, plan_json TEXT,
+    output_hashes TEXT, intent TEXT);
 CREATE INDEX IF NOT EXISTS item_stage ON item(stage, chrono_rank);
 CREATE TABLE IF NOT EXISTS extra (
     rowid INTEGER PRIMARY KEY, kind TEXT, json_index INTEGER, source_json TEXT,
@@ -57,7 +58,8 @@ CREATE TABLE IF NOT EXISTS extra (
 CREATE TABLE IF NOT EXISTS clip_group (group_id TEXT, item_id TEXT, seq INTEGER);
 CREATE TABLE IF NOT EXISTS clip_output (
     group_id TEXT PRIMARY KEY, group_json TEXT, signature TEXT, stage TEXT, attempts INTEGER,
-    output_path TEXT, output_sha256 TEXT, error_code TEXT, error_detail TEXT, done_utc TEXT);
+    output_path TEXT, output_sha256 TEXT, error_code TEXT, error_detail TEXT, done_utc TEXT,
+    intent TEXT);
 CREATE TABLE IF NOT EXISTS journal (
     seq INTEGER PRIMARY KEY AUTOINCREMENT, item_id TEXT, event TEXT, at_utc TEXT);
 CREATE TABLE IF NOT EXISTS zip_volume (
@@ -129,6 +131,13 @@ pub struct ItemRow {
     pub previous_outputs: Vec<String>,
     pub done_utc: Option<String>,
     pub seconds: Option<f64>,
+    /// SHA-256 of every output this item wrote, by relative path (main and
+    /// sidecars). Ownership needs path and hash: a file without a recorded
+    /// hash is never overwritten or removed (hardening 5).
+    pub output_hashes: BTreeMap<String, String>,
+    /// What an attempt was about to place, recorded before the first rename
+    /// (hardening 3); cleared when the attempt is checkpointed.
+    pub intent: Option<crate::process::Written>,
 }
 
 impl ItemRow {
@@ -148,7 +157,23 @@ impl ItemRow {
             previous_outputs: Vec::new(),
             done_utc: None,
             seconds: None,
+            output_hashes: BTreeMap::new(),
+            intent: None,
         }
+    }
+
+    /// The recorded hash of one of this item's outputs, if any.
+    pub fn hash_of(&self, rel: &str) -> Option<String> {
+        let found = self
+            .output_hashes
+            .iter()
+            .find(|(k, _)| k.eq_ignore_ascii_case(rel))
+            .map(|(_, v)| v.clone());
+        found.or_else(|| {
+            (self.output_path.as_deref() == Some(rel))
+                .then(|| self.output_sha256.clone())
+                .flatten()
+        })
     }
 
     pub fn key(&self) -> &str {
@@ -183,6 +208,8 @@ pub struct Finished {
     pub originals_overlay: Option<String>,
     pub composite_pending: bool,
     pub seconds: f64,
+    /// SHA-256 of every file written, by relative path.
+    pub output_hashes: BTreeMap<String, String>,
 }
 
 /// A clip group's join (FR-27) and where it stands. `stage` is `pending`,
@@ -250,6 +277,26 @@ impl Db {
         Ok(())
     }
 
+    /// Columns added after a state file was created (CREATE TABLE IF NOT
+    /// EXISTS does not add them).
+    fn migrate(conn: &Connection) -> rusqlite::Result<()> {
+        for (table, column) in [
+            ("item", "output_hashes"),
+            ("item", "intent"),
+            ("clip_output", "intent"),
+        ] {
+            let present: bool = conn
+                .prepare(&format!(
+                    "SELECT 1 FROM pragma_table_info('{table}') WHERE name = ?1"
+                ))?
+                .exists([column])?;
+            if !present {
+                conn.execute_batch(&format!("ALTER TABLE {table} ADD COLUMN {column} TEXT"))?;
+            }
+        }
+        Ok(())
+    }
+
     /// A new, empty state file. Fails if one exists.
     pub fn create(path: &Path) -> Result<Db> {
         if path.exists() {
@@ -264,6 +311,7 @@ impl Db {
         let conn = Connection::open(path)?;
         Self::configure(&conn)?;
         conn.execute_batch(SCHEMA)?;
+        Self::migrate(&conn)?;
         conn.execute(
             "INSERT OR REPLACE INTO meta(key, value) VALUES ('schema_version', ?1)",
             params![SCHEMA_VERSION.to_string()],
@@ -300,6 +348,7 @@ impl Db {
         Self::configure(&conn).map_err(|e| OpenError::Corrupt(e.to_string()))?;
         conn.execute_batch(SCHEMA)
             .map_err(|e| OpenError::Corrupt(e.to_string()))?;
+        Self::migrate(&conn).map_err(|e| OpenError::Corrupt(e.to_string()))?;
         Ok(Db {
             conn,
             path: path.to_path_buf(),
@@ -437,9 +486,10 @@ impl Db {
                     location_decision, main_part, main_entry, overlay_part, overlay_entry, stage,
                     attempts, last_error_code, output_path, output_sha256, chrono_rank,
                     last_error_detail, overlay_output, originals_main, originals_overlay,
-                    composite_pending, previous_outputs, done_utc, seconds, plan_json)
+                    composite_pending, previous_outputs, done_utc, seconds, plan_json,
+                    output_hashes, intent)
                  VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16,
-                    ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26)",
+                    ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28)",
             )?;
             for it in items {
                 let p = &it.plan;
@@ -473,6 +523,8 @@ impl Db {
                     it.done_utc,
                     it.seconds,
                     json(p),
+                    json(&it.output_hashes),
+                    it.intent.as_ref().map(json),
                 ])?;
             }
         }
@@ -498,6 +550,8 @@ impl Db {
                 done_utc: r.get(12)?,
                 seconds: r.get(13)?,
                 plan_json: r.get(14)?,
+                output_hashes: r.get(15)?,
+                intent: r.get(16)?,
             },
         ))
     }
@@ -505,7 +559,7 @@ impl Db {
     const ITEM_COLUMNS: &'static str =
         "id, stage, attempts, last_error_code, last_error_detail, output_path,
         output_sha256, overlay_output, originals_main, originals_overlay, composite_pending,
-        previous_outputs, done_utc, seconds, plan_json";
+        previous_outputs, done_utc, seconds, plan_json, output_hashes, intent";
 
     fn query_items(&self, filter: &str, args: &[&dyn rusqlite::ToSql]) -> Result<Vec<ItemRow>> {
         let sql = format!(
@@ -592,7 +646,9 @@ impl Db {
                 output_path = COALESCE(?5, output_path), output_sha256 = COALESCE(?6, output_sha256),
                 overlay_output = ?7, originals_main = ?8, originals_overlay = ?9,
                 composite_pending = ?10, done_utc = ?11, seconds = ?12,
-                previous_outputs = CASE WHEN ?5 IS NULL THEN previous_outputs ELSE '[]' END
+                previous_outputs = CASE WHEN ?5 IS NULL THEN previous_outputs ELSE '[]' END,
+                output_hashes = CASE WHEN ?5 IS NULL THEN output_hashes ELSE ?13 END,
+                intent = NULL
              WHERE id = ?1",
             params![
                 key,
@@ -607,6 +663,7 @@ impl Db {
                 f.composite_pending,
                 now(),
                 f.seconds,
+                json(&f.output_hashes),
             ],
         )?;
         tx.execute(
@@ -623,6 +680,38 @@ impl Db {
         )?;
         tx.commit()?;
         Ok(())
+    }
+
+    /// Record what an attempt is about to place, before the first rename.
+    pub fn mark_intent(&self, key: &str, w: &crate::process::Written) -> Result<()> {
+        self.conn.execute(
+            "UPDATE item SET intent = ?2 WHERE id = ?1",
+            params![key, json(w)],
+        )?;
+        Ok(())
+    }
+
+    /// A clip join's output, recorded before its rename (path, hash).
+    pub fn set_clip_intent(&self, id: &str, rel: &str, sha: &str) -> Result<()> {
+        self.conn.execute(
+            "UPDATE clip_output SET intent = ?2 WHERE group_id = ?1",
+            params![id, json(&(rel, sha))],
+        )?;
+        Ok(())
+    }
+
+    /// Recorded clip join intents by group id.
+    pub fn clip_intents(&self) -> Result<HashMap<String, (String, String)>> {
+        let mut st = self
+            .conn
+            .prepare("SELECT group_id, intent FROM clip_output WHERE intent IS NOT NULL")?;
+        let rows = st.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))?;
+        let mut out = HashMap::new();
+        for row in rows {
+            let (id, text) = row?;
+            out.insert(id, from_json(&text)?);
+        }
+        Ok(out)
     }
 
     /// Per item, the starts since its last outcome (done, failed, requeued,
@@ -675,6 +764,7 @@ impl Db {
             .into_iter()
             .map(|(r, sig)| (r.group.id.clone(), (r, sig)))
             .collect();
+        let intents = self.clip_intents()?;
         let tx = self.conn.transaction()?;
         tx.execute("DELETE FROM clip_group", [])?;
         tx.execute("DELETE FROM clip_output", [])?;
@@ -729,6 +819,12 @@ impl Db {
                     done
                 ],
             )?;
+            if let Some(intent) = intents.get(&g.id) {
+                tx.execute(
+                    "UPDATE clip_output SET intent = ?2 WHERE group_id = ?1",
+                    params![g.id, json(intent)],
+                )?;
+            }
         }
         tx.commit()?;
         Ok(())
@@ -805,7 +901,8 @@ impl Db {
             "UPDATE clip_output SET stage = ?2, attempts = COALESCE(attempts, 0) + 1,
                 output_path = COALESCE(?3, output_path), output_sha256 = COALESCE(?4, output_sha256),
                 error_code = ?5, error_detail = ?6,
-                done_utc = CASE WHEN ?2 = 'done' THEN ?7 ELSE done_utc END
+                done_utc = CASE WHEN ?2 = 'done' THEN ?7 ELSE done_utc END,
+                intent = CASE WHEN ?2 = 'pending' THEN intent ELSE NULL END
              WHERE group_id = ?1",
             params![
                 id,
@@ -1008,6 +1105,8 @@ struct ItemRowRaw {
     done_utc: Option<String>,
     seconds: Option<f64>,
     plan_json: String,
+    output_hashes: Option<String>,
+    intent: Option<String>,
 }
 
 impl ItemRowRaw {
@@ -1033,6 +1132,13 @@ impl ItemRowRaw {
                 .unwrap_or_default(),
             done_utc: self.done_utc,
             seconds: self.seconds,
+            output_hashes: self
+                .output_hashes
+                .as_deref()
+                .map(from_json)
+                .transpose()?
+                .unwrap_or_default(),
+            intent: self.intent.as_deref().map(from_json).transpose()?,
         })
     }
 }

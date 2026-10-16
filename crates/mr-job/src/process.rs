@@ -43,8 +43,9 @@ pub struct WorkSettings {
     pub dest: PathBuf,
 }
 
-/// The files an item ended up with.
-#[derive(Debug, Clone, Default, PartialEq)]
+/// The files an item ended up with. Also the intent recorded before the
+/// first rename (hardening 3), so it is serialisable.
+#[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Written {
     pub output_rel: String,
     pub output_sha256: String,
@@ -59,7 +60,14 @@ pub struct Written {
     /// Report-worthy notes from the compositor (code, detail), e.g.
     /// `overlay_aspect_mismatch`; the item still succeeded.
     pub warnings: Vec<(String, String)>,
+    /// (relative path, SHA-256) of every file placed: main and sidecars.
+    #[serde(default)]
+    pub hashes: Vec<(String, String)>,
 }
+
+/// Called with what an attempt is about to place, before the first rename;
+/// the attempt stops if recording it fails.
+pub type IntentFn<'a> = dyn FnMut(&Written) -> Result<(), Failure> + 'a;
 
 /// A clip group to join (FR-27, SRS section 4.5).
 #[derive(Debug, Clone)]
@@ -69,8 +77,9 @@ pub struct GroupWork {
     pub output_rel: String,
     /// The clips in order; their own outputs are written as items.
     pub members: Vec<ItemRow>,
-    /// This group's earlier output (path, hash), replaced when written again.
-    pub previous: Option<(String, Option<String>)>,
+    /// This group's earlier outputs (path, hash): the last recorded one and
+    /// an unconfirmed intent. Replaced when written again.
+    pub previous: Vec<(String, Option<String>)>,
 }
 
 /// What joining a group wrote.
@@ -292,7 +301,8 @@ pub struct Worker<'a> {
 
 /// A file this item wrote earlier: its path and, when recorded, its hash.
 /// Only a file that still has the recorded bytes counts as ours; one the
-/// user has edited since is theirs and is never overwritten or removed.
+/// user has edited since, or one with no recorded hash, is not, and is
+/// never overwritten or removed (hardening 5).
 #[derive(Debug, Clone)]
 struct Owned {
     rel: String,
@@ -301,7 +311,67 @@ struct Owned {
 
 impl Owned {
     fn matches(&self, rel: &str, existing_sha: &str) -> bool {
-        self.rel.eq_ignore_ascii_case(rel) && self.sha.as_deref().is_none_or(|s| s == existing_sha)
+        self.rel.eq_ignore_ascii_case(rel) && self.sha.as_deref() == Some(existing_sha)
+    }
+}
+
+/// Every file `row` may own: its recorded outputs and earlier outputs with
+/// their recorded hashes, and what an interrupted attempt was about to
+/// place (path and hash recorded before the rename).
+fn owned_by(row: &ItemRow) -> Vec<Owned> {
+    let mut own: Vec<Owned> = row
+        .recorded_outputs()
+        .into_iter()
+        .chain(row.previous_outputs.iter().cloned())
+        .map(|rel| Owned {
+            sha: row.hash_of(&rel),
+            rel,
+        })
+        .collect();
+    if let Some(w) = &row.intent {
+        own.extend(w.hashes.iter().map(|(rel, sha)| Owned {
+            rel: rel.clone(),
+            sha: Some(sha.clone()),
+        }));
+    }
+    own
+}
+
+/// Remove `old` if it still holds the bytes recorded for it.
+fn remove_if_ours(root: &Path, old: &str, own: &[Owned]) {
+    let path = layout::to_fs(root, old);
+    let ours = own.iter().any(|o| {
+        o.rel.eq_ignore_ascii_case(old)
+            && o.sha
+                .as_deref()
+                .is_some_and(|recorded| sha256_file(&path).is_ok_and(|now| now == recorded))
+    });
+    if ours {
+        let _ = fs::remove_file(path);
+    }
+}
+
+/// Remove `rel` if it still holds the bytes `sha` was recorded for.
+pub fn remove_if_unchanged(root: &Path, rel: &str, sha: &str) {
+    let path = layout::to_fs(root, rel);
+    if sha256_file(&path).is_ok_and(|now| now == sha) {
+        let _ = fs::remove_file(path);
+    }
+}
+
+/// After an item is written under new names, remove its earlier outputs
+/// that still hold their recorded bytes.
+pub fn remove_previous_outputs(root: &Path, row: &ItemRow, written: &Written) {
+    let own = owned_by(row);
+    let keep: Vec<String> = written
+        .hashes
+        .iter()
+        .map(|(r, _)| r.to_lowercase())
+        .collect();
+    for old in &row.previous_outputs {
+        if !keep.contains(&old.to_lowercase()) {
+            remove_if_ours(root, old, &own);
+        }
     }
 }
 
@@ -532,7 +602,11 @@ impl<'a> Worker<'a> {
     }
 
     /// Process one item. `attempt` is the attempt number just recorded.
-    pub fn process(&mut self, row: &ItemRow) -> Result<Written, Failure> {
+    pub fn process(
+        &mut self,
+        row: &ItemRow,
+        intent: &mut IntentFn<'_>,
+    ) -> Result<Written, Failure> {
         let p = &row.plan;
         let s = self.settings;
         if !s.dest.exists() {
@@ -546,12 +620,17 @@ impl<'a> Worker<'a> {
         let tmp = self.tmp_dir(&p.key);
         let _ = fs::remove_dir_all(&tmp);
         fs::create_dir_all(&tmp).map_err(|e| dest_error(e, s, "temp folder"))?;
-        let result = self.process_in(row, &tmp);
+        let result = self.process_in(row, &tmp, intent);
         let _ = fs::remove_dir_all(&tmp);
         result
     }
 
-    fn process_in(&mut self, row: &ItemRow, tmp: &Path) -> Result<Written, Failure> {
+    fn process_in(
+        &mut self,
+        row: &ItemRow,
+        tmp: &Path,
+        intent: &mut IntentFn<'_>,
+    ) -> Result<Written, Failure> {
         let p = &row.plan;
         let s = self.settings;
         if let Some(d) = s.hooks.delay() {
@@ -666,17 +745,9 @@ impl<'a> Worker<'a> {
         self.seal(&tagged, &cap)?;
         let sha = sha256_file(&tagged).map_err(|e| dest_error(e, s, "hash"))?;
 
-        let own: Vec<Owned> = row
-            .recorded_outputs()
-            .into_iter()
-            .map(|rel| Owned {
-                sha: (row.output_path.as_deref() == Some(rel.as_str()))
-                    .then(|| row.output_sha256.clone())
-                    .flatten(),
-                rel,
-            })
-            .collect();
+        let own = owned_by(row);
         let (main_rel, main_place) = self.choose(&p.output_rel, &sha, &own)?;
+        written.hashes.push((main_rel.clone(), sha.clone()));
 
         // Sidecars: the overlay beside the file, or originals/ after a burn-in.
         let mut sidecars: Vec<(PathBuf, String, Placement)> = Vec::new();
@@ -690,6 +761,7 @@ impl<'a> Worker<'a> {
                 let osha = sha256_file(&f).map_err(|e| dest_error(e, s, "hash"))?;
                 let (rel, place) = self.choose(&layout::overlay_beside(&main_rel), &osha, &own)?;
                 written.overlay_rel = Some(rel.clone());
+                written.hashes.push((rel.clone(), osha));
                 sidecars.push((f, rel, place));
             }
             if composited && s.keep_originals && s.overlay_mode == OverlayMode::BurnInKeepOriginals
@@ -704,6 +776,7 @@ impl<'a> Worker<'a> {
                 let (rel, place) =
                     self.choose(&layout::original_main(&main_rel, ext), &msha, &own)?;
                 written.originals_main = Some(rel.clone());
+                written.hashes.push((rel.clone(), msha));
                 sidecars.push((f, rel, place));
                 let g = tmp.join("original-overlay.png");
                 self.copy_file(ov, &g)?;
@@ -712,9 +785,18 @@ impl<'a> Worker<'a> {
                 let (rel, place) =
                     self.choose(&layout::original_overlay(&main_rel), &gsha, &own)?;
                 written.originals_overlay = Some(rel.clone());
+                written.hashes.push((rel.clone(), gsha));
                 sidecars.push((g, rel, place));
             }
         }
+
+        written.output_rel = main_rel.clone();
+        written.output_sha256 = sha;
+
+        // Hardening 3: what is about to be placed, with its hashes, is on
+        // record before the first rename. A crash between the renames and
+        // the checkpoint then leaves files the next run can prove are ours.
+        intent(&written)?;
 
         // Sidecars first, the main output last.
         for (f, rel, place) in sidecars {
@@ -723,35 +805,7 @@ impl<'a> Worker<'a> {
         self.place(&tagged, &main_rel, main_place)?;
 
         // An earlier write under other names (the plan changed): remove it.
-        let keep: Vec<String> = [
-            Some(main_rel.clone()),
-            written.overlay_rel.clone(),
-            written.originals_main.clone(),
-            written.originals_overlay.clone(),
-        ]
-        .into_iter()
-        .flatten()
-        .map(|r| r.to_lowercase())
-        .collect();
-        for old in &row.previous_outputs {
-            if keep.contains(&old.to_lowercase()) {
-                continue;
-            }
-            let path = layout::to_fs(&self.root, old);
-            let ours = match own.iter().find(|o| o.rel.eq_ignore_ascii_case(old)) {
-                Some(o) => match &o.sha {
-                    Some(recorded) => sha256_file(&path).is_ok_and(|now| &now == recorded),
-                    None => true,
-                },
-                None => false,
-            };
-            if ours {
-                let _ = fs::remove_file(path);
-            }
-        }
-
-        written.output_rel = main_rel;
-        written.output_sha256 = sha;
+        remove_previous_outputs(&self.root, row, &written);
         Ok(written)
     }
 
@@ -760,7 +814,11 @@ impl<'a> Worker<'a> {
     /// clip's capture metadata onto the result (section 4.5), and place it
     /// atomically. `Ok(None)` when the compositor declines. The clips' own
     /// outputs are not touched.
-    pub fn process_group(&mut self, g: &GroupWork) -> Result<Option<GroupWritten>, Failure> {
+    pub fn process_group(
+        &mut self,
+        g: &GroupWork,
+        intent: &mut dyn FnMut(&str, &str) -> Result<(), Failure>,
+    ) -> Result<Option<GroupWritten>, Failure> {
         let s = self.settings;
         if !s.dest.exists() {
             return Err(job("DEST_UNAVAILABLE", "the output drive is not available"));
@@ -771,7 +829,7 @@ impl<'a> Worker<'a> {
         let tmp = self.tmp_dir(&format!("group-{}", g.id));
         let _ = fs::remove_dir_all(&tmp);
         fs::create_dir_all(&tmp).map_err(|e| dest_error(e, s, "temp folder"))?;
-        let result = self.process_group_in(g, &tmp);
+        let result = self.process_group_in(g, &tmp, intent);
         let _ = fs::remove_dir_all(&tmp);
         result
     }
@@ -780,6 +838,7 @@ impl<'a> Worker<'a> {
         &mut self,
         g: &GroupWork,
         tmp: &Path,
+        intent: &mut dyn FnMut(&str, &str) -> Result<(), Failure>,
     ) -> Result<Option<GroupWritten>, Failure> {
         let s = self.settings;
         let first = g
@@ -845,17 +904,11 @@ impl<'a> Worker<'a> {
             })
             .collect();
         let (rel, place) = self.choose(&g.output_rel, &sha, &own)?;
+        intent(&rel, &sha)?;
         self.place(&tagged, &rel, place)?;
-        if let Some((old, old_sha)) = &g.previous
-            && !old.eq_ignore_ascii_case(&rel)
-        {
-            let path = layout::to_fs(&self.root, old);
-            let ours = match old_sha {
-                Some(recorded) => sha256_file(&path).is_ok_and(|now| &now == recorded),
-                None => true,
-            };
-            if ours {
-                let _ = fs::remove_file(path);
+        for (old, _) in &g.previous {
+            if !old.eq_ignore_ascii_case(&rel) {
+                remove_if_ours(&self.root, old, &own);
             }
         }
         Ok(Some(GroupWritten {

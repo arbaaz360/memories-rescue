@@ -180,3 +180,201 @@ fn item8_a_junction_at_the_state_folder_is_refused_and_nothing_is_deleted() {
     assert!(err.to_string().contains("link"), "{err}");
     assert!(layout::is_redirected(&state_dir));
 }
+
+/// A burn-in that is not byte-identical from one run to the next, like a
+/// real re-encode: the photo with a run counter appended.
+struct ReencodingCompositor(std::sync::atomic::AtomicU32);
+
+impl mr_job::Compositor for ReencodingCompositor {
+    fn composite(
+        &self,
+        req: &mr_job::CompositeRequest<'_>,
+    ) -> Result<mr_job::CompositeOutcome, mr_job::CompositeError> {
+        let mut bytes = fs::read(req.main).unwrap();
+        let n = self.0.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        // JPEG readers ignore bytes after EOI; the hash does not.
+        bytes.extend_from_slice(format!("run {n}").as_bytes());
+        fs::write(req.out, bytes).unwrap();
+        Ok(mr_job::CompositeOutcome::Composited)
+    }
+}
+
+fn db_of(job: &Job) -> rusqlite::Connection {
+    rusqlite::Connection::open(job.state_dir_of_job().join("job.sqlite")).unwrap()
+}
+
+/// Rewind an item to "renamed into place, checkpoint lost": pending, its
+/// record cleared, the intent of that attempt recorded.
+fn lose_checkpoint(job: &Job, row: &mr_job::ItemRow) {
+    let w = mr_job::process::Written {
+        output_rel: row.output_path.clone().unwrap(),
+        output_sha256: row.output_sha256.clone().unwrap(),
+        overlay_rel: row.overlay_output.clone(),
+        originals_main: row.originals_main.clone(),
+        originals_overlay: row.originals_overlay.clone(),
+        composite_pending: row.composite_pending,
+        hashes: row.output_hashes.clone().into_iter().collect(),
+        ..Default::default()
+    };
+    db_of(job)
+        .execute(
+            "UPDATE item SET stage = 'pending', output_path = NULL, output_sha256 = NULL,
+                overlay_output = NULL, originals_main = NULL, originals_overlay = NULL,
+                output_hashes = NULL, intent = ?2 WHERE id = ?1",
+            rusqlite::params![row.key(), serde_json::to_string(&w).unwrap()],
+        )
+        .unwrap();
+}
+
+#[test]
+fn item3_a_lost_checkpoint_is_finished_from_its_intent_without_a_duplicate() {
+    let inputs = zips_in(&fixture_dir("small-2026b"));
+    let e = env("intent");
+    let mut job = Job::create(&e.state, &inputs, options(&e.dest)).unwrap();
+    job.set_compositor(std::sync::Arc::new(
+        ReencodingCompositor(Default::default()),
+    ));
+    run(&mut job);
+    let composited: Vec<mr_job::ItemRow> = job
+        .items()
+        .unwrap()
+        .into_iter()
+        .filter(|r| r.originals_main.is_some())
+        .collect();
+    assert!(composited.len() >= 2, "the fixture has burned-in items");
+    let files_before = files_under(job.output_root()).len();
+    // One item lost its checkpoint after every rename; another after the
+    // sidecars only (its main never made it).
+    let (whole, partial) = (&composited[0], &composited[1]);
+    lose_checkpoint(&job, whole);
+    lose_checkpoint(&job, partial);
+    fs::remove_file(layout::to_fs(
+        job.output_root(),
+        partial.output_path.as_ref().unwrap(),
+    ))
+    .unwrap();
+    let starts_before = job
+        .journal()
+        .unwrap()
+        .iter()
+        .filter(|e| e.item == whole.key() && e.event == "start")
+        .count();
+
+    let (_o, _s) = run(&mut job);
+    let after = |k: &str| {
+        job.items()
+            .unwrap()
+            .into_iter()
+            .find(|r| r.key() == k)
+            .unwrap()
+    };
+    let w = after(whole.key());
+    assert_eq!(w.stage, Stage::Done);
+    assert_eq!(
+        w.output_path, whole.output_path,
+        "the placed file is accepted"
+    );
+    assert_eq!(
+        job.journal()
+            .unwrap()
+            .iter()
+            .filter(|e| e.item == whole.key() && e.event == "start")
+            .count(),
+        starts_before,
+        "not redone"
+    );
+    let p = after(partial.key());
+    assert_eq!(p.stage, Stage::Done);
+    assert_eq!(p.output_path, partial.output_path, "same name: no _2");
+    assert_eq!(
+        p.originals_main, partial.originals_main,
+        "its sidecars were ours and replaced"
+    );
+    assert_eq!(
+        files_under(job.output_root()).len(),
+        files_before,
+        "no duplicates, no orphans"
+    );
+    assert!(
+        !files_under(job.output_root())
+            .keys()
+            .any(|k| k.contains("_2.")),
+        "no suffixed copies"
+    );
+}
+
+#[test]
+fn item5_a_user_edited_sidecar_is_neither_overwritten_nor_deleted() {
+    let inputs = zips_in(&fixture_dir("small-2026b"));
+    let e = env("sidecar");
+    let mut o = options(&e.dest);
+    o.overlay_mode = mr_job::OverlayMode::SaveSeparate;
+    let mut job = Job::create(&e.state, &inputs, o).unwrap();
+    run(&mut job);
+    let rows: Vec<mr_job::ItemRow> = job
+        .items()
+        .unwrap()
+        .into_iter()
+        .filter(|r| r.overlay_output.is_some())
+        .collect();
+    let (edited, untouched) = (&rows[0], &rows[1]);
+    for r in [edited, untouched] {
+        assert!(
+            r.output_hashes
+                .contains_key(r.overlay_output.as_ref().unwrap()),
+            "a sidecar's hash is recorded"
+        );
+    }
+    let sidecar = layout::to_fs(job.output_root(), edited.overlay_output.as_ref().unwrap());
+    let mut bytes = fs::read(&sidecar).unwrap();
+    bytes.extend_from_slice(b"user edit");
+    fs::write(&sidecar, &bytes).unwrap();
+
+    // A rewrite under the same names (an item sent back to the queue).
+    db_of(&job)
+        .execute(
+            "UPDATE item SET stage = 'pending' WHERE id IN (?1, ?2)",
+            rusqlite::params![edited.key(), untouched.key()],
+        )
+        .unwrap();
+    run(&mut job);
+    assert_eq!(
+        fs::read(&sidecar).unwrap(),
+        bytes,
+        "the user's edit is kept"
+    );
+    let e2 = job
+        .items()
+        .unwrap()
+        .into_iter()
+        .find(|r| r.key() == edited.key())
+        .unwrap();
+    assert_ne!(
+        e2.overlay_output, edited.overlay_output,
+        "the new sidecar took another name"
+    );
+    let u2 = job
+        .items()
+        .unwrap()
+        .into_iter()
+        .find(|r| r.key() == untouched.key())
+        .unwrap();
+    assert_eq!(
+        u2.overlay_output, untouched.overlay_output,
+        "our own unedited sidecar is reused"
+    );
+
+    // A rewrite under new names (the plan changed): the edited sidecar of
+    // the earlier write is not ours any more and is left in place.
+    db_of(&job)
+        .execute(
+            "UPDATE item SET stage = 'pending', previous_outputs = ?2, overlay_output = NULL WHERE id = ?1",
+            rusqlite::params![
+                edited.key(),
+                serde_json::to_string(&vec![edited.overlay_output.clone().unwrap()]).unwrap()
+            ],
+        )
+        .unwrap();
+    run(&mut job);
+    assert_eq!(fs::read(&sidecar).unwrap(), bytes, "not deleted either");
+}
