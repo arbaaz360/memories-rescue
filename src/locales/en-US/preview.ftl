@@ -18,8 +18,8 @@ preview-estimate-soon = Under a minute
 preview-estimate-size = Space needed
 preview-estimate-free = { $free } free on { $volume }
 
-preview-free-title = The free version rescues { $limit } memories per job
-preview-free-body = The first { $limit } memories, in date order, are fully processed. Unlock to rescue all { $total }; the other { $beyond } wait until you do, and nothing is redone.
+preview-free-title = The free version rescues { $limit } memories on this computer
+preview-free-body = { $free } of these memories are fully processed: any this computer rescued before, then the earliest in date order. Unlock to rescue all { $total }; the other { $beyond } wait until you do, and nothing is redone.
 preview-free-unlock = Unlock
 
 preview-match-title = How well it matches

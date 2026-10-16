@@ -81,7 +81,7 @@ function LicensePill() {
   return (
     <button type="button" class={lic.tier === "grace" ? "pill pill-warn" : "pill"} onClick={() => store.openUnlock("header")}>
       <IconLock size={16} />
-      {lic.tier === "grace" ? t("header-grace") : t("header-free", { limit: lic.free_limit })}
+      {lic.tier === "grace" ? t("header-grace") : t("header-free", { limit: lic.free_limit, left: Math.max(0, lic.free_limit - lic.free_used) })}
     </button>
   );
 }

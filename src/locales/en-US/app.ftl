@@ -18,7 +18,7 @@ step-preview = Preview
 step-processing = Rescue
 step-results = Results
 
-header-free = Free: { $limit } per job
+header-free = Free: { $left } of { $limit } left
 header-licensed = Unlocked
 header-grace = License needs attention
 

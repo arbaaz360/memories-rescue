@@ -54,7 +54,7 @@ processing-failures =
        *[other] { $count } failed
     }
 processing-awake = Keeping this computer awake until the job is done. The screen can still turn off.
-processing-free-note = Free version: the job stops after { $limit } memories.
+processing-free-note = Free version: { $limit } memories on this computer; the job stops when they are used.
 processing-free-limit-title = You've rescued { $limit } memories for free
 processing-free-limit-body = Unlock to finish the rest, or finish for now: the rest are listed in the report and can be done later without redoing anything.
 processing-unlock = Unlock to finish
@@ -76,7 +76,7 @@ processing-announce =
 processing-announce-paused = Paused.
 processing-announce-paused-error = Paused because of a problem. The message is on screen.
 processing-announce-running = Running again.
-processing-announce-free-limit = Stopped after { $limit } memories, the free limit.
+processing-announce-free-limit = Stopped: this computer's { $limit } free memories are used.
 
 cancel-title = Cancel this job?
 cancel-body = Everything finished so far stays in the output folder, and the job can be continued later.
