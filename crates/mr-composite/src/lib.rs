@@ -443,6 +443,9 @@ mod tests {
 
     /// The staged sidecar, else ffmpeg on PATH; `None` on CI.
     fn test_ffmpeg() -> Option<PathBuf> {
+        if let Some(p) = std::env::var_os("MR_FFMPEG") {
+            return Some(PathBuf::from(p));
+        }
         let exe = if cfg!(windows) {
             "ffmpeg.exe"
         } else {
@@ -470,18 +473,24 @@ mod tests {
             .find(|p| p.is_file() && works(p))
     }
 
-    fn lavfi_plan(out: &Path, filter: &str) -> Plan {
+    /// A 64x64 PNG for the tests that run ffmpeg.
+    fn test_png(dir: &Path) -> PathBuf {
+        let png = dir.join("in.png");
+        image::RgbImage::from_pixel(64, 64, image::Rgb([128, 128, 128]))
+            .save(&png)
+            .unwrap();
+        png
+    }
+
+    /// Three frames of a looped PNG re-encoded as PNG into a `.mov`: only
+    /// components the minimal release ffmpeg has (no lavfi, no mpeg4).
+    fn png_plan(png: &Path, out: &Path, filter: &str) -> Plan {
         let mut args = video::head_args();
-        for a in [
-            "-f",
-            "lavfi",
-            "-i",
-            "color=c=gray:s=64x64:r=10:d=0.3",
-            "-vf",
-            filter,
-            "-c:v",
-            "mpeg4",
-        ] {
+        for a in ["-loop", "1", "-framerate", "10", "-t", "0.3", "-i"] {
+            args.push(a.into());
+        }
+        args.push(png.as_os_str().to_owned());
+        for a in ["-vf", filter, "-c:v", "png"] {
             args.push(a.into());
         }
         args.push(out.as_os_str().to_owned());
@@ -492,7 +501,7 @@ mod tests {
             output_size: (64, 64),
             bitrate_kbps: 0,
             audio: AudioPlan::None,
-            encoder: Some(VideoEncoder::OpenH264),
+            encoder: None,
             warnings: vec![],
         }
     }
@@ -505,9 +514,10 @@ mod tests {
         };
         let c = Compositor::new(ff);
         let dir = temp_dir("retry").unwrap();
-        let out = dir.path().join("o.mp4");
-        let bad = lavfi_plan(&out, "no_such_filter_anywhere");
-        let good = lavfi_plan(&out, "format=yuv420p");
+        let png = test_png(dir.path());
+        let out = dir.path().join("o.mov");
+        let bad = png_plan(&png, &out, "no_such_filter_anywhere");
+        let good = png_plan(&png, &out, "format=rgb24");
         let o = c.run_with_retry(bad, || Ok(good), &out).unwrap();
         assert!(o.retried);
         assert!(
@@ -519,11 +529,11 @@ mod tests {
         assert!(!partial_video_path(&out).exists());
 
         // Both attempts fail: FFMPEG_FAIL naming both, nothing left behind.
-        let out2 = dir.path().join("o2.mp4");
+        let out2 = dir.path().join("o2.mov");
         let e = c
             .run_with_retry(
-                lavfi_plan(&out2, "nope1"),
-                || Ok(lavfi_plan(&out2, "nope2")),
+                png_plan(&png, &out2, "nope1"),
+                || Ok(png_plan(&png, &out2, "nope2")),
                 &out2,
             )
             .unwrap_err();
@@ -539,21 +549,28 @@ mod tests {
             return;
         };
         let f = Ffmpeg::new(ff);
-        let args: Vec<std::ffi::OsString> = [
+        let dir = temp_dir("timeout").unwrap();
+        let png = test_png(dir.path());
+        // An endless real-time loop: only the timeout ends it.
+        let mut args: Vec<std::ffi::OsString> = [
             "-hide_banner",
             "-nostdin",
+            "-y",
             "-re",
-            "-f",
-            "lavfi",
+            "-loop",
+            "1",
+            "-framerate",
+            "10",
             "-i",
-            "testsrc=s=64x64:r=10:d=60",
-            "-f",
-            "null",
-            "-",
         ]
         .iter()
         .map(Into::into)
         .collect();
+        args.push(png.into_os_string());
+        for a in ["-c:v", "png", "-f", "mov"] {
+            args.push(a.into());
+        }
+        args.push(dir.path().join("endless.mov").into_os_string());
         let t = std::time::Instant::now();
         let e = f.run(&args, Duration::from_millis(500)).unwrap_err();
         assert!(
