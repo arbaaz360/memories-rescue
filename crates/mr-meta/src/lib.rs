@@ -13,6 +13,7 @@
 pub mod exiftool;
 pub mod ffmpeg_remux;
 pub mod fields;
+pub mod guard;
 pub mod native_jpeg;
 pub mod native_mp4;
 pub mod native_png;

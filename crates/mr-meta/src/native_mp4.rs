@@ -50,6 +50,9 @@ pub struct Patched {
 }
 
 const META_KEY_CREATION_DATE: &str = "com.apple.quicktime.creationdate";
+use crate::guard::MAX_MOOV_BYTES;
+/// Real files have a handful; a crafted one could list millions of tiny boxes.
+const MAX_TOP_LEVEL_BOXES: usize = 4096;
 const META_KEY_LOCATION: &str = "com.apple.quicktime.location.ISO6709";
 /// `©xyz` language field; exiftool writes 0 (undetermined) and Apple's readers accept it.
 const XYZ_LANG: u16 = 0;
@@ -70,11 +73,10 @@ pub fn write_mp4(src: &Path, dst: &Path, cap: &Capture) -> Result<Patched, Error
         .iter()
         .any(|b| &b.typ == b"mdat" && b.start > moov.start);
 
-    // Old moov payload.
-    input.seek(SeekFrom::Start(moov.start + moov.header_len))?;
-    let payload_len = (moov.size - moov.header_len) as usize;
-    let mut old_payload = vec![0u8; payload_len];
-    input.read_exact(&mut old_payload)?;
+    // Old moov payload (sample tables only; capped so a crafted size cannot
+    // become an allocation).
+    let old_payload = read_moov(&mut input, moov)?;
+    let payload_len = old_payload.len();
 
     // New payload: original children minus meta/udta(©xyz), plus ours.
     let mut new_payload = Vec::with_capacity(payload_len + 512);
@@ -274,7 +276,8 @@ fn stco_entries(buf: &[u8]) -> usize {
         match &c.typ {
             b"trak" | b"mdia" | b"minf" | b"stbl" => n += stco_entries(p),
             b"stco" if p.len() >= 8 => {
-                n += u32::from_be_bytes(p[4..8].try_into().unwrap()) as usize
+                n += (u32::from_be_bytes(p[4..8].try_into().unwrap()) as usize)
+                    .min((p.len() - 8) / 4)
             }
             _ => {}
         }
@@ -348,25 +351,26 @@ fn top_level<R: Read + Seek>(r: &mut R, len: u64) -> Result<Vec<TopBox>, Error> 
     let mut boxes = Vec::new();
     let mut pos = 0u64;
     let mut hdr = [0u8; 16];
-    while pos + 8 <= len {
-        r.seek(SeekFrom::Start(pos))?;
-        let n = r.read(&mut hdr)?;
-        if n < 8 {
-            break;
+    while pos.checked_add(8).is_some_and(|end| end <= len) {
+        if boxes.len() >= MAX_TOP_LEVEL_BOXES {
+            return Err(Error::Unsupported("too many top-level boxes"));
         }
+        r.seek(SeekFrom::Start(pos))?;
+        r.read_exact(&mut hdr[..8])?;
         let size32 = u32::from_be_bytes(hdr[0..4].try_into().unwrap()) as u64;
         let typ: [u8; 4] = hdr[4..8].try_into().unwrap();
         let (size, header_len) = match size32 {
             0 => (len - pos, 8),
             1 => {
-                if n < 16 {
+                if pos + 16 > len {
                     return Err(Error::NotMp4);
                 }
+                r.read_exact(&mut hdr[8..16])?;
                 (u64::from_be_bytes(hdr[8..16].try_into().unwrap()), 16)
             }
             s => (s, 8),
         };
-        if size < header_len || pos + size > len {
+        if size < header_len || pos.checked_add(size).is_none_or(|end| end > len) {
             return Err(Error::NotMp4);
         }
         boxes.push(TopBox {
@@ -402,7 +406,7 @@ fn children(buf: &[u8]) -> Vec<Child> {
             1 => break,
             s => (s, 8),
         };
-        if size < hdr || pos + size > buf.len() {
+        if size < hdr || pos.checked_add(size).is_none_or(|end| end > buf.len()) {
             break;
         }
         out.push(Child {
@@ -483,8 +487,10 @@ fn patch_tree(buf: &mut [u8], base: usize, end: usize, qt: u64, offsets: &mut Ve
             b"trak" | b"mdia" | b"minf" | b"stbl" => {
                 patch_tree(buf, range.start, range.end, qt, offsets)
             }
-            b"stco" => offsets.push((range.start, false)),
-            b"co64" => offsets.push((range.start, true)),
+            // Only tables with their version, flags and count; shorter ones
+            // are left alone (and fail the read-back).
+            b"stco" if range.len() >= 8 => offsets.push((range.start, false)),
+            b"co64" if range.len() >= 8 => offsets.push((range.start, true)),
             _ => {}
         }
     }
@@ -531,7 +537,9 @@ fn shift_offsets(
             u32::from_be_bytes(buf[p..p + 4].try_into().unwrap()) as u64
         };
         if old >= boundary {
-            let new = (old as i64 + delta) as u64;
+            let new = old
+                .checked_add_signed(delta)
+                .ok_or(Error::Unsupported("chunk offset out of range"))?;
             if is64 {
                 buf[p..p + 8].copy_from_slice(&new.to_be_bytes());
             } else {
@@ -579,11 +587,21 @@ pub fn summarize(path: &Path) -> Result<Summary, Error> {
         .iter()
         .find(|b| &b.typ == b"moov")
         .ok_or(Error::NoMoov)?;
-    f.seek(SeekFrom::Start(moov.start + moov.header_len))?;
-    let mut payload = vec![0u8; (moov.size - moov.header_len) as usize];
-    f.read_exact(&mut payload)?;
+    let payload = read_moov(&mut f, moov)?;
     summarize_tree(&payload, &mut s);
     Ok(s)
+}
+
+/// The `moov` payload, refused above [`MAX_MOOV_BYTES`].
+fn read_moov<R: Read + Seek>(r: &mut R, moov: &TopBox) -> Result<Vec<u8>, Error> {
+    let len = moov.size - moov.header_len;
+    if len > MAX_MOOV_BYTES {
+        return Err(Error::Unsupported("moov larger than 256 MiB"));
+    }
+    r.seek(SeekFrom::Start(moov.start + moov.header_len))?;
+    let mut payload = vec![0u8; len as usize];
+    r.read_exact(&mut payload)?;
+    Ok(payload)
 }
 
 fn read_time(payload: &[u8]) -> Option<u64> {
@@ -646,11 +664,13 @@ fn summarize_tree(buf: &[u8], s: &mut Summary) {
                                 }
                                 let ks =
                                     u32::from_be_bytes(mp[q..q + 4].try_into().unwrap()) as usize;
-                                names.push(
-                                    String::from_utf8_lossy(&mp[q + 8..(q + ks).min(mp.len())])
-                                        .into_owned(),
-                                );
-                                q += ks;
+                                let Some(end) =
+                                    q.checked_add(ks).filter(|&e| ks >= 8 && e <= mp.len())
+                                else {
+                                    break;
+                                };
+                                names.push(String::from_utf8_lossy(&mp[q + 8..end]).into_owned());
+                                q = end;
                             }
                         }
                         b"ilst" => {

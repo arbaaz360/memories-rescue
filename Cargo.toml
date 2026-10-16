@@ -28,5 +28,7 @@ tracing = { version = "0.1.44", default-features = false, features = ["std"] }
 codegen-units = 1
 lto = true
 opt-level = 3
-panic = "abort"
+# "unwind", not "abort": the engine catches a panic per item (a bad file
+# fails that item), which "abort" would turn into a crash on every resume.
+panic = "unwind"
 strip = true
