@@ -314,6 +314,15 @@ impl Engine {
     fn run_job(&self, h: &JobHandle, prep: Prep) -> IpcResult<(JobState, Option<IpcError>)> {
         let mut job = self.open(&h.id)?;
         job.set_compositor(self.compositor.clone());
+        // Debug builds: hooks may change between runs (inject, then remove a fault).
+        if cfg!(debug_assertions) {
+            let hooks = super::test_hooks();
+            if job.options().test_hooks != hooks {
+                let mut o = job.options().clone();
+                o.test_hooks = hooks;
+                job.set_options(o).map_err(job_error)?;
+            }
+        }
         self.requeue_captions(&mut job)?;
         match prep {
             Prep::None => {}
@@ -700,9 +709,10 @@ impl mr_job::ProgressSink for RunSink<'_> {
     }
 
     fn item(&self, o: &mr_job::ItemOutcome) {
-        if let Some(group) = o.id.strip_prefix("clip:") {
+        // Not the group id in the log: it holds a capture date and an export file ID.
+        if o.id.starts_with("clip:") {
             tracing::info!(
-                "clip group {group}: {:?} {}",
+                "clip group joined: {:?} {}",
                 o.stage,
                 o.error_code.as_deref().unwrap_or("")
             );

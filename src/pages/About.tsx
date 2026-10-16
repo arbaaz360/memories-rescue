@@ -30,7 +30,9 @@ export function AboutPage() {
                 {sidecars?.status === "ok" ? (
                   <>
                     <span class="mono block">{sidecars.versions.ffmpeg}</span>
-                    <span class="mono block">{t("about-exiftool", { version: sidecars.versions.exiftool })}</span>
+                    {sidecars.versions.exiftool ? (
+                      <span class="mono block">{t("about-exiftool", { version: sidecars.versions.exiftool })}</span>
+                    ) : null}
                   </>
                 ) : sidecars?.status === "failed" ? (
                   <span class="field-error">{t("about-tools-failed", { message: sidecars.message })}</span>

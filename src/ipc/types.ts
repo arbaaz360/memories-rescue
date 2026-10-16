@@ -546,7 +546,8 @@ export interface AppInfo {
 
 export interface SidecarVersions {
   ffmpeg: string;
-  exiftool: string;
+  /** null when not bundled (release builds ship ffmpeg only, Q-02). */
+  exiftool: string | null;
 }
 
 // ---------------------------------------------------------------------------

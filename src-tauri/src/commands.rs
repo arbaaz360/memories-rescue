@@ -161,6 +161,8 @@ pub fn deactivate(engine: E<'_>) -> IpcResult<LicenseStatus> {
 /// The window has no open-path permission; this is the only way it opens paths.
 #[tauri::command]
 pub fn open_path(app: AppHandle, path: String) -> IpcResult<()> {
+    // Resource paths come back as `\\?\C:\...`; the shell opens plain ones.
+    let path = crate::engine::plain_path(&path);
     let p = PathBuf::from(&path);
     if !p.exists() {
         return Err(IpcError::new(
@@ -203,14 +205,15 @@ pub fn app_info(engine: E<'_>) -> IpcResult<AppInfo> {
     Ok(engine.app_info())
 }
 
-/// Run both bundled sidecars and return what they report. Fails with a
-/// readable message if either is missing, cannot start, or exits non-zero,
-/// which is what the installed-app smoke test looks for.
+/// Run the bundled sidecars and return what they report. Fails with a
+/// readable message if ffmpeg is missing, cannot start, or exits non-zero,
+/// which is what the installed-app smoke test looks for. exiftool is only in
+/// development bundles (Q-02); without it `exiftool` is `null`.
 #[tauri::command]
 pub async fn sidecar_versions(app: AppHandle) -> Result<SidecarVersions, String> {
     Ok(SidecarVersions {
         ffmpeg: first_line(&app, "ffmpeg", &["-version"]).await?,
-        exiftool: first_line(&app, "exiftool", &["-ver"]).await?,
+        exiftool: first_line(&app, "exiftool", &["-ver"]).await.ok(),
     })
 }
 

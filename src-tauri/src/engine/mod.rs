@@ -77,17 +77,22 @@ pub fn compositor_for(ffmpeg: &Path) -> mr_job::MediaCompositor {
     mr_job::MediaCompositor::with(mr_composite::Compositor::with_options(ffmpeg, video))
 }
 
-/// Debug builds only: `MR_TEST_HOOKS` as mr-job's [`mr_job::TestHooks`] JSON
+/// Debug builds only: mr-job's [`mr_job::TestHooks`] as JSON
 /// (`{"delay_ms":300,"fail_ids":["..."],"force_hevc_unplayable":true}`), so
 /// the walk-through of the real app can pause mid-run, fail an item or show
-/// the HEVC notice. Release builds never read it (and mr-job ignores hooks).
+/// the HEVC notice. Read from the file `MR_TEST_HOOKS_FILE` names (re-read on
+/// every call, so a fault can be injected and then removed, FR-39 AC1), else
+/// from `MR_TEST_HOOKS`. Release builds never read either (and mr-job
+/// ignores hooks there).
 pub fn test_hooks() -> mr_job::TestHooks {
     if !cfg!(debug_assertions) {
         return mr_job::TestHooks::default();
     }
-    std::env::var("MR_TEST_HOOKS")
+    let text = std::env::var("MR_TEST_HOOKS_FILE")
         .ok()
-        .and_then(|v| serde_json::from_str(&v).ok())
+        .and_then(|p| std::fs::read_to_string(p).ok())
+        .or_else(|| std::env::var("MR_TEST_HOOKS").ok());
+    text.and_then(|v| serde_json::from_str(&v).ok())
         .unwrap_or_default()
 }
 
@@ -204,6 +209,16 @@ pub fn redact_home(text: &str) -> String {
     crate::logging::redact(text)
 }
 
+/// `\\?\C:\x` as `C:\x` (Windows' long-path prefix, which Tauri's resource
+/// paths carry and the shell does not open). UNC (`\\?\UNC\...`) and other
+/// paths are returned unchanged.
+pub fn plain_path(path: &str) -> String {
+    match path.strip_prefix(r"\\?\") {
+        Some(rest) if rest.as_bytes().get(1) == Some(&b':') => rest.to_string(),
+        _ => path.to_string(),
+    }
+}
+
 pub fn now_utc() -> String {
     chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true)
 }
@@ -250,5 +265,24 @@ impl CollectingSink {
             .filter(|(e, _)| e == event)
             .map(|(_, v)| v.clone())
             .collect()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::plain_path;
+
+    #[test]
+    fn long_path_prefix_is_dropped_for_drive_paths_only() {
+        assert_eq!(
+            plain_path(r"\\?\C:\Users\x\AppData\Local\Memories Rescue\THIRD_PARTY_NOTICES.md"),
+            r"C:\Users\x\AppData\Local\Memories Rescue\THIRD_PARTY_NOTICES.md"
+        );
+        assert_eq!(
+            plain_path(r"\\?\UNC\server\share\a"),
+            r"\\?\UNC\server\share\a"
+        );
+        assert_eq!(plain_path(r"D:\Memories"), r"D:\Memories");
+        assert_eq!(plain_path("/Users/x/a"), "/Users/x/a");
     }
 }

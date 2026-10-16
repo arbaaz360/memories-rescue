@@ -711,6 +711,7 @@ fn settings_persist_and_diagnostics_hold_no_export_content() {
     let listed: Vec<String> = preview.files.iter().map(|f| f.name.clone()).collect();
     assert_eq!(names, listed);
     assert!(names.contains(&"logs/memories-rescue.log".to_string()));
+    let key = regex::Regex::new(r"\d{4}-\d{2}-\d{2}_[0-9A-F]{8}-").unwrap();
     for (i, name) in names.iter().enumerate() {
         let mut text = String::new();
         z.by_index(i).unwrap().read_to_string(&mut text).unwrap();
@@ -722,6 +723,11 @@ fn settings_persist_and_diagnostics_hold_no_export_content() {
         );
         assert!(!text.contains(&home), "{name}: the home folder");
         assert!(!text.to_lowercase().contains("telemetry"), "{name}");
+        if name.starts_with("journal-") {
+            // Items by number, never by key (capture date + export file ID).
+            assert!(text.contains("\"item-1\""), "{name}");
+            assert!(!key.is_match(&text), "{name}: an item key");
+        }
     }
     let info = env.engine.app_info();
     assert_eq!(info.support_email, "support@novabyteworks.com");

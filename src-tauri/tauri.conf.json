@@ -37,6 +37,7 @@
       "nsis",
       "msi"
     ],
+    "createUpdaterArtifacts": true,
     "publisher": "NovaByteWorks",
     "externalBin": [
       "binaries/ffmpeg",

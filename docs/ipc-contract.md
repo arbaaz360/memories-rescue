@@ -85,7 +85,7 @@ surface as `PART_TRUNCATED` or `UNKNOWN` at this boundary).
 | `open_path` | `path` | `null` | Opens a file or folder with the OS (output folder, `report.html`, the licence files). The engine checks the path exists. |
 | `export_diagnostics` | – | `string` (ZIP path) | FR-41: the files `diagnostics_preview` listed: the rotating logs (home folder as `~`, no URLs or query strings), app facts, settings without the key, job summaries and journals. No media and no JSON content. Written to the user's Desktop (or Downloads). |
 | `app_info` | – | `AppInfo` | Version, OS family, paths of the licence files and third-party notices, and the outside addresses from `src/config/links.json` (privacy, terms, FAQ, ffmpeg source, website, support email). |
-| `sidecar_versions` | – | `SidecarVersions` | Exists today. Runs `ffmpeg -version` and `exiftool -ver`; also the window's smoke probe at startup. |
+| `sidecar_versions` | – | `SidecarVersions` | Runs `ffmpeg -version` and, when bundled, `exiftool -ver` (`exiftool: null` otherwise: release builds ship ffmpeg only, Q-02); also the window's smoke probe at startup. Fails only when ffmpeg does not answer. |
 
 Commands added beyond the original list, each because a screen needs it:
 `export_preview_report` (S4 button), `estimate_space` and `volume_info` (S3 live

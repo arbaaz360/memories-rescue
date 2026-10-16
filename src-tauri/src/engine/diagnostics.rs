@@ -6,8 +6,12 @@
 //! The ZIP holds the rotating logs (already redacted on the way to disk:
 //! home folder as `~`, no URLs or query strings), app facts, the settings
 //! (the licence key is never in them), per-job summaries and journals. No
-//! media, no JSON content, no file names from the export.
+//! media, no JSON content, no file names from the export: an item's key holds
+//! its capture date and the export's file ID, so journals number the items
+//! instead (`item-1`, `clip-1`, in the order they first appear) and keep only
+//! each warning's code.
 
+use std::collections::HashMap;
 use std::io::Write;
 use std::path::PathBuf;
 
@@ -48,10 +52,44 @@ fn text(name: impl Into<String>, kind: &'static str, value: &impl serde::Seriali
     }
 }
 
+/// A job's journal with item keys replaced by numbers and warning details dropped.
+pub fn numbered_journal(events: &[mr_job::JournalEvent]) -> Vec<serde_json::Value> {
+    let mut names: HashMap<&str, String> = HashMap::new();
+    let (mut items, mut clips) = (0u32, 0u32);
+    let mut out = Vec::with_capacity(events.len());
+    for e in events {
+        let name = names
+            .entry(e.item.as_str())
+            .or_insert_with(|| {
+                if e.item.starts_with("clip:") {
+                    clips += 1;
+                    format!("clip-{clips}")
+                } else {
+                    items += 1;
+                    format!("item-{items}")
+                }
+            })
+            .clone();
+        let event = e
+            .event
+            .split_once('|')
+            .map_or(e.event.as_str(), |(code, _)| code);
+        out.push(serde_json::json!({
+            "seq": e.seq,
+            "item": name,
+            "event": event,
+            "at_utc": e.at_utc,
+        }));
+    }
+    out
+}
+
 impl Engine {
     pub fn app_info(&self) -> AppInfo {
         let res = self.paths.resource_dir.clone().unwrap_or_default();
-        let notices = res.join("THIRD_PARTY_NOTICES.md");
+        let notices = PathBuf::from(super::plain_path(
+            &res.join("THIRD_PARTY_NOTICES.md").to_string_lossy(),
+        ));
         AppInfo {
             version: env!("CARGO_PKG_VERSION").to_string(),
             os_family: os_family().to_string(),
@@ -114,7 +152,7 @@ impl Engine {
         out.push(text("jobs.json", "jobs", &summaries));
         for j in jobs.iter().take(JOURNALS) {
             if let Ok(job) = mr_job::Job::open(self.state_dir(), &j.id) {
-                let events = job.journal().unwrap_or_default();
+                let events = numbered_journal(&job.journal().unwrap_or_default());
                 out.push(text(
                     format!("journal-{}.json", &j.id[..8.min(j.id.len())]),
                     "journal",

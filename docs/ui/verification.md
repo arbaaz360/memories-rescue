@@ -53,7 +53,8 @@ Start, free-limit stop, Later (job finishes partial: 96 done, 3 date only,
 1 failed, 4,712 waiting for unlock, shown in separate groups), Unlock to finish
 from Results with a wrong key (LICENSE_INVALID copy) and then the mock key
 (job resumes at item 101), Settings saved and kept, telemetry off by default
-with its payload preview, About. Then, licensed: a run with part 3 missing,
+with its payload preview (telemetry has since been removed from v1.0, Q-12),
+About. Then, licensed: a run with part 3 missing,
 Add missing part from Results, Check in job mode, Rescue these memories, and a
 final result of 4,812 accounted for with nothing left "not in your export". No
 console errors.
@@ -102,10 +103,50 @@ processing only what it brings, settings persisting, and diagnostics holding
 no export content. `tests/ipc_samples.rs` round-trips JSON produced by the
 TypeScript mock through the Rust contract types.
 
+## v1 integration (feat/app-v1, `npm run tauri dev`, Windows 11, 2026-10-16)
+
+The real compositor (mr-composite on the bundled ffmpeg sidecar, software
+`h264_mf` with a 1.3x bitrate factor), logs, auto-update and the release
+guard, walked step by step with `scripts/cdp.mjs` over the WebView2
+debugging port. Inputs, the destination and the "add part" picker go in
+through the dev-only `window.__mrStore`; every other step is a real button.
+Debug-only switches made the hard cases reachable: `MR_TEST_HOOKS_FILE`
+(mr-job's test hooks, re-read on every run: a per-item delay, a forced
+failure, "this computer cannot play HEVC"), `MR_GUMROAD_VERIFY_URL` (a fake
+Gumroad on loopback) and `MR_UPDATE_FEED` (a local feed). Release builds read
+none of them.
+
+| Check | What happened |
+|---|---|
+| Startup | `backend: tauri`; the log starts in the app's log folder; the 24-hour update check found the local feed's 0.2.0 and the notice appeared |
+| Update signature | The feed's signature was a real signature by the updater key, but of another file. Install downloaded it, refused it ("signature verification failed"), and the window said the update could not be installed. Nothing ran |
+| Update during a job | The notice says updates wait for the job; Install is disabled; `install_update` called directly is refused with `UNKNOWN`, detail `job running` |
+| F-07 `rotation` | Preview: 12 captions to add, 12 originals kept, no warnings. Result: 12 done. A contact sheet of the 12 outputs shows every caption burned in and every picture upright; the 5 videos are H.264 with no rotation flag at their upright sizes |
+| F-08 `clips` | Preview lists 7 split-video groups with mr-job's ids; one unticked by a real click. Result: 33 clips saved, 6 groups joined (lengths 20, 23, 24, 20, 16, 53 s, equal to their clips), the unticked one "Left as clips" with no joined file; 6 `joined_clip` rows in report.csv. Open report opened report.html in the default browser |
+| F-09 `codecs` | Options shows "2 of 7 videos checked are HEVC"; its button turns Windows compatibility on and the notice goes (also absent from the preview). Result: all 7 outputs H.264; the rotated HEVC one is an upright 360x640, 8-bit |
+| F-13 `free-limit` | Stops at 100 with the unlock dialog. A key already on 5 computers: "This key is already active on 5 computers", pointing to support, after one non-counting check. The good key: one check, one counted use, and the job finished all 250 |
+| F-05 `missing-part` | 743 done, 7 without a location, 250 "not in the parts you added". Add missing part from Results, Check the added part, Rescue these memories: 993 + 7, all 1,000 accounted for |
+| Pause, resume, cancel | Pause held at 99 of 1,000 for several seconds; Resume continued; Cancel asked first, then ended the job |
+| Kill and resume | The app was killed at 166 of 1,000. On restart Welcome offered "Resume previous job" (172 of 1,000); it finished with 1,000 `done` journal events and no item done twice |
+| Retry failed | One item failed by an injected fault (49 done, 1 failed); with the fault removed, "Retry the failed item" finished it (50 done) |
+| Export diagnostics | The dialog lists every file, what each holds, what is not included, and where the ZIP goes. The saved ZIP: no home folder, no web address, no item keys (journals number the items) |
+| Settings, About | No telemetry; the privacy text names the only two reasons the app goes online; "Check now" finds the update; the deactivate dialog says Gumroad still counts this computer. About links to privacy, terms, FAQ and the ffmpeg source on novabyteworks.com |
+| Release bundle | `npm run build` output has no mock engine code (no `MockBackend`, no mock key) and no telemetry strings |
+
+Screenshots: `docs/ui/screenshots/app-v1/` (published on the assets branch).
+The walk's jobs, settings, licence cache, log, thumbnails and diagnostics ZIP
+were removed afterwards, and the test key was deactivated.
+
+New engine tests with the real compositor (`src-tauri/tests/media.rs`): F-07,
+F-08 with the ids compared against mr-job's own plan and one group sent back
+unticked, F-09 with the HEVC notice, and an older job whose captions are
+burned in when it resumes.
+
 ## Not verified here
 
 - macOS (no Mac on hand): WKWebView rendering, VoiceOver, the real picker and notification permission prompt.
 - Narrator or NVDA with a person listening; the structure (landmarks, headings, labels, live region) is what they read.
-- Real pickers and drag-and-drop with real files inside Tauri: the plugins are registered and allowed, and the browser stand-in exercised the same code paths, but nothing was dropped onto the Tauri window.
-- Compositing (captions burned in) and clip rejoin: not in the engine yet.
+- Real drag-and-drop onto the Tauri window: the desktop-control tool only drives installed apps and the dev build is not one, and a drop synthesised over the debugging port would bypass Tauri's native drop handler. The drop code path was exercised in the browser stand-in only.
+- A real install and update: the updater was checked against a local feed and a wrong signature; no signed release exists yet.
 - A real Gumroad product: activation was tested against a fake on loopback; the product id is not configured in this build.
+- The release-build error screen in a release build: it is covered by Vitest (`src/ipc/backend.test.ts`) and the bundle check, not by running a release build.

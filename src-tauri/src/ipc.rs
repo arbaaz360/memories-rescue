@@ -706,8 +706,9 @@ pub struct DiagnosticsPreview {
 pub struct SidecarVersions {
     /// First line of `ffmpeg -version`, e.g. `ffmpeg version n9.0.2-28-g669f5ab083-20261015 ...`.
     pub ffmpeg: String,
-    /// Output of `exiftool -ver`, e.g. `13.59`.
-    pub exiftool: String,
+    /// Output of `exiftool -ver`, e.g. `13.59`; `None` when it is not
+    /// bundled (Q-02: release builds write metadata in Rust and ship ffmpeg only).
+    pub exiftool: Option<String>,
 }
 
 /// Event names, as the window listens for them.

@@ -41,6 +41,18 @@ pub fn feed_url(channel: UpdateChannel) -> &'static str {
     }
 }
 
+/// [`feed_url`], or in debug builds `MR_UPDATE_FEED` (a local feed for the
+/// walk-through; release builds never read it).
+fn endpoint(channel: UpdateChannel) -> String {
+    if cfg!(debug_assertions)
+        && let Ok(v) = std::env::var("MR_UPDATE_FEED")
+        && !v.is_empty()
+    {
+        return v;
+    }
+    feed_url(channel).to_string()
+}
+
 /// §10.2: never while a job runs.
 pub fn install_allowed(job_running: bool) -> IpcResult<()> {
     if job_running {
@@ -85,7 +97,7 @@ pub async fn check(app: &AppHandle, force: bool) -> IpcResult<Option<UpdateInfo>
             return Ok(info);
         }
     }
-    let url = match feed_url(channel).parse() {
+    let url = match endpoint(channel).parse() {
         Ok(u) => u,
         Err(e) => {
             tracing::error!("update feed address is not valid: {e}");

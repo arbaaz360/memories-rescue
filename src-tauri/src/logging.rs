@@ -2,9 +2,11 @@
 //!
 //! * At most [`FILES`] files of [`MAX_FILE`] bytes: 50 MB in all.
 //! * Every line goes through [`Redactor`] before it is written: the home
-//!   folder becomes `~`, web addresses become `[url]` and query strings
-//!   `[query]`, so nothing that identifies a person or an account reaches the
-//!   disk (the export's links carry `sid`/`mid` tokens).
+//!   folder becomes `~`, web addresses become `[url]`, query strings
+//!   `[query]`, and item keys or export file IDs (a capture date and the
+//!   ID in the export's file names) `[item]`, so nothing that identifies a
+//!   person, an account or a memory reaches the disk (the export's links
+//!   carry `sid`/`mid` tokens).
 //! * `tracing` events from the app and `log` records from the engine crates
 //!   (mr-composite logs through `log`) end up in the same file.
 //!
@@ -16,10 +18,11 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 use regex::Regex;
+use tracing_subscriber::Layer;
+use tracing_subscriber::filter::{LevelFilter, Targets};
 use tracing_subscriber::fmt::MakeWriter;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
-use tracing_subscriber::{Layer, filter::LevelFilter};
 
 /// Bytes per file before it rotates.
 pub const MAX_FILE: u64 = 10 * 1024 * 1024;
@@ -32,6 +35,7 @@ pub struct Redactor {
     homes: Vec<String>,
     url: Regex,
     query: Regex,
+    item: Regex,
 }
 
 impl Redactor {
@@ -58,6 +62,12 @@ impl Redactor {
             homes,
             url: Regex::new(r#"(?i)\b[a-z][a-z0-9+.-]*://[^\s"'<>)]*"#).expect("url regex"),
             query: Regex::new(r#"\?[^\s"'<>?]*="#).expect("query regex"),
+            // Snapchat file IDs are upper-case UUIDs; mr-job keys prefix the capture date.
+            // Job ids (random, lower-case) stay readable for support.
+            item: Regex::new(
+                r"(?:\d{4}-\d{2}-\d{2}_)?[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}",
+            )
+            .expect("item regex"),
         }
     }
 
@@ -74,7 +84,7 @@ impl Redactor {
         for home in &self.homes {
             out = replace_ignore_case(&out, home, "~");
         }
-        out
+        self.item.replace_all(&out, "[item]").into_owned()
     }
 }
 
@@ -245,6 +255,15 @@ impl<'a> MakeWriter<'a> for SharedLog {
     }
 }
 
+/// Info and above, except `little_exif`, which reports "No EXIF data found"
+/// as an error for every photo that simply has none yet (it is about to be
+/// written): noise that would mislead whoever reads a support log.
+pub fn filter() -> Targets {
+    Targets::new()
+        .with_default(LevelFilter::INFO)
+        .with_target("little_exif", LevelFilter::OFF)
+}
+
 /// Starts logging to `dir`. Returns false if the folder cannot be written
 /// (the app then runs without a log rather than not at all).
 pub fn init(dir: &Path) -> bool {
@@ -256,7 +275,7 @@ pub fn init(dir: &Path) -> bool {
         .with_writer(writer)
         .with_ansi(false)
         .with_target(true)
-        .with_filter(LevelFilter::INFO);
+        .with_filter(filter());
     tracing_subscriber::registry()
         .with(layer)
         .try_init()
@@ -282,6 +301,10 @@ mod tests {
         let mac = Redactor::new("/Users/adam");
         assert_eq!(mac.redact("/Users/adam/Movies/a.mp4"), "~/Movies/a.mp4");
         assert_eq!(r.redact(r"\\?\C:\Users\Adam\x"), r"~\x");
+        assert_eq!(
+            r.redact("clip group 2019-07-14_CCB7781A-1F90-4612-BDFC-FDBCDCA2614E done; file 75103A0C-87F2-4B73-ABF7-A82A20C6D024-main.mp4; job da8fa300-7fe6-4f89-9a73-9e8260872ebf"),
+            "clip group [item] done; file [item]-main.mp4; job da8fa300-7fe6-4f89-9a73-9e8260872ebf"
+        );
     }
 
     #[test]
