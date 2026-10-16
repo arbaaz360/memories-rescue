@@ -3,9 +3,11 @@
 This is the agreement between the Memories Rescue window (`src/`, Preact) and
 the Rust engine behind the Tauri commands (`src-tauri/`). The window was built
 and verified against it with an in-browser mock (`src/ipc/mock/`) before the
-engine existed; the engine implements it. `src/ipc/types.ts` holds the same
-shapes as TypeScript and is the file the window compiles against. **When one
-changes, change the other in the same commit** (checklist at the end).
+engine existed. The engine side is `src-tauri/src/commands.rs` (the Tauri
+commands) over `src-tauri/src/engine/` (the adapter onto `mr-job`, `mr-core`
+and `mr-report`), with the same shapes in `src-tauri/src/ipc.rs`.
+`src/ipc/types.ts` is the file the window compiles against. **When one
+changes, change the others in the same commit** (checklist at the end).
 
 Conventions:
 
@@ -64,7 +66,7 @@ surface as `PART_TRUNCATED` or `UNKNOWN` at this boundary).
 | `export_preview_report` | `plan_id` | `string` (path written) | Writes `preview-report.html` next to where the job report would go, or to the app data dir if the destination is not writable. |
 | `estimate_space` | `input_ids`, `options` | `SpaceEstimate` | FR-28, cheap (no matching): used by S3 on every option change. `sufficient` is `free >= total * 1.1`. |
 | `volume_info` | `path` | `VolumeInfo` | Free and total bytes of the volume holding `path`, plus whether it is writable. Used by the S3 free-space gauge. |
-| `start` | `input_ids`, `options` | `string` (job id) | Creates the job in app data, starts the worker pool, returns at once. Progress arrives by events. |
+| `start` | `input_ids`, `options` | `string` (job id) | Creates the job in app data, starts the worker pool, returns at once. Progress arrives by events. If the destination already holds a job (one job per output folder, SRS 3.7), that job continues instead: inputs it does not have are added as parts, its options are updated, and its id is returned. |
 | `pause` | `job_id` | `null` | FR-34: in-flight items finish, then `job_state: paused`. |
 | `resume` | `job_id` | `null` | Resumes a paused job, a job in `free_limit_reached` (see below), a job listed by `list_resumable_jobs` that is not in memory (loads state from app data first), or a finished job after `add_part` (processes only the newly available items) or after `activate` (processes the `skipped_free_limit` items). |
 | `cancel` | `job_id` | `null` | Keeps completed output and state; ends with `job_state: cancelled`. |
@@ -171,10 +173,18 @@ AppInfo { version, os_family, licenses_path, third_party_notices_path, ffmpeg_so
           privacy_policy_url, support_email, website_url }
 ```
 
-Thumbnails: `thumbnail_path` is an absolute path to a small JPEG/PNG the engine
+Thumbnails: `thumbnail_path` is an absolute path to an image the engine
 writes under the app cache directory (`$APPCACHE/thumbnails/<plan_id>/…`). The
 window loads it through Tauri's asset protocol (`convertFileSrc`), which
-`tauri.conf.json` scopes to `$APPCACHE/**` and nothing else.
+`tauri.conf.json` scopes to `$APPCACHE/thumbnails/**` and nothing else. Today
+the engine copies the photo itself out of the export (the web view scales it)
+and sends `null` for videos; the five newest preview folders are kept.
+
+As built today: `clip_groups` is empty until clip detection lands in mr-job
+(FR-27); `estimated_seconds` uses the NFR-PERF-03 rates (20 photos/s, 5
+videos/s) for the items that will run; while no compositor is installed,
+`warnings` carries `ENCODER_UNAVAILABLE` with the number of overlays, which
+are then saved beside their files instead of burned in.
 
 ## Events
 
@@ -206,9 +216,16 @@ ItemOutcome { item_id, name, media_type, status: ItemStatus, error_code | null,
 ItemStatus = "done" | "metadata_partial" | "location_uncertain" | "missing_media" | "failed" | "skipped_free_limit"
 ```
 
-`items_total` counts every item the job will account for, including
-`missing_media` ones (they are "processed" instantly with that status), so
-`items_done == items_total` at the end of a complete run.
+`items_total` counts the items with media this run may process (on the free
+tier, the first 100). `missing_media` entries are not processed; they appear
+only in the report. After an unlock, a retry or an added part, the counts
+cover the whole job again.
+
+Engine codes outside SRS 8 are mapped before they reach the window:
+`ENTRY_REFUSED` → `PART_TRUNCATED`; `INPUT_UNAVAILABLE`, `INPUT_CHANGED` →
+`PART_MISSING`; `COMPOSITE_PENDING` → `ENCODER_UNAVAILABLE` (preview warning);
+`DEST_UNAVAILABLE` → `job_state: paused` with that error, `DEST_AVAILABLE` →
+`job_state: running`; anything else → `UNKNOWN`.
 
 ## Job state machine
 
@@ -248,7 +265,10 @@ onto `JobOptions` plus the chosen destination; a job carries its own
 ## Licence (§9)
 
 `activate` is the only call that talks to Gumroad from the window's point of
-view. Background re-checks (≤ every 30 days, `increment_uses_count=false`) are
+view. The Gumroad product comes from build configuration
+(`MR_GUMROAD_PRODUCT_ID`, `MR_GUMROAD_PRODUCT_URL`, `MR_PRICE_DISPLAY` at build
+time; debug builds also read them, and `MR_GUMROAD_VERIFY_URL`, at run time).
+A build without a product id answers `activate` with `LICENSE_OFFLINE`. Background re-checks (≤ every 30 days, `increment_uses_count=false`) are
 the engine's business; they never emit anything unless the licence is revoked,
 in which case `license_status` reports `tier: "grace"` with `grace_until` and
 the engine emits one `warning` with code `LICENSE_INVALID`.
@@ -276,4 +296,5 @@ When you change this file or `src/ipc/types.ts`:
 - [ ] `ERROR_CODES` matches the §8 table and the list above
 - [ ] every event payload field is in both places
 - [ ] the mock (`src/ipc/mock/engine.ts`) still type-checks (`npm run build`) and its tests pass (`npm test`)
-- [ ] the Rust types in `src-tauri/src/ipc.rs` (engine side) are updated and `cargo clippy -D warnings` is green
+- [ ] the Rust types in `src-tauri/src/ipc.rs` are updated and `cargo clippy -D warnings` is green
+- [ ] `WRITE_IPC_SAMPLES=1 npm test` rewrote `src-tauri/tests/ipc-samples/`, and `cargo test -p memories-rescue --test ipc_samples` passes (the Rust types round-trip what the mock produces)

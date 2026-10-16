@@ -110,6 +110,15 @@ function Coordinates(props: { item: PlanItem }) {
   const i18n = useI18n();
   const t = i18n.t;
   const { latitude: lat, longitude: lon, location_decision: d } = props.item;
+  // The engine sends no coordinates for an uncertain match it does not apply.
+  if (d === "uncertain" && (lat === null || lon === null)) {
+    return (
+      <span class="loc loc-uncertain">
+        <IconPinOff size={16} />
+        {t("preview-loc-uncertain")}
+      </span>
+    );
+  }
   if (lat === null || lon === null || d === "none") {
     return (
       <span class="loc loc-none">

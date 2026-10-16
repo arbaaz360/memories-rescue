@@ -14,6 +14,8 @@ declare global {
     __mrBoot?: { backend: string; reason: string; detail: string | null; sidecars: unknown };
     /** Dev builds only: run axe-core on the current page. */
     __runAxe?: () => Promise<unknown>;
+    /** Dev builds only: the store, so verification scripts can add real paths without a picker. */
+    __mrStore?: AppStore;
   }
 }
 
@@ -52,6 +54,7 @@ async function boot(): Promise<void> {
 
   if (import.meta.env.DEV) {
     window.__mrBoot = { backend: selection.backend.kind, reason: selection.reason, detail: selection.detail, sidecars: null };
+    window.__mrStore = store;
     window.__runAxe = async () => {
       const axe = (await import("axe-core")).default;
       return axe.run(document, { runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"] } });

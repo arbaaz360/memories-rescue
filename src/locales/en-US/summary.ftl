@@ -99,6 +99,12 @@ issue-match-partial =
        *[other] The exact time is unknown for { $count } memories
     }
     .body = These get the date from their file name. If you added an extracted folder, add the original ZIP files instead: the order of files inside them is what gives exact times.
+issue-encoder-unavailable =
+    { $count ->
+        [one] The caption can't be added to the picture yet
+       *[other] Captions can't be added to the pictures yet
+    }
+    .body = The part that draws captions onto photos and videos isn't available, so { $count } captions are saved next to their files instead. Dates and places are still fixed, and the captions can be added later without redoing anything else.
 issue-location-uncertain =
     { $count ->
         [one] Location left out for one memory

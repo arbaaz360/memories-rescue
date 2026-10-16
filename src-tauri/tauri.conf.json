@@ -43,7 +43,8 @@
       "binaries/exiftool"
     ],
     "resources": {
-      "binaries/exiftool_files/": "exiftool_files/"
+      "binaries/exiftool_files/": "exiftool_files/",
+      "../THIRD_PARTY_NOTICES.md": "THIRD_PARTY_NOTICES.md"
     },
     "windows": {
       "webviewInstallMode": {
