@@ -1,0 +1,26 @@
+[package]
+name = "mr-composite"
+description = "Media for Memories Rescue: native MP4 probe, photo and video overlay compositing, clip rejoin (SRS FR-23, FR-24, FR-27, FR-51)"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+chrono = { workspace = true, features = ["serde"] }
+image = { version = "0.25", default-features = false, features = ["jpeg", "png"] }
+log = "0.4"
+serde.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = [
+    "Win32_Foundation",
+    "Win32_System_Com",
+    "Win32_System_LibraryLoader",
+    "Win32_System_Registry",
+] }
