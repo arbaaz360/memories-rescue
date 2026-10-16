@@ -12,10 +12,16 @@
 //! * the app's own log folder.
 //!
 //! Everything else is refused, and the refusal is logged.
+//!
+//! Links work the same way: the window names one of the app's own outside
+//! addresses (`open_link`) and Rust looks it up, so a compromised window can
+//! open no other address (it has no opener permission, and the purchase link
+//! is the build's Gumroad product URL, not something the window sends).
 
 use std::path::{Path, PathBuf};
 
-use crate::ipc::{ErrorCode, IpcError, IpcResult};
+use crate::ipc::{ErrorCode, IpcError, IpcResult, LinkName};
+use crate::links::LINKS;
 
 use super::{Engine, plain_path, redact_home};
 
@@ -23,6 +29,31 @@ use super::{Engine, plain_path, redact_home};
 const REPORT_FILES: [&str; 3] = ["report.html", "report.csv", "preview-report.html"];
 
 impl Engine {
+    /// The address `open_link` opens for `link`: https only, or `mailto:` for support.
+    pub fn link_url(&self, link: LinkName) -> IpcResult<String> {
+        let url = match link {
+            LinkName::Website => LINKS.website.clone(),
+            LinkName::Privacy => LINKS.privacy.clone(),
+            LinkName::Terms => LINKS.terms.clone(),
+            LinkName::Faq => LINKS.faq.clone(),
+            LinkName::FfmpegSource => LINKS.ffmpeg_source.clone(),
+            LinkName::Support => format!("mailto:{}", LINKS.support_email),
+            LinkName::Purchase => self.license.config.product_url.clone(),
+        };
+        let ok = match link {
+            LinkName::Support => url.starts_with("mailto:") && !url.contains(['?', '&']),
+            _ => url.starts_with("https://"),
+        };
+        if ok {
+            Ok(url)
+        } else {
+            Err(
+                IpcError::unknown("That link is not available in this build.")
+                    .with_detail(format!("{link:?}")),
+            )
+        }
+    }
+
     /// Remember a file this session wrote for the user to open.
     pub(crate) fn issue_path(&self, path: &Path) {
         self.issued.lock().expect("issued").push(path.to_path_buf());

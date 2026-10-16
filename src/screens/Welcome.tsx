@@ -88,7 +88,7 @@ export function Welcome() {
         <p>{t("welcome-not-affiliated")}</p>
         <p>
           {t("welcome-help")}{" "}
-          <button type="button" class="link-btn" onClick={() => void store.host.openUrl(`mailto:${support}`)}>
+          <button type="button" class="link-btn" onClick={() => void store.openLink("support")}>
             <IconMail size={16} />
             {support}
           </button>

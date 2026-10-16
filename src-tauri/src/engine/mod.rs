@@ -107,6 +107,9 @@ impl Engine {
         gumroad: license::GumroadConfig,
     ) -> Arc<Engine> {
         let _ = std::fs::create_dir_all(&paths.state_dir);
+        // Earlier versions copied sample photos into the cache for the asset
+        // protocol; thumbnails are made in memory now, so remove those copies.
+        let _ = std::fs::remove_dir_all(paths.cache_dir.join("thumbnails"));
         let settings = settings::load(&paths);
         let license = license::Licenser::new(paths.state_dir.clone(), secrets, gumroad);
         let media = paths

@@ -140,6 +140,7 @@ pub fn run() {
             commands::activate,
             commands::deactivate,
             commands::open_path,
+            commands::open_link,
             commands::diagnostics_preview,
             commands::check_update,
             commands::install_update,
@@ -165,6 +166,65 @@ mod tests {
                 env!("TARGET_TRIPLE"),
                 std::env::consts::EXE_SUFFIX
             ))
+    }
+
+    /// The window's permissions and CSP stay what the security review left
+    /// them: no opener (files and links open from Rust), no fs, http or
+    /// shell, no asset protocol, and no dev-server address in release builds.
+    #[test]
+    fn window_capabilities_and_csp_stay_minimal() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let cap: serde_json::Value = serde_json::from_str(
+            &std::fs::read_to_string(root.join("capabilities").join("default.json")).unwrap(),
+        )
+        .unwrap();
+        let perms: Vec<String> = cap["permissions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|p| {
+                p.as_str()
+                    .map(str::to_string)
+                    .or_else(|| p["identifier"].as_str().map(str::to_string))
+                    .unwrap()
+            })
+            .collect();
+        assert_eq!(
+            perms,
+            [
+                "core:default",
+                "dialog:allow-open",
+                "notification:allow-is-permission-granted",
+                "notification:allow-request-permission",
+                "notification:allow-notify",
+            ]
+        );
+        let conf: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(root.join("tauri.conf.json")).unwrap())
+                .unwrap();
+        let security = &conf["app"]["security"];
+        let csp = security["csp"].as_str().unwrap();
+        assert!(
+            !csp.contains("ws:") && !csp.contains("localhost:1420"),
+            "{csp}"
+        );
+        assert!(!csp.contains("asset:"), "{csp}");
+        assert!(
+            security["devCsp"]
+                .as_str()
+                .unwrap()
+                .contains("ws://localhost:1420")
+        );
+        assert!(
+            security["assetProtocol"]["enable"].as_bool() != Some(true),
+            "the asset protocol stays off"
+        );
+        // Neither may the release overlay turn any of it back on.
+        let release: serde_json::Value = serde_json::from_str(
+            &std::fs::read_to_string(root.join("tauri.release.conf.json")).unwrap(),
+        )
+        .unwrap();
+        assert!(release["app"]["security"].is_null());
     }
 
     /// Runs the real sidecar files when they are present. On the CI runners,

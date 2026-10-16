@@ -167,6 +167,16 @@ pub fn open_path(engine: E<'_>, app: AppHandle, path: String) -> IpcResult<()> {
         .map_err(|e| IpcError::unknown("The system could not open it.").with_detail(e.to_string()))
 }
 
+/// Opens one of the app's own outside addresses (`engine/open.rs`). The
+/// window has no opener permission: this is the only way it opens a link.
+#[tauri::command]
+pub fn open_link(engine: E<'_>, app: AppHandle, link: LinkName) -> IpcResult<()> {
+    let url = engine.link_url(link)?;
+    app.opener()
+        .open_url(url, None::<&str>)
+        .map_err(|e| IpcError::unknown("The system could not open it.").with_detail(e.to_string()))
+}
+
 #[tauri::command]
 pub async fn diagnostics_preview(engine: E<'_>) -> IpcResult<DiagnosticsPreview> {
     let e = engine.inner().clone();

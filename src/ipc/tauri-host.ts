@@ -1,18 +1,19 @@
-import { convertFileSrc } from "@tauri-apps/api/core";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { open } from "@tauri-apps/plugin-dialog";
-import { openUrl } from "@tauri-apps/plugin-opener";
 import { isPermissionGranted, requestPermission, sendNotification } from "@tauri-apps/plugin-notification";
 import type { Unlisten } from "./backend";
 import { detectPlatform, type DragDropEvent, type Host, type PickerText, type Platform } from "./host";
-import { mockThumbnailUrl } from "./mock/thumbs";
 
 function asList(picked: string | string[] | null): string[] {
   if (picked === null) return [];
   return Array.isArray(picked) ? picked : [picked];
 }
 
-/** Real platform services through the dialog, opener and notification plugins. */
+/**
+ * Real platform services through the dialog and notification plugins. The
+ * window opens no URL and no file itself: links go through the `open_link`
+ * command and files through `open_path`, both resolved in Rust.
+ */
 export class TauriHost implements Host {
   readonly kind = "tauri" as const;
   readonly platform: Platform = detectPlatform(navigator.userAgent);
@@ -42,17 +43,9 @@ export class TauriHost implements Host {
     });
   }
 
-  async openUrl(url: string): Promise<void> {
-    await openUrl(url);
-  }
-
   async notify(title: string, body: string): Promise<void> {
     let granted = await isPermissionGranted();
     if (!granted) granted = (await requestPermission()) === "granted";
     if (granted) sendNotification({ title, body });
-  }
-
-  assetUrl(path: string): string {
-    return mockThumbnailUrl(path) ?? convertFileSrc(path);
   }
 }

@@ -1,30 +1,13 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Main window: exactly what the screens use. Pickers (dialog open only: no save, no message boxes), opening NovaByteWorks, Gumroad and the support address in the browser (no paths: the engine's open_path command opens folders), and the completion notification. No http plugin (NFR-PRV-03), no fs, no shell from the window: the sidecars run from Rust.",
+  "description": "Main window: exactly what the screens use. Pickers (dialog open only: no save, no message boxes) and the completion notification. No opener: files and links open from Rust (open_path, open_link) and only what the engine hands out. No http plugin (NFR-PRV-03), no fs, no shell, no asset protocol: the sidecars run from Rust and thumbnails arrive as data: URLs.",
   "windows": [
     "main"
   ],
   "permissions": [
     "core:default",
     "dialog:allow-open",
-    {
-      "identifier": "opener:allow-open-url",
-      "allow": [
-        {
-          "url": "https://novabyteworks.com/*"
-        },
-        {
-          "url": "https://gumroad.com/*"
-        },
-        {
-          "url": "https://*.gumroad.com/*"
-        },
-        {
-          "url": "mailto:support@novabyteworks.com"
-        }
-      ]
-    },
     "notification:allow-is-permission-granted",
     "notification:allow-request-permission",
     "notification:allow-notify"

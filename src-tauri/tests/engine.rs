@@ -284,16 +284,28 @@ fn plan_preview_is_consistent_and_writes_only_thumbnails() {
         .collect();
     assert!(!photo_thumbs.is_empty());
     for s in &photo_thumbs {
-        let thumb = s
-            .thumbnail_path
-            .as_ref()
-            .expect("photo samples get a thumbnail");
-        assert!(
-            Path::new(thumb).starts_with(env.root.join("cache").join("thumbnails")),
-            "{thumb}"
-        );
-        assert!(std::fs::metadata(thumb).unwrap().len() > 0);
+        let thumb = s.thumbnail.as_ref().expect("photo samples get a thumbnail");
+        // A small JPEG in memory, never a file the window would load from disk.
+        let b64 = thumb
+            .strip_prefix("data:image/jpeg;base64,")
+            .unwrap_or_else(|| panic!("{}", &thumb[..40.min(thumb.len())]));
+        use base64::Engine as _;
+        let jpeg = base64::engine::general_purpose::STANDARD
+            .decode(b64)
+            .unwrap();
+        let img = image::load_from_memory(&jpeg).unwrap();
+        assert!(img.width().max(img.height()) <= 160);
     }
+    assert!(
+        p.samples
+            .iter()
+            .filter(|s| s.media_type == MediaType::Video)
+            .all(|s| s.thumbnail.is_none())
+    );
+    assert!(
+        !env.root.join("cache").join("thumbnails").exists(),
+        "no thumbnail files on disk"
+    );
     let months: u64 = p
         .tree
         .children
@@ -904,4 +916,42 @@ fn a_licence_in_its_grace_period_is_checked_again_and_restored() {
             .all(|b| b.contains("increment_uses_count=false")),
         "re-checks never count a use"
     );
+}
+
+#[test]
+fn open_link_opens_only_the_apps_own_addresses() {
+    let env = env_with(GumroadConfig {
+        product_id: None,
+        verify_url: String::new(),
+        product_url: "https://novabyteworks.gumroad.com/l/memories-rescue".into(),
+        price_display: None,
+        activation_limit: DEFAULT_ACTIVATION_LIMIT,
+    });
+    let info = env.engine.app_info();
+    let want = [
+        (LinkName::Website, info.website_url.clone()),
+        (LinkName::Privacy, info.privacy_policy_url.clone()),
+        (LinkName::Terms, info.terms_url.clone()),
+        (LinkName::Faq, info.faq_url.clone()),
+        (LinkName::FfmpegSource, info.ffmpeg_source_url.clone()),
+        (LinkName::Support, format!("mailto:{}", info.support_email)),
+        (
+            LinkName::Purchase,
+            "https://novabyteworks.gumroad.com/l/memories-rescue".to_string(),
+        ),
+    ];
+    for (link, url) in want {
+        assert_eq!(env.engine.link_url(link).unwrap(), url, "{link:?}");
+    }
+    // A build whose purchase URL is not https gets no purchase link at all.
+    let bad = env_with(GumroadConfig {
+        product_id: None,
+        verify_url: String::new(),
+        product_url: "file:///C:/Windows/System32/calc.exe".into(),
+        price_display: None,
+        activation_limit: DEFAULT_ACTIVATION_LIMIT,
+    });
+    assert!(bad.engine.link_url(LinkName::Purchase).is_err());
+    // The window can only name a link: anything else does not deserialise.
+    assert!(serde_json::from_str::<LinkName>("\"https://evil.example\"").is_err());
 }
