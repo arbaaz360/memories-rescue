@@ -6,9 +6,11 @@
 //! contract's events, and maps the outcome onto a `job_state`. A `Job` is not
 //! `Sync`, so commands that read state open a second handle (SQLite WAL).
 //!
-//! Free tier: mr-job marks everything after the first 100 items
-//! `skipped_free_limit` up front and a run completes after those 100. The
-//! first time that happens the job reports `free_limit_reached` and waits;
+//! Free tier: 100 items per install (FR-44, `mr_job::free`). mr-job marks
+//! what this computer's free set does not cover `skipped_free_limit` up
+//! front (re-processing items it already covered stays free, in any
+//! folder) and a run completes after the rest. The first time that happens
+//! the job reports `free_limit_reached` and waits;
 //! `resume` then unlocks and continues (licence present) or finishes the job
 //! as `partial` (no licence), as the contract describes.
 //!

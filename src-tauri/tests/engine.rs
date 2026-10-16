@@ -12,7 +12,7 @@ use std::sync::{Arc, Mutex, Once};
 use std::time::{Duration, Instant};
 
 use memories_rescue_lib::engine::license::{
-    DEFAULT_ACTIVATION_LIMIT, GumroadConfig, MemorySecrets,
+    DEFAULT_ACTIVATION_LIMIT, GumroadConfig, MemorySecrets, SecretStore,
 };
 use memories_rescue_lib::engine::{CollectingSink, Engine, Paths};
 use memories_rescue_lib::ipc::*;
@@ -72,6 +72,8 @@ struct Env {
     sink: Arc<CollectingSink>,
     root: PathBuf,
     dest: PathBuf,
+    secrets: Arc<MemorySecrets>,
+    gumroad: GumroadConfig,
 }
 
 impl Drop for Env {
@@ -80,8 +82,12 @@ impl Drop for Env {
     }
 }
 
-fn env_with(gumroad: GumroadConfig) -> Env {
-    let root = std::env::temp_dir().join(format!("mr-engine-{}", uuid::Uuid::new_v4().simple()));
+/// An engine on `root`'s folders, as the app starts one.
+fn engine_at(
+    root: &Path,
+    secrets: Arc<MemorySecrets>,
+    gumroad: GumroadConfig,
+) -> (Arc<Engine>, Arc<CollectingSink>) {
     let paths = Paths {
         state_dir: root.join("state"),
         cache_dir: root.join("cache"),
@@ -97,12 +103,14 @@ fn env_with(gumroad: GumroadConfig) -> Env {
         std::fs::create_dir_all(d).unwrap();
     }
     let sink = Arc::new(CollectingSink::default());
-    let engine = Engine::new(
-        paths,
-        sink.clone(),
-        Arc::new(MemorySecrets::default()),
-        gumroad,
-    );
+    let engine = Engine::new(paths, sink.clone(), secrets, gumroad);
+    (engine, sink)
+}
+
+fn env_with(gumroad: GumroadConfig) -> Env {
+    let root = std::env::temp_dir().join(format!("mr-engine-{}", uuid::Uuid::new_v4().simple()));
+    let secrets = Arc::new(MemorySecrets::default());
+    let (engine, sink) = engine_at(&root, secrets.clone(), gumroad.clone());
     let dest = root.join("out");
     std::fs::create_dir_all(&dest).unwrap();
     Env {
@@ -110,6 +118,17 @@ fn env_with(gumroad: GumroadConfig) -> Env {
         sink,
         root,
         dest,
+        secrets,
+        gumroad,
+    }
+}
+
+impl Env {
+    /// Quit and start the app again: same app data, same keychain.
+    fn restart(&mut self) {
+        let (engine, sink) = engine_at(&self.root, self.secrets.clone(), self.gumroad.clone());
+        self.engine = engine;
+        self.sink = sink;
     }
 }
 
@@ -319,6 +338,7 @@ fn plan_preview_is_consistent_and_writes_only_thumbnails() {
         FreeLimitInfo {
             applies: true,
             limit: 100,
+            free_items: 100,
             items_beyond: t.items - 100
         }
     );
@@ -954,4 +974,151 @@ fn open_link_opens_only_the_apps_own_addresses() {
     assert!(bad.engine.link_url(LinkName::Purchase).is_err());
     // The window can only name a link: anything else does not deserialise.
     assert!(serde_json::from_str::<LinkName>("\"https://evil.example\"").is_err());
+}
+
+/// Starts a job of `inputs` into `dest` and waits for its free-limit stop.
+fn run_to_free_limit(env: &Env, ids: &[String], dest: &Path) -> (String, Vec<String>, usize) {
+    let mut o = options(env);
+    o.destination = dest.to_string_lossy().into_owned();
+    let job = env.engine.start(ids, &o).unwrap();
+    let (state, _, seen) = wait_state(
+        env,
+        &job,
+        0,
+        &[
+            JobState::FreeLimitReached,
+            JobState::Done,
+            JobState::Partial,
+            JobState::Failed,
+        ],
+    );
+    assert_eq!(state, JobState::FreeLimitReached);
+    let mut processed: Vec<String> = items_for(env, &job)
+        .into_iter()
+        .filter(|i| i.status != ItemStatus::SkippedFreeLimit)
+        .map(|i| i.item_id)
+        .collect();
+    processed.sort();
+    (job, processed, seen)
+}
+
+fn free_preview(env: &Env, ids: &[String], dest: &Path) -> FreeLimitInfo {
+    let mut o = options(env);
+    o.destination = dest.to_string_lossy().into_owned();
+    env.engine.plan(ids, &o).unwrap().free_limit
+}
+
+#[test]
+fn the_free_tier_is_per_install_across_folders_unlock_and_restarts() {
+    let (url, _, _) = fake_gumroad();
+    let mut env = env_with(GumroadConfig {
+        product_id: Some("prod-123".into()),
+        verify_url: url,
+        product_url: "https://example.invalid".into(),
+        price_display: None,
+        activation_limit: DEFAULT_ACTIVATION_LIMIT,
+    });
+    let ids = usable_ids(
+        &env.engine
+            .add_inputs(&zips(&fixture("free-limit")))
+            .unwrap(),
+    );
+    assert_eq!(env.engine.license.status().free_used, 0);
+
+    // The first folder: 100, then "Later".
+    let (first, first_100, seen) = run_to_free_limit(&env, &ids, &env.dest.join("one"));
+    assert_eq!(first_100.len(), 100);
+    env.engine.resume(&first).unwrap();
+    let (state, _, _) = wait_state(&env, &first, seen, &[JobState::Partial, JobState::Done]);
+    assert_eq!(state, JobState::Partial);
+    assert_eq!(env.engine.license.status().free_used, 100);
+
+    // Another folder: no new allowance. The preview, the stop and the S6
+    // counts agree: the same 100 are processed again, free.
+    let two = env.dest.join("two");
+    assert_eq!(
+        free_preview(&env, &ids, &two),
+        FreeLimitInfo {
+            applies: true,
+            limit: 100,
+            free_items: 100,
+            items_beyond: 150
+        }
+    );
+    let (second, again, seen) = run_to_free_limit(&env, &ids, &two);
+    assert_eq!(again, first_100, "exactly the same first 100");
+    let r = env.engine.get_report(&second).unwrap();
+    assert_eq!(r.counts.skipped_free_limit, 150);
+    assert_eq!(
+        r.counts.done + r.counts.metadata_partial + r.counts.location_uncertain + r.counts.failed,
+        100
+    );
+    assert!(r.can_unlock);
+
+    // Unlock (fake Gumroad), resume: only the other 150; licensed work
+    // leaves the free set as it was.
+    assert_eq!(
+        env.engine.license.activate("GOOD-KEY").unwrap().tier,
+        LicenseTier::Licensed
+    );
+    let before = items_for(&env, &second).len();
+    env.engine.resume(&second).unwrap();
+    let (state, _, _) = wait_state(&env, &second, seen, &[JobState::Done, JobState::Partial]);
+    let rest: Vec<ItemOutcome> = items_for(&env, &second).split_off(before);
+    assert_eq!(rest.len(), 150, "{state:?}");
+    assert!(
+        rest.iter()
+            .all(|i| first_100.binary_search(&i.item_id).is_err())
+    );
+    assert_eq!(
+        env.engine
+            .get_report(&second)
+            .unwrap()
+            .counts
+            .skipped_free_limit,
+        0
+    );
+    let licensed = env.engine.license.status();
+    assert_eq!(
+        (licensed.tier, licensed.free_used),
+        (LicenseTier::Licensed, 100)
+    );
+    let unlocked = free_preview(&env, &ids, &env.dest.join("three"));
+    assert_eq!((unlocked.applies, unlocked.items_beyond), (false, 0));
+    env.engine.license.deactivate();
+
+    // The free set's file deleted, the app restarted: the keychain count
+    // stands, so a third folder gets nothing new, and nothing is free to
+    // redo either.
+    let file = env.root.join("state").join("free-set.json");
+    assert!(file.is_file());
+    std::fs::remove_file(&file).unwrap();
+    env.restart();
+    let ids = usable_ids(
+        &env.engine
+            .add_inputs(&zips(&fixture("free-limit")))
+            .unwrap(),
+    );
+    assert_eq!(env.engine.license.status().free_used, 100);
+    assert_eq!(
+        free_preview(&env, &ids, &env.dest.join("three")),
+        FreeLimitInfo {
+            applies: true,
+            limit: 100,
+            free_items: 0,
+            items_beyond: 250
+        }
+    );
+
+    // A tampered file is read as missing: the same answer.
+    std::fs::write(&file, br#"{"version":1,"items":[],"hmac":"0"}"#).unwrap();
+    env.restart();
+    assert_eq!(env.engine.license.status().free_used, 100);
+
+    // Only removing the keychain's count as well resets it (the documented
+    // limit of casual-tampering resistance, SRS 9.3 rule 5).
+    std::fs::remove_file(&file).unwrap();
+    env.secrets.delete("free-count");
+    env.restart();
+    assert_eq!(env.engine.license.status().free_used, 0);
 }

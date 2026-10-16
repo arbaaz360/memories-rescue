@@ -405,7 +405,11 @@ pub struct LocationBreakdown {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct FreeLimitInfo {
     pub applies: bool,
+    /// Items the free tier processes per install (FR-44).
     pub limit: u64,
+    /// Of these memories, the ones the free tier processes: those it
+    /// already processed on this computer, plus the places left.
+    pub free_items: u64,
     pub items_beyond: u64,
 }
 
@@ -630,6 +634,8 @@ pub struct LicenseStatus {
     pub product_url: String,
     pub price_display: Option<String>,
     pub free_limit: u64,
+    /// Items this computer has processed on the free tier (FR-44, per install).
+    pub free_used: u64,
     /// Q-06: computers one key may be activated on (build configuration).
     pub activation_limit: u64,
 }

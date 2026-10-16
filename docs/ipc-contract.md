@@ -145,7 +145,7 @@ PlanPreview {
   warnings: Issue[],
   space: SpaceEstimate,
   estimated_seconds,
-  free_limit: { applies, limit, items_beyond },
+  free_limit: { applies, limit, free_items, items_beyond },   // FR-44 per install: free_items = already covered here + places left
   hevc_notice: { hevc, sampled } | null   // null once windows_compatibility is on
 }
 
@@ -176,6 +176,7 @@ Settings { destination,                // last used; first default = the user's 
 
 LicenseStatus { tier: "free"|"licensed"|"grace", key_masked | null, verified_at | null,
                 last_check_at | null, grace_until | null, product_url, price_display | null, free_limit,
+                free_used,             // FR-44: items this computer has processed on the free tier
                 activation_limit }     // Q-06, build configuration (MR_ACTIVATION_LIMIT, default 5)
 
 AppInfo { version, os_family, licenses_path, third_party_notices_path, ffmpeg_source_url,
@@ -260,10 +261,14 @@ add_part (state unchanged), then resume on done | partial | cancelled ─► run
 resume on a ResumableJob ─► running
 ```
 
-Free limit (FR-44): on the free tier the engine processes the first 100 items
-in chronological order, emits `job_state: free_limit_reached` and waits. The
-window shows the Unlock dialog over S5. **Activate** then `resume` continues
-with item 101. **Later** calls `resume` without a licence; the engine then
+Free limit (FR-44): the free tier is 100 items per install, not per job. An
+item runs free when this computer already processed it on the free tier (the
+same memories into another folder, or a retry), or while fewer than 100 have
+been; new items go in chronological order. The rest are `skipped_free_limit`
+from the start; the engine emits `job_state: free_limit_reached` and waits.
+`plan` gives the same figures (`free_limit.free_items`, `items_beyond`) and
+`LicenseStatus.free_used` how many are used. The window shows the Unlock
+dialog over S5. **Activate** then `resume` continues with the rest. **Later** calls `resume` without a licence; the engine then
 marks the rest `skipped_free_limit`, finishes as `partial`, and the report
 says `can_unlock: true` so S6 can offer "Unlock to finish", which is
 `activate` followed by `resume` on the same job id. Dry runs are never

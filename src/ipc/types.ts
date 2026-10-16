@@ -287,7 +287,10 @@ export interface LocationBreakdown {
 export interface FreeLimitInfo {
   /** False when licensed. */
   applies: boolean;
+  /** Items the free tier processes per computer (FR-44, per install). */
   limit: number;
+  /** Of these memories, the ones the free tier processes: any this computer already processed, plus the places left. */
+  free_items: number;
   /** Items that would be skipped without a licence. */
   items_beyond: number;
 }
@@ -527,6 +530,8 @@ export interface LicenseStatus {
   /** Display string from build configuration, null until the price is final (Q-05). */
   price_display: string | null;
   free_limit: number;
+  /** Items this computer has processed on the free tier (FR-44, per install). */
+  free_used: number;
   /** Computers one key may be activated on (Q-06, build configuration). */
   activation_limit: number;
 }

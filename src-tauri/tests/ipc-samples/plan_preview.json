@@ -2656,6 +2656,7 @@
   "free_limit": {
     "applies": true,
     "limit": 100,
+    "free_items": 100,
     "items_beyond": 3450
   },
   "hevc_notice": null
