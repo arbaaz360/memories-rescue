@@ -32,7 +32,7 @@ are licensed under the Database Contents License:
 
 | Component | Version | Licence | Notes |
 |---|---|---|---|
-| [little_exif](https://github.com/TechnikTobi/little_exif) | 0.6 | MIT | EXIF read/write for JPEG and PNG. |
+| [little_exif](https://github.com/TechnikTobi/little_exif) | 0.6 | MIT OR Apache-2.0 | EXIF read/write for JPEG and PNG. |
 
 ## Engine (crates/mr-job)
 
@@ -48,7 +48,8 @@ are licensed under the Database Contents License:
 | [windows-sys](https://crates.io/crates/windows-sys) | MIT OR Apache-2.0 | `SetThreadExecutionState` (FR-36). |
 | [libc](https://crates.io/crates/libc) | MIT OR Apache-2.0 | `setattrlist` on macOS (FR-20). |
 | [crc32fast](https://crates.io/crates/crc32fast) | MIT OR Apache-2.0 | ZIP recovery and the PNG `eXIf` chunk. |
-| [zip](https://crates.io/crates/zip), [flate2](https://crates.io/crates/flate2) | MIT | ZIP reading (crates/mr-core). |
+| [zip](https://crates.io/crates/zip) | MIT | ZIP reading (crates/mr-core). |
+| [flate2](https://crates.io/crates/flate2) | MIT OR Apache-2.0 | Deflate for ZIP recovery (crates/mr-core). |
 
 ## Sidecars (not bundled in v1.0 unless a later decision says so)
 
