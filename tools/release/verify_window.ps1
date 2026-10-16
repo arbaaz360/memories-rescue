@@ -37,6 +37,10 @@ function Get-Texts($root) {
     return $texts | Select-Object -Unique
 }
 
+# `powershell -File` hands a comma-joined argument over as one string; split it.
+$Expect = @($Expect | ForEach-Object { $_ -split "," } | Where-Object { $_ -ne "" })
+$Reject = @($Reject | ForEach-Object { $_ -split "," } | Where-Object { $_ -ne "" })
+
 $deadline = (Get-Date).AddSeconds($WaitSeconds)
 $proc = $null
 while ((Get-Date) -lt $deadline) {
