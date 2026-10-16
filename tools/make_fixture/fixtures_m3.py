@@ -74,22 +74,45 @@ class Tools:
     x265: bool
 
 
+def _candidates(ctx: Context) -> list[str]:
+    """MR_FIXTURE_FFMPEG alone when set; otherwise every ffmpeg on PATH, in
+    order. The first one found is often not the right one: `cargo test` puts
+    target/debug first on PATH on Windows, and tauri-build copies the LGPL
+    sidecar (no libx264) there."""
+    env = os.environ.get(FFMPEG_ENV)
+    if env:
+        return [env]
+    if ctx.ffmpeg is None:  # --no-video, or no ffmpeg on PATH at all
+        return []
+    exe = "ffmpeg.exe" if os.name == "nt" else "ffmpeg"
+    found = [ctx.ffmpeg.path]
+    for d in os.environ.get("PATH", "").split(os.pathsep):
+        p = os.path.join(d, exe)
+        if d and os.path.isfile(p):
+            found.append(p)
+    seen, out = set(), []
+    for p in found:
+        key = os.path.normcase(os.path.abspath(p))
+        if key not in seen:
+            seen.add(key)
+            out.append(p)
+    return out
+
+
 def _tools(ctx: Context) -> tuple[Tools | None, str]:
-    """ffmpeg for generation, or (None, reason)."""
-    if ctx.ffmpeg is None and not os.environ.get(FFMPEG_ENV):
-        return None, "ffmpeg_missing"
-    path = os.environ.get(FFMPEG_ENV) or (ctx.ffmpeg.path if ctx.ffmpeg else None)
-    if not path:
-        return None, "ffmpeg_missing"
-    try:
-        version = subprocess.run([path, "-version"], capture_output=True, text=True, check=True, timeout=30).stdout.splitlines()[0]
-        listing = subprocess.run([path, "-hide_banner", "-encoders"], capture_output=True, text=True, check=True, timeout=30).stdout
-    except (OSError, subprocess.SubprocessError):
-        return None, "ffmpeg_missing"
-    names = {line.split()[1] for line in listing.splitlines() if line.startswith(" V") and len(line.split()) > 1}
-    if "libx264" not in names:
-        return None, "ffmpeg_without_libx264"
-    return Tools(ffmpeg=path, version=version, x265="libx265" in names), ""
+    """The first ffmpeg with libx264, or (None, reason)."""
+    reason = "ffmpeg_missing"
+    for path in _candidates(ctx):
+        try:
+            version = subprocess.run([path, "-version"], capture_output=True, text=True, check=True, timeout=30).stdout.splitlines()[0]
+            listing = subprocess.run([path, "-hide_banner", "-encoders"], capture_output=True, text=True, check=True, timeout=30).stdout
+        except (OSError, subprocess.SubprocessError, IndexError):
+            continue
+        names = {line.split()[1] for line in listing.splitlines() if line.startswith(" V") and len(line.split()) > 1}
+        if "libx264" in names:
+            return Tools(ffmpeg=path, version=version, x265="libx265" in names), ""
+        reason = "ffmpeg_without_libx264"
+    return None, reason
 
 
 def _ff(tools: Tools, args: list[str]) -> None:

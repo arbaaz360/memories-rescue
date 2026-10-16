@@ -35,6 +35,10 @@ pub struct VideoOptions {
     /// H.264 needs more bits than HEVC for the same quality; an HEVC
     /// source's bitrate is multiplied by this.
     pub hevc_to_h264_factor: f64,
+    /// Extra bitrate for Microsoft's software H.264 MFT, which needs about
+    /// 1.3x the bits of OpenH264 for the same SSIM (measured; see the API
+    /// doc). 1.0 keeps §4.4's "matched to the source"; Q-04 decides.
+    pub mf_software_bitrate_factor: f64,
     /// Bitrate of the native `aac` encoder when audio cannot be copied.
     pub audio_kbps: u32,
     /// Relative aspect difference above which the overlay is fitted to the
@@ -54,6 +58,7 @@ impl Default for VideoOptions {
             max_kbps: 50_000,
             min_bits_per_pixel: 0.04,
             hevc_to_h264_factor: 1.5,
+            mf_software_bitrate_factor: 1.0,
             audio_kbps: 160,
             aspect_tolerance: 0.02,
             timeout_per_media_second: 10.0,
@@ -187,6 +192,22 @@ pub fn target_bitrate_kbps(info: &MediaInfo, out: (u32, u32), opts: &VideoOption
         .max(per_pixel_floor)
         .max(opts.min_kbps as f64);
     (kbps.round() as u32).min(opts.max_kbps)
+}
+
+/// [`target_bitrate_kbps`] for a given encoder: the software MFT gets
+/// `mf_software_bitrate_factor` on top, still capped at `max_kbps`.
+pub fn encoder_bitrate_kbps(
+    info: &MediaInfo,
+    out: (u32, u32),
+    encoder: VideoEncoder,
+    opts: &VideoOptions,
+) -> u32 {
+    let base = target_bitrate_kbps(info, out, opts);
+    if encoder == (VideoEncoder::MediaFoundation { hardware: false }) {
+        ((base as f64 * opts.mf_software_bitrate_factor).round() as u32).min(opts.max_kbps)
+    } else {
+        base
+    }
 }
 
 /// How the audio is carried into the output.
@@ -359,7 +380,7 @@ pub fn composite_plan(
 
     let (audio, audio_warning) = audio_plan(info, safe, opts);
     warnings.extend(audio_warning);
-    let bitrate_kbps = target_bitrate_kbps(info, output_size, opts);
+    let bitrate_kbps = encoder_bitrate_kbps(info, output_size, encoder, opts);
 
     let mut args = head_args();
     args.extend(["-noautorotate", "-display_rotation", "0", "-i"].map(OsString::from));
@@ -675,6 +696,27 @@ pub(crate) mod tests {
         assert_eq!(target_bitrate_kbps(&tiny, (320, 180), &o), 500);
         let huge = video_info("avc1", (3840, 2160), 0, 90_000, None);
         assert_eq!(target_bitrate_kbps(&huge, (3840, 2160), &o), 50_000);
+    }
+
+    #[test]
+    fn software_mft_factor_applies_to_it_alone() {
+        let info = video_info("avc1", (1920, 1080), 90, 6000, None);
+        let o = VideoOptions {
+            mf_software_bitrate_factor: 1.3,
+            ..VideoOptions::default()
+        };
+        assert_eq!(encoder_bitrate_kbps(&info, (1080, 1920), MF, &o), 7800);
+        let hw = VideoEncoder::MediaFoundation { hardware: true };
+        assert_eq!(encoder_bitrate_kbps(&info, (1080, 1920), hw, &o), 6000);
+        assert_eq!(
+            encoder_bitrate_kbps(&info, (1080, 1920), VideoEncoder::OpenH264, &o),
+            6000
+        );
+        assert_eq!(
+            encoder_bitrate_kbps(&info, (1080, 1920), MF, &VideoOptions::default()),
+            6000,
+            "default keeps the source bitrate"
+        );
     }
 
     #[test]

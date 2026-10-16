@@ -20,8 +20,8 @@ use crate::Error;
 use crate::ffmpeg::VideoEncoder;
 use crate::probe::MediaInfo;
 use crate::video::{
-    AudioPlan, OverlayInput, Plan, VideoOptions, Warning, aspect_difference, even_size, head_args,
-    place_overlay, rotation_filters, tail_args, target_bitrate_kbps,
+    AudioPlan, OverlayInput, Plan, VideoOptions, Warning, aspect_difference, encoder_bitrate_kbps,
+    even_size, head_args, place_overlay, rotation_filters, tail_args,
 };
 
 /// What the detector needs to know about one item. The engine builds these
@@ -435,7 +435,7 @@ pub fn rejoin_plan(
             args.push("-filter_complex".into());
             args.push(filter.clone().into());
             args.extend(["-map", "[v]", "-fps_mode", "passthrough"].map(OsString::from));
-            let kbps = target_bitrate_kbps(&infos[0], size, opts);
+            let kbps = encoder_bitrate_kbps(&infos[0], size, enc, opts);
             args.extend(enc.args(kbps).into_iter().map(OsString::from));
             (filter, size, Some(kbps))
         }
