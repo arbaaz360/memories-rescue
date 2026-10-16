@@ -290,13 +290,36 @@ pub fn load_json(d: &Discovery, index: &MergedIndex) -> Option<JsonLoad> {
         }
         Ok(load)
     });
-    Some(match result {
+    let load = match result {
         Ok(load) => load,
         Err(e) => JsonLoad {
             fatal: Some(e.to_string()),
             ..JsonLoad::default()
         },
-    })
+    };
+    if let Some(fatal) = &load.fatal {
+        tracing::warn!(
+            code = "JSON_PARSE",
+            entries = load.entries.len(),
+            detail = %crate::redact::text(fatal),
+            "memories_history.json stopped parsing"
+        );
+    }
+    if !load.element_errors.is_empty() {
+        tracing::warn!(
+            code = "JSON_PARSE",
+            skipped = load.element_errors.len(),
+            "memories_history.json entries skipped"
+        );
+    }
+    tracing::info!(
+        entries = load.entries.len(),
+        exact = load.profile_counts.exact,
+        ordinal = load.profile_counts.ordinal,
+        links = load.profile_counts.metadata_only,
+        "memories_history.json read"
+    );
+    Some(load)
 }
 
 // ---------------------------------------------------------------------------

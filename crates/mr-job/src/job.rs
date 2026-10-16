@@ -282,6 +282,14 @@ impl Job {
         fs::create_dir_all(marker.parent().expect("marker dir"))
             .map_err(|e| JobError::io(&marker, e))?;
         fs::write(&marker, format!("{id}\n")).map_err(|e| JobError::io(&marker, e))?;
+        tracing::info!(
+            job = %job.id,
+            dest = %mr_core::redact::path(&job.root),
+            inputs = job.row.inputs.len(),
+            items = plan.items.len(),
+            adopted = adopt.is_some(),
+            "job created"
+        );
         Ok(job)
     }
 
@@ -314,6 +322,7 @@ impl Job {
                 }
             }
         };
+        tracing::debug!(job = %job.id, status = %job.row.status, "job opened");
         Ok(job)
     }
 
@@ -370,6 +379,13 @@ impl Job {
         job.rebuilt = Some(format!(
             "saved progress was damaged ({why}); rebuilt from {n} finished files in the output folder"
         ));
+        tracing::warn!(
+            job = %id,
+            code = "JOB_STATE_CORRUPT",
+            detail = %mr_core::redact::text(why),
+            adopted = n,
+            "job state rebuilt from the output folder"
+        );
         Ok(job)
     }
 
@@ -580,7 +596,9 @@ impl Job {
         let mut o = self.row.options.clone();
         o.unlocked = true;
         self.set_options(o)?;
-        Ok(before - self.db.items_in(Stage::SkippedFreeLimit)?.len())
+        let released = before - self.db.items_in(Stage::SkippedFreeLimit)?.len();
+        tracing::info!(job = %self.id, released, "unlocked: free-tier items queued");
+        Ok(released)
     }
 
     /// First 100 items in chronological order without a licence (FR-44).
@@ -634,6 +652,7 @@ impl Job {
             .map(|i| i.key().to_string())
             .collect();
         self.db.set_stage(&failed, Stage::Pending)?;
+        tracing::info!(job = %self.id, items = failed.len(), "failed items queued for retry");
         Ok(failed.len())
     }
 
@@ -651,6 +670,7 @@ impl Job {
             }
         }
         self.db.upsert_items(&rows)?;
+        tracing::info!(job = %self.id, items = rows.len(), "composite-pending items queued");
         Ok(rows.len())
     }
 
@@ -663,6 +683,7 @@ impl Job {
                 std::io::Error::new(std::io::ErrorKind::NotFound, "no such file or folder"),
             ));
         }
+        tracing::info!(job = %self.id, path = %mr_core::redact::path(&path), "part added");
         if !self.row.inputs.contains(&path) {
             self.row.inputs.push(path);
         }
@@ -771,6 +792,15 @@ impl Job {
         self.db.delete_items(&gone)?;
         self.store_plan(&plan, Some(rows))?;
         self.apply_free_tier()?;
+        tracing::info!(
+            job = %self.id,
+            items = result.items,
+            new_items = result.new_items,
+            requeued = result.requeued.len(),
+            removed = result.removed,
+            missing_parts = result.missing_parts.len(),
+            "re-planned"
+        );
         Ok(result)
     }
 
@@ -792,9 +822,12 @@ impl Job {
             .map_err(|e| JobError::io(&path, e))?;
         match file.try_lock() {
             Ok(()) => Ok(file),
-            Err(fs::TryLockError::WouldBlock) => Err(JobError::Busy {
-                job_id: self.id.clone(),
-            }),
+            Err(fs::TryLockError::WouldBlock) => {
+                tracing::info!(job = %self.id, "job is already running in another process");
+                Err(JobError::Busy {
+                    job_id: self.id.clone(),
+                })
+            }
             Err(fs::TryLockError::Error(e)) => Err(JobError::io(&path, e)),
         }
     }
@@ -825,6 +858,39 @@ impl Job {
     pub fn run(&mut self, sink: &dyn ProgressSink, control: &Control) -> Result<Outcome> {
         let started = Instant::now();
         let _lock = self.run_lock()?;
+        let job_id = self.id.clone();
+        let logged = crate::control::LoggedSink::new(sink, &job_id);
+        let sink: &dyn ProgressSink = &logged;
+        let result = self.run_locked(sink, control, started);
+        match &result {
+            Ok(outcome) => {
+                let s = outcome.stats();
+                tracing::info!(
+                    job = %self.id,
+                    outcome = outcome.status(),
+                    done = s.map(|s| s.done),
+                    failed = s.map(|s| s.failed),
+                    pending = s.map(|s| s.pending),
+                    this_run = s.map(|s| s.processed_this_run),
+                    seconds = format_args!("{:.1}", started.elapsed().as_secs_f64()),
+                    "run finished"
+                );
+            }
+            Err(e) => tracing::error!(
+                job = %self.id,
+                error = %mr_core::redact::text(&e.to_string()),
+                "run stopped by an error"
+            ),
+        }
+        result
+    }
+
+    fn run_locked(
+        &mut self,
+        sink: &dyn ProgressSink,
+        control: &Control,
+        started: Instant,
+    ) -> Result<Outcome> {
         // Temp left by a crash is removed at the next start (NFR-PRV-09).
         self.clean_tmp();
         if let Some(why) = &self.rebuilt {
@@ -885,6 +951,15 @@ impl Job {
         let workers = options.worker_count();
         let compositor = self.compositor.clone();
         let root = self.root.clone();
+        tracing::info!(
+            job = %self.id,
+            pending = open.len(),
+            clip_joins_pending = joins_pending,
+            workers,
+            compositor = compositor.name(),
+            dest = %mr_core::redact::path(&root),
+            "run started"
+        );
         self.db.set_status("running")?;
         let awake = KeepAwake::new("Memories Rescue is repairing your export");
         let awake_active = awake.active();
@@ -1169,6 +1244,13 @@ impl Job {
                             )?;
                             for (c, d) in &w.warnings {
                                 self.db.journal_event(&key, &format!("warning:{c}|{d}"))?;
+                                tracing::info!(
+                                    job = %self.id,
+                                    item = %key,
+                                    code = %c,
+                                    detail = %mr_core::redact::text(d),
+                                    "item warning"
+                                );
                             }
                             if stage == Stage::Done {
                                 done += 1;
@@ -1370,6 +1452,7 @@ impl Job {
         if groups.is_empty() {
             return Ok(());
         }
+        tracing::info!(job = %self.id, groups = groups.len(), compositor = compositor.name(), "joining clips");
         let items: HashMap<String, ItemRow> = self
             .db
             .items()?
@@ -1649,7 +1732,14 @@ impl Job {
     pub fn report(&self) -> Result<ReportFiles> {
         let data = self.report_data()?;
         let dir = layout::long_path(&self.root.join(layout::REPORT_DIR));
-        mr_report::write_report(&dir, &data).map_err(|e| JobError::io(&dir, e))
+        let files = mr_report::write_report(&dir, &data).map_err(|e| JobError::io(&dir, e))?;
+        tracing::info!(
+            job = %self.id,
+            rows = data.rows.len(),
+            dir = %mr_core::redact::path(&dir),
+            "report written"
+        );
+        Ok(files)
     }
 }
 

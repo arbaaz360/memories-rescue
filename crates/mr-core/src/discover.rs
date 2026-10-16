@@ -384,7 +384,40 @@ pub fn discover(inputs: &[PathBuf]) -> Discovery {
     }
     mark_duplicates(&mut d);
     group_exports(&mut d);
+    log_discovery(inputs.len(), &d);
     d
+}
+
+/// FR-41: what discovery found, with paths redacted.
+fn log_discovery(inputs: usize, d: &Discovery) {
+    use crate::redact;
+    for ig in &d.ignored {
+        tracing::info!(
+            path = %redact::path(&ig.path),
+            detail = %redact::text(&ig.detail),
+            "input ignored (INPUT_NOT_EXPORT)"
+        );
+    }
+    for p in &d.parts {
+        for issue in &p.issues {
+            tracing::warn!(
+                part = %redact::text(&p.label),
+                code = issue.code.as_str(),
+                detail = %redact::text(&issue.detail),
+                "part issue"
+            );
+        }
+        if p.duplicate_of.is_some() {
+            tracing::info!(part = %redact::text(&p.label), "duplicate download of a part; read once");
+        }
+    }
+    tracing::info!(
+        inputs,
+        parts = d.parts.len(),
+        exports = d.exports.len(),
+        ignored = d.ignored.len(),
+        "inputs discovered"
+    );
 }
 
 enum FolderKind {

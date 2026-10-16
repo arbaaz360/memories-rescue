@@ -21,6 +21,7 @@ pub mod filename;
 pub mod index;
 pub mod issue;
 pub mod matcher;
+pub mod redact;
 pub mod stream;
 pub mod zipindex;
 

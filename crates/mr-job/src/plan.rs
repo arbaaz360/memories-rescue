@@ -675,6 +675,22 @@ pub(crate) fn plan_with(
         tz_data_version: resolver.boundary_data_version().to_string(),
         home_zone: resolver.home_zone().map(str::to_string),
     };
+    let codes: Vec<&str> = plan.warnings.iter().map(|w| w.code.as_str()).collect();
+    tracing::info!(
+        profile = %plan.profile,
+        parts = plan.parts.len(),
+        missing_parts = plan.missing_parts.len(),
+        items = plan.totals.items,
+        exact = plan.totals.exact,
+        ordinal = plan.totals.ordinal,
+        none = plan.totals.none,
+        missing_media = plan.totals.missing_media,
+        to_process = plan.totals.to_process,
+        required_bytes = plan.space.required_bytes,
+        free_bytes = plan.space.free_bytes,
+        warnings = %codes.join(","),
+        "plan"
+    );
     Ok((plan, d))
 }
 

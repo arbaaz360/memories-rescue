@@ -217,6 +217,48 @@ the compositor's notes from its latest attempt (`OVERLAY_ASPECT_MISMATCH`,
 `H264_COMPAT`, `ODD_SIZE_SCALED`, `AUDIO_REENCODED`), kept as `warning:`
 journal events.
 
+## Logging (FR-41)
+
+The engine emits [`tracing`](https://docs.rs/tracing) events and installs
+nothing: the app sets the subscriber, writes the rotating file (50 MB cap)
+and builds the diagnostics ZIP. Without a subscriber the events cost nothing.
+
+```rust
+// src-tauri, once at start-up (tracing-subscriber and a rolling writer are the app's choice)
+tracing_subscriber::fmt().with_writer(rotating_file).with_max_level(Level::INFO).init();
+```
+
+Every path and free-text value goes through `mr_core::redact::path` or
+`mr_core::redact::text` before it reaches an event: the home directory
+(`USERPROFILE` / `HOME`, case-insensitive on Windows, either separator, with
+or without `\\?\`) becomes `~`, URLs become `<link removed>`, and a stray
+query string becomes `?<query removed>`. GPS coordinates, captions, JSON
+content and media bytes are never logged; item keys (`YYYY-MM-DD_ID`) and
+archive entry names are. Use the same helpers for anything the app logs
+itself.
+
+| Target | Level | Message | Fields |
+|---|---|---|---|
+| `mr_core::discover` | info | `inputs discovered` | `inputs`, `parts`, `exports`, `ignored` |
+| | info | `input ignored (INPUT_NOT_EXPORT)` | `path`, `detail` |
+| | warn | `part issue` | `part`, `code` (`PART_TRUNCATED`, `ENTRY_REFUSED`, ...), `detail` |
+| `mr_core::zipindex` | warn, info | `ZIP central directory unreadable; ...`, `ZIP recovered` | `path`, `detail` / `entries`, `truncated` |
+| `mr_core::index` | info, warn | `memories_history.json read`, `... stopped parsing`, `... entries skipped` | `entries`, `exact`, `ordinal`, `links`; `code` = `JSON_PARSE` |
+| `mr_job::plan` | info | `plan` | `profile`, `parts`, `missing_parts`, `items`, `exact`, `ordinal`, `none`, `missing_media`, `to_process`, `required_bytes`, `free_bytes`, `warnings` (codes) |
+| `mr_job::job` | info | `job created`, `run started`, `run finished`, `re-planned`, `part added`, `failed items queued for retry`, `unlocked: ...`, `report written`, `joining clips`, `zip output ...` | `job`, `dest`, counts, `outcome`, `seconds` |
+| | warn | `job state rebuilt from the output folder` | `code` = `JOB_STATE_CORRUPT`, `detail`, `adopted` |
+| | error | `run stopped by an error` | `error` |
+| `mr_job::control` | info | `progress` (on every stage change and at most every 30 s) | `stage`, `done`, `failed`, `total`, `percent`, `items_per_s`, `eta_s` |
+| | warn | `item failed` | `item`, `code`, `detail`, `kept` (output written anyway) |
+| | warn, info | `issue`, `issue cleared` | `code` (`DISK_FULL_IMMINENT`, `DEST_UNAVAILABLE`, ...), `detail` |
+| | debug | `item done` | `item`, `seconds` |
+| `mr_job::job` | info | `item warning` | `item`, `code` (`overlay_aspect_mismatch`, `h264_compat`, ...), `detail` |
+| `mr_job::process` | debug | `output name taken by another file; using a suffix` | `name`, `suffix` |
+
+`crates/mr-job/tests/logging.rs` runs a job under a capturing subscriber and
+checks that these events arrive and that none carries the home directory, a
+URL or a query string (`MR_LOG_DUMP=1` prints them).
+
 ## The compositor seam
 
 ```rust
