@@ -1,6 +1,8 @@
 # third_party/: sidecar binaries
 
-Everything in this directory except this file is gitignored. `python
+Everything in this directory except this file and the minimal ffmpeg's
+recipe in `ffmpeg/` (`build.sh`, `README.md` and the license texts) is
+gitignored. `python
 tools/sidecars.py fetch` downloads the archives below, checks their SHA-256
 against the pins in the script, extracts them here and stages the sidecars
 into `src-tauri/binaries/` under the names Tauri expects
@@ -14,6 +16,13 @@ and source offer in the app). The BtbN build is a full-featured static build
 (134 MB per executable, dozens of bundled libraries whose notices would all have
 to ship); it is pinned here only so the spike, the benchmarks and the installer
 smoke test run on a real LGPL binary today.
+
+**The release ffmpeg** is built from source by `ffmpeg/build.sh`: FFmpeg
+9.0.2, `--disable-everything` plus exactly the components the app uses, LGPL
+v2.1+, a 9 MB static `ffmpeg.exe` on Windows. `python tools/sidecars.py
+stage-local` stages it in place of BtbN's. Everything about it (configure
+line, component list, compliance texts, what to publish) is in
+`ffmpeg/README.md`.
 
 ## exiftool 13.59 (Windows 64-bit standalone)
 

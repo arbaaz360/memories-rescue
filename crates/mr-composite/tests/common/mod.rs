@@ -82,13 +82,19 @@ fn runs(path: &Path) -> bool {
             .unwrap_or(false)
 }
 
-/// The ffmpeg the compositor tests use: the pinned LGPL sidecar in
-/// `third_party/ffmpeg` when staged (what ships), else one on PATH. `None`
-/// on the CI runners, which have neither; tests then skip.
+/// The ffmpeg the compositor tests use: `MR_FFMPEG` when set (e.g. the
+/// minimal release build, `third_party/ffmpeg/dist/...`), else the sidecar
+/// staged in `third_party/ffmpeg`, else one on PATH. `None` on the CI
+/// runners, which have none of these; tests then skip.
 pub fn ffmpeg() -> Option<PathBuf> {
     static FOUND: OnceLock<Option<PathBuf>> = OnceLock::new();
     FOUND
         .get_or_init(|| {
+            if let Some(p) = std::env::var_os("MR_FFMPEG").map(PathBuf::from) {
+                assert!(runs(&p), "MR_FFMPEG={} does not run", p.display());
+                eprintln!("ffmpeg: {} (MR_FFMPEG)", p.display());
+                return Some(p);
+            }
             let exe = if cfg!(windows) {
                 "ffmpeg.exe"
             } else {

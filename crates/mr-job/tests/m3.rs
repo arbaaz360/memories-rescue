@@ -75,11 +75,15 @@ fn runs(path: &Path) -> bool {
             .is_ok_and(|s| s.success())
 }
 
-/// The staged LGPL sidecar, else an ffmpeg on PATH.
+/// `MR_FFMPEG` when set, else the staged sidecar, else an ffmpeg on PATH.
 fn ffmpeg() -> Option<PathBuf> {
     static FOUND: OnceLock<Option<PathBuf>> = OnceLock::new();
     FOUND
         .get_or_init(|| {
+            if let Some(p) = std::env::var_os("MR_FFMPEG").map(PathBuf::from) {
+                assert!(runs(&p), "MR_FFMPEG={} does not run", p.display());
+                return Some(p);
+            }
             let exe = if cfg!(windows) {
                 "ffmpeg.exe"
             } else {

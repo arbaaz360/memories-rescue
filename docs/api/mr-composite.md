@@ -197,7 +197,7 @@ default `duration × 10 + 60 s`; ffmpeg is killed when it passes.
 | `min_kbps` / `max_kbps` | 500 / 50 000 | bitrate floor and ceiling |
 | `min_bits_per_pixel` | 0.04 | per-pixel floor (2.5 Mbit/s for 1080×1920 at 30 fps) |
 | `hevc_to_h264_factor` | 1.5 | an HEVC source's bitrate × this for the H.264 output |
-| `mf_software_bitrate_factor` | 1.0 | extra bitrate for the software MFT only (Q-04; 1.3 matches OpenH264's quality) |
+| `mf_software_bitrate_factor` | 1.3 | extra bitrate for the software MFT only; 1.3 matches OpenH264's quality (Q-04, provisionally closed: no OpenH264 in the release build) |
 | `audio_kbps` | 160 | native `aac` when audio cannot be copied |
 | `aspect_tolerance` | 0.02 | §4.4 |
 | `timeout_per_media_second` / `timeout_base_secs` | 10 / 60 | §4.4 timeout |

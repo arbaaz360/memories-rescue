@@ -37,7 +37,9 @@ pub struct VideoOptions {
     pub hevc_to_h264_factor: f64,
     /// Extra bitrate for Microsoft's software H.264 MFT, which needs about
     /// 1.3x the bits of OpenH264 for the same SSIM (measured; see the API
-    /// doc). 1.0 keeps §4.4's "matched to the source"; Q-04 decides.
+    /// doc). Q-04 (provisionally closed 2026-10-16): the release ships no
+    /// OpenH264 and uses the software MFT at 1.3x; 1.0 is §4.4's literal
+    /// "matched to the source".
     pub mf_software_bitrate_factor: f64,
     /// Bitrate of the native `aac` encoder when audio cannot be copied.
     pub audio_kbps: u32,
@@ -58,7 +60,7 @@ impl Default for VideoOptions {
             max_kbps: 50_000,
             min_bits_per_pixel: 0.04,
             hevc_to_h264_factor: 1.5,
-            mf_software_bitrate_factor: 1.0,
+            mf_software_bitrate_factor: 1.3,
             audio_kbps: 160,
             aspect_tolerance: 0.02,
             timeout_per_media_second: 10.0,
@@ -525,7 +527,8 @@ pub(crate) mod tests {
         );
         assert_eq!(after(&a, "-c:a"), "copy");
         assert_eq!(after(&a, "-c:v"), "h264_mf");
-        assert_eq!(after(&a, "-b:v"), "6000k");
+        // 6000 kbit/s source x 1.3 for the software MFT (Q-04).
+        assert_eq!(after(&a, "-b:v"), "7800k");
         assert_eq!(after(&a, "-fps_mode"), "passthrough");
         assert_eq!(after(&a, "-movflags"), "+faststart");
         assert!(a.windows(2).any(|w| w == ["-map", "0:a:0"]));
@@ -701,10 +704,8 @@ pub(crate) mod tests {
     #[test]
     fn software_mft_factor_applies_to_it_alone() {
         let info = video_info("avc1", (1920, 1080), 90, 6000, None);
-        let o = VideoOptions {
-            mf_software_bitrate_factor: 1.3,
-            ..VideoOptions::default()
-        };
+        let o = VideoOptions::default();
+        assert_eq!(o.mf_software_bitrate_factor, 1.3, "Q-04 default");
         assert_eq!(encoder_bitrate_kbps(&info, (1080, 1920), MF, &o), 7800);
         let hw = VideoEncoder::MediaFoundation { hardware: true };
         assert_eq!(encoder_bitrate_kbps(&info, (1080, 1920), hw, &o), 6000);
@@ -712,10 +713,14 @@ pub(crate) mod tests {
             encoder_bitrate_kbps(&info, (1080, 1920), VideoEncoder::OpenH264, &o),
             6000
         );
+        let literal = VideoOptions {
+            mf_software_bitrate_factor: 1.0,
+            ..VideoOptions::default()
+        };
         assert_eq!(
-            encoder_bitrate_kbps(&info, (1080, 1920), MF, &VideoOptions::default()),
+            encoder_bitrate_kbps(&info, (1080, 1920), MF, &literal),
             6000,
-            "default keeps the source bitrate"
+            "1.0 keeps the source bitrate"
         );
     }
 
@@ -735,6 +740,7 @@ pub(crate) mod tests {
         let a = strs(&p);
         assert_eq!(a.iter().filter(|x| *x == "-i").count(), 1);
         assert_eq!(p.filter, "[0:v]transpose=clock,format=nv12[v]");
-        assert_eq!(p.bitrate_kbps, 6000);
+        // 4000 kbit/s HEVC x 1.5 for H.264, x 1.3 for the software MFT.
+        assert_eq!(p.bitrate_kbps, 7800);
     }
 }

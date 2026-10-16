@@ -4,8 +4,8 @@
 //!
 //!     cargo run -p mr-composite --example media_check -- [path/to/ffmpeg]
 //!
-//! Without an argument it uses `third_party/ffmpeg/ffmpeg(.exe)` from the
-//! repository, then `ffmpeg` on PATH.
+//! Without an argument it uses `MR_FFMPEG`, then
+//! `third_party/ffmpeg/ffmpeg(.exe)` from the repository, then `ffmpeg` on PATH.
 
 use std::path::PathBuf;
 use std::time::Instant;
@@ -16,6 +16,7 @@ use mr_composite::{Compositor, hevc_playback};
 fn main() {
     let ffmpeg = std::env::args_os()
         .nth(1)
+        .or_else(|| std::env::var_os("MR_FFMPEG"))
         .map(PathBuf::from)
         .unwrap_or_else(|| {
             let bundled = PathBuf::from(env!("CARGO_MANIFEST_DIR"))

@@ -3,8 +3,21 @@
 placeholders for CI.
 
     python tools/sidecars.py fetch          download, check SHA-256, extract, stage
+                                            (BtbN's full LGPL ffmpeg: development)
+    python tools/sidecars.py stage-local    stage NovaByteWorks' minimal LGPL ffmpeg
+                                            built by third_party/ffmpeg/build.sh
+                                            (what the release ships, SRS section 10.4)
     python tools/sidecars.py placeholders   empty files so tauri-build is satisfied
     python tools/sidecars.py verify         re-hash what is staged against the pins
+                                            or, after stage-local, its build record
+
+Two ffmpegs, one staging place. `fetch` stages BtbN's full build (134 MB,
+dozens of codecs; handy for development and as the test oracle's ffprobe).
+`stage-local` replaces only ffmpeg with the minimal build from
+`third_party/ffmpeg/dist/<triple>/` (run `third_party/ffmpeg/build.sh` first);
+exiftool and an existing ffprobe are left as they are. Which one is staged is
+recorded in `third_party/ffmpeg/STAGED.json`. `MR_FFMPEG=<path>` points the
+tests and `mr-cli` at any ffmpeg without staging.
 
 Layout produced (all gitignored except third_party/README.md):
 
@@ -168,10 +181,75 @@ def stage(triple: str) -> None:
     shutil.copy2(THIRD_PARTY / "exiftool" / "exiftool.exe", BINARIES / exe(triple, "exiftool-" + triple))
     shutil.copytree(THIRD_PARTY / "exiftool" / "exiftool_files", BINARIES / "exiftool_files")
     shutil.rmtree(extracts)
+    STAGED_RECORD.write_text('{"ffmpeg": "btbn"}\n', encoding="utf-8")
     verify(triple)
 
 
+LOCAL_DIST = THIRD_PARTY / "ffmpeg" / "dist"
+STAGED_RECORD = THIRD_PARTY / "ffmpeg" / "STAGED.json"
+
+
+def local_build(triple: str) -> Path:
+    """The minimal build for `triple` from third_party/ffmpeg/build.sh."""
+    if "windows" in triple:
+        return LOCAL_DIST / triple / "ffmpeg.exe"
+    if "apple-darwin" in triple:
+        per_arch = LOCAL_DIST / f"ffmpeg-{triple}"
+        return per_arch if per_arch.is_file() else LOCAL_DIST / "universal-apple-darwin" / "ffmpeg"
+    return LOCAL_DIST / triple / "ffmpeg"
+
+
+def stage_local(triple: str) -> None:
+    import json
+
+    src = local_build(triple)
+    if not src.is_file() or src.stat().st_size == 0:
+        raise SystemExit(f"{src.relative_to(REPO)} is missing; build it with third_party/ffmpeg/build.sh")
+    dest_dir = THIRD_PARTY / "ffmpeg"
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    BINARIES.mkdir(parents=True, exist_ok=True)
+    staged = dest_dir / exe(triple, "ffmpeg")
+    shutil.copy2(src, staged)
+    shutil.copy2(src, BINARIES / exe(triple, "ffmpeg-" + triple))
+    info = src.parent / "BUILDINFO.txt"
+    record = {
+        "ffmpeg": "minimal",
+        "source": str(src.relative_to(REPO)).replace("\\", "/"),
+        "size": src.stat().st_size,
+        "sha256": sha256_of(src),
+        "buildinfo": info.read_text(encoding="utf-8").splitlines()[:2] if info.is_file() else None,
+    }
+    STAGED_RECORD.write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
+    print(f"  {staged.relative_to(REPO)}: minimal build, {record['size']} bytes, sha256 {record['sha256']}")
+    print(f"  {(BINARIES / exe(triple, 'ffmpeg-' + triple)).relative_to(REPO)}: same")
+    exif = BINARIES / exe(triple, "exiftool-" + triple)
+    if not (exif.is_file() and exif.stat().st_size > 0):
+        print("  note: exiftool is not staged; run `fetch` first if the shell build needs it")
+
+
+def staged_kind() -> str:
+    import json
+
+    try:
+        return json.loads(STAGED_RECORD.read_text(encoding="utf-8")).get("ffmpeg", "btbn")
+    except (OSError, ValueError):
+        return "btbn"
+
+
 def verify(triple: str) -> None:
+    if staged_kind() == "minimal":
+        import json
+
+        rec = json.loads(STAGED_RECORD.read_text(encoding="utf-8"))
+        ok = True
+        for path in (THIRD_PARTY / "ffmpeg" / exe(triple, "ffmpeg"), BINARIES / exe(triple, "ffmpeg-" + triple)):
+            got = sha256_of(path) if path.is_file() else "missing"
+            status = "ok (minimal build)" if got == rec["sha256"] else "MISMATCH"
+            ok &= got == rec["sha256"]
+            print(f"  {path.relative_to(REPO)}: {status}")
+        if not ok:
+            raise SystemExit("verification failed")
+        return
     expected = STAGED_SHA256.get(triple, {})
     ok = True
     for name, sha in expected.items():
@@ -212,12 +290,12 @@ def placeholders(triple: str) -> None:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("command", choices=["fetch", "placeholders", "verify"])
+    ap.add_argument("command", choices=["fetch", "stage-local", "placeholders", "verify"])
     ap.add_argument("--target", help="target triple (default: rustc host)")
     args = ap.parse_args()
     triple = args.target or host_triple()
     print(f"target: {triple}")
-    {"fetch": stage, "placeholders": placeholders, "verify": verify}[args.command](triple)
+    {"fetch": stage, "stage-local": stage_local, "placeholders": placeholders, "verify": verify}[args.command](triple)
     return 0
 
 
