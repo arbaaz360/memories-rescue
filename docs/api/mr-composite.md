@@ -71,40 +71,19 @@ for group in detect_clip_groups(&descriptors, &RejoinOptions::default()) {
 }
 ```
 
-### Plugging into the engine's seam
+### In the engine
 
-`mr_job::Compositor` (`crates/mr-job/src/compositor.rs`) asks for one
-burn-in per item with a `CompositeRequest { kind, main, overlay, out, ext,
-windows_compat, item_key }`. `Compositor::composite_any` has that shape: it
-probes `main` and sends photos to `composite_photo` and videos to
-`composite_video`. The adapter, as `tests/engine.rs` runs it against the
-real engine on F-07 (12 items composited, upright, metadata written by the
-engine, originals kept):
-
-```rust
-struct MediaCompositor(mr_composite::Compositor);
-
-impl mr_job::Compositor for MediaCompositor {
-    fn composite(&self, req: &CompositeRequest<'_>) -> Result<CompositeOutcome, CompositeError> {
-        self.0
-            .composite_any(req.main, req.overlay, req.out)
-            .map(|_| CompositeOutcome::Composited)
-            .map_err(|e| CompositeError { code: e.code().into(), detail: e.to_string() })
-    }
-    fn name(&self) -> &str { "mr-composite" }
-}
-
-job.set_compositor(Arc::new(MediaCompositor(Compositor::new(sidecar_ffmpeg))));
-```
-
-Two things the seam does not carry yet, for the engine side to decide:
-
-* `CompositeOutcome` has no warnings, so `overlay_aspect_mismatch` (§4.4)
-  reaches the log but not the report; `Composite::warnings()` has them.
-* The engine calls the seam only for items with an overlay to burn in.
-  The Windows compatibility mode for HEVC items **without** an overlay
-  needs a call to `Compositor::transcode_h264` when `windows_compat` is on
-  and `probe(main)?.video` has codec `hvc1`/`hev1`.
+The job engine uses this crate through `mr_job::MediaCompositor`
+(`crates/mr-job/src/media.rs`), which implements the engine's
+`Compositor` seam: `composite` calls `Compositor::composite_any` (photo or
+video by content), `compat_transcode` calls `transcode_h264` for HEVC
+videos when "Maximise Windows compatibility" is on, and `rejoin` calls
+`Compositor::rejoin` for each clip group the dry run found with
+`detect_clip_groups` (the dry run probes videos inside the ZIP with
+`probe_reader`). Warnings travel back as `CompositedWithWarnings` and reach
+the report; `ENCODER_UNAVAILABLE` declines video work instead of failing
+items. `docs/api/mr-job.md` ("The compositor seam") has the engine side, and
+`crates/mr-job/tests/m3.rs` runs it on F-07, F-08 and F-09.
 
 Every operation writes to `.<name>.mr-partial(.<ext>)` next to the output
 and renames it into place on success, so a crash never leaves a
@@ -141,6 +120,13 @@ ffmpeg's own `-i` listing is used only as a test oracle.
 | `image.width/height/orientation` | JPEG `SOFn` and APP1 EXIF IFD0 tag 0x0112; PNG `IHDR` and `eXIf` |
 
 `MediaInfo` is `Serialize`; `cargo run -p mr-composite --example probe -- <file>` prints it.
+
+`probe_reader(reader, len, limit)` reads the same facts from a forward-only
+stream, such as an entry being read out of a ZIP: boxes before `moov` are
+skipped by reading, reading stops once `moov` is parsed, and more than
+`limit` bytes before `moov` (a file with `moov` after a large `mdat`) gives
+`Unsupported` instead of reading the whole file. The engine's dry run uses it
+so that nothing is extracted to find clip groups or HEVC videos.
 
 ### `composite_photo(main, overlay, out, &PhotoOptions) -> Result<PhotoOutcome, Error>`
 
@@ -469,7 +455,7 @@ frame from a rotated or mirrored one without any reference.
 | Fixture | Contents | truth.json item fields |
 |---|---|---|
 | F-07 `rotation` | 5 videos: 360×640 with `rotate=90` and `rotate=270`, 640×360 with 180, a 60 s 640×360 landscape (AC2), 360×780 with `rotate=90` under a 9:16 overlay (mismatch). 7 photos 540×960 or 540×1170: EXIF orientation 1, 3, 6, 8, a PNG, two aspect mismatches (one with orientation 6). Overlays at 1× or 2× the display size. | `case`, `rotation` or `orientation`, `coded_size`/`stored_size`, `display_size`, `overlay_size`, `placement {x, y, width, height, aspect_mismatch}`, `duration`, `has_audio`, `markers {size, red, blue}`, `reference` (photos) or `reference_frames [{t, file}]` (videos), `output_format` |
-| F-08 `clips` | 33 clips at 288×512 (30 fps, sine audio): group A 10+10+4 s (AC1, 2019), B 2 clips (2017, London), C 6 clips ending in 3 s (2021-12-31), D 4 rotated clips with overlays on 0 and 2 (Tokyo), I 3 rotated clips for a copy join (Sydney), E 3 clips in 2023, F 10/6/10 s (short middle clip), G 30 then 25 fps, H three clips 1.1 km then 20 m apart, K across New Year 2022; decoys: 360×640 one second after A, a clip 5 s after B. | `group`, `index`, `duration`, `display_size`, `coded_size`, `rotation`, `fps`, `codec`, `audio_hz`; top level `expected_groups {default, all_years}` stated by construction, `cases {ac1, ac2_decoy_resolution, decoy_gap, fps_decoy, location_far, short_middle_alone, overlay_group, overlay_segments, rotated_copy_group, year_2023, new_year}` |
+| F-08 `clips` | A `2026a` export (exact matching, so the engine keeps exact times on the day whose clips are 1.1 km apart and §4.5 alone decides). 33 clips at 288×512 (30 fps, sine audio): group A 10+10+4 s (AC1, 2019), B 2 clips (2017, London), C 6 clips ending in 3 s (2021-12-31), D 4 rotated clips with overlays on 0 and 2 (Tokyo), I 3 rotated clips for a copy join (Sydney), E 3 clips in 2023, F 10/6/10 s (short middle clip), G 30 then 25 fps, H three clips 1.1 km then 20 m apart, K across New Year 2022; decoys: 360×640 one second after A, a clip 5 s after B. | `group`, `index`, `duration`, `display_size`, `coded_size`, `rotation`, `fps`, `codec`, `audio_hz`; top level `expected_groups {default, all_years}` stated by construction, `cases {ac1, ac2_decoy_resolution, decoy_gap, fps_decoy, location_far, short_middle_alone, overlay_group, overlay_segments, rotated_copy_group, year_2023, new_year}` |
 | F-09 `codecs` | 3 s each: H.264 640×360, HEVC 8-bit `hvc1` with `rotate=90`, HEVC 10-bit `hev1`, H.264 VFR (30 then 15 fps), H.264 without audio, H.264 4:4:4 at 361×641, H.264 25 fps | `case`, `expected {codec, coded_size, display_size, rotation, fps, vfr, bit_depth, has_audio, duration}`; top level `skipped_cases` |
 
 References: photos with Pillow (`ImageOps.exif_transpose`, overlay resized
@@ -482,12 +468,11 @@ shares code with the crate.
 
 | Test | Covers | CI (no ffmpeg) |
 |---|---|---|
-| 43 unit tests (`cargo test -p mr-composite --lib`) | probe parsers (matrix, `stts`, `elst`, EXIF, SPS, `hvcC`, `esds`), placement, bitrate, every argument array, encoder selection with fake `-encoders` listings (Windows LGPL, macOS, none), the software path, concat quoting, the §4.5 rules, photo orientation and blending, error codes; retry and timeout against a real ffmpeg | run; the two ffmpeg ones skip |
+| 44 unit tests (`cargo test -p mr-composite --lib`) | probe parsers (matrix, `stts`, `elst`, EXIF, SPS, `hvcC`, `esds`), placement, bitrate, every argument array, encoder selection with fake `-encoders` listings (Windows LGPL, macOS, none), the software path, concat quoting, the §4.5 rules, photo orientation and blending, error codes; retry and timeout against a real ffmpeg | run; the two ffmpeg ones skip |
 | `tests/photo.rs` | FR-23 AC1, quality option, `MEDIA_DECODE` | **run** (F-07 photos need only Pillow) |
 | `tests/video.rs` | FR-24 AC1, AC2, encoder plan, compatibility transcode | skip |
 | `tests/clips.rs` | FR-27 detection, AC1, AC2, per-segment overlays, rotated copy join, refusal | skip |
 | `tests/codecs.rs` | F-09 probe vs truth and oracle, transcode and composite of every case, FR-51 check | probe and composite skip; the HEVC check runs |
-| `tests/engine.rs` | mr-job's engine on the F-07 export with the real compositor through `mr_job::Compositor` (FR-23, FR-24, FR-25 end to end) | skip |
 
 Locally the tests use `third_party/ffmpeg/ffmpeg(.exe)` when staged
 (`python tools/sidecars.py fetch`), else an ffmpeg on `PATH`.
