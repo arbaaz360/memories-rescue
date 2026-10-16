@@ -15,6 +15,7 @@ use common::*;
 use mr_job::{
     CollectingSink, Control, ItemOutcome, Job, Outcome, Progress, ProgressSink, ZIP_VOLUME_FAT32,
     ZipVolume, layout, plan,
+    zipout::{self, PackFile},
 };
 use sha2::{Digest, Sha256};
 
@@ -150,9 +151,40 @@ fn fr31_one_archive_holds_exactly_the_tree_and_a_rerun_writes_nothing() {
     assert_eq!(before, after, "a finished pack is not written again");
 }
 
+/// A volume size that splits `fixture`'s packed tree into at least `n`
+/// archives, computed with the engine's own partition over the tree this
+/// machine produces: the CI runners have no ffmpeg, so their fixtures have
+/// no videos and a fixed size gives fewer volumes there.
+fn limit_for_volumes(fixture: &str, n: usize) -> u64 {
+    let e = env("zip-probe");
+    let mut job = Job::create(&e.state, &zips_in(&fixture_dir(fixture)), options(&e.dest)).unwrap();
+    completed(&mut job);
+    let files: Vec<PackFile> = tree(&job)
+        .into_iter()
+        .map(|(entry, p)| PackFile {
+            rel: entry[layout::ROOT_DIR.len() + 1..].to_string(),
+            entry,
+            size: fs::metadata(&p).unwrap().len(),
+            mtime: 0,
+        })
+        .collect();
+    let largest = files.iter().map(PackFile::cost).max().unwrap() + zipout::VOLUME_OVERHEAD;
+    let total: u64 = files.iter().map(PackFile::cost).sum();
+    let mut limit = (total / (n as u64 + 1)).max(largest);
+    while zipout::partition(&files, Some(limit)).len() < n && limit > largest {
+        limit = (limit * 9 / 10).max(largest);
+    }
+    let got = zipout::partition(&files, Some(limit)).len();
+    assert!(
+        got >= n,
+        "{fixture} cannot be split into {n} volumes ({got} at {limit} bytes)"
+    );
+    limit
+}
+
 #[test]
 fn fr31_volumes_stay_at_or_under_the_size() {
-    let limit = 1 << 20;
+    let limit = limit_for_volumes("free-limit", 3);
     let (e, mut job) = zip_job("free-limit", "zip-vol", Some(limit));
     completed(&mut job);
     let vols = check_pack(&job, &e.dest);
@@ -207,7 +239,8 @@ fn tree_largest(fixture: &str) -> u64 {
 
 #[test]
 fn fr31_an_interrupted_pack_resumes_from_every_recorded_state() {
-    let (e, mut job) = zip_job("small-2026b", "zip-resume", Some(300_000));
+    let limit = limit_for_volumes("small-2026b", 4);
+    let (e, mut job) = zip_job("small-2026b", "zip-resume", Some(limit));
     completed(&mut job);
     let vols = check_pack(&job, &e.dest);
     assert!(vols.len() >= 4, "{} volumes", vols.len());
@@ -274,7 +307,7 @@ fn fr31_pause_during_a_pack_then_resume() {
     let e = env("zip-pause");
     let mut o = options(&e.dest);
     o.zip_output = true;
-    o.zip_volume_bytes = Some(400_000);
+    o.zip_volume_bytes = Some(limit_for_volumes("small-2026b", 3));
     o.test_hooks.zip_delay_ms = 60;
     let mut job = Job::create(&e.state, &zips_in(&fixture_dir("small-2026b")), o.clone()).unwrap();
     let control = Control::new();

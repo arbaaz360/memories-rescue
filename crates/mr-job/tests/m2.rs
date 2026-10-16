@@ -1566,3 +1566,51 @@ fn template_without_shortid_is_refused() {
     ));
     run(&mut job);
 }
+
+#[test]
+fn hardening_1c_an_item_interrupted_three_times_is_set_aside() {
+    let inputs = zips_in(&fixture_dir("small-2026a"));
+    let e = env("poison");
+    let mut job = Job::create(&e.state, &inputs, options(&e.dest)).unwrap();
+    let rows = job.items().unwrap();
+    let (poison, twice) = (rows[0].key().to_string(), rows[1].key().to_string());
+    // Starts with no outcome: the process went away while they ran.
+    let db = rusqlite::Connection::open(job.state_dir_of_job().join("job.sqlite")).unwrap();
+    for (key, n) in [(&poison, 3), (&twice, 2)] {
+        for _ in 0..n {
+            db.execute(
+                "INSERT INTO journal(item_id, event, at_utc) VALUES (?1, 'start', '2026-10-16T00:00:00Z')",
+                [key],
+            )
+            .unwrap();
+        }
+    }
+    drop(db);
+    let (_o, sink) = run(&mut job);
+    let row = |job: &Job, k: &str| {
+        job.items()
+            .unwrap()
+            .into_iter()
+            .find(|r| r.key() == k)
+            .unwrap()
+    };
+    let p = row(&job, &poison);
+    assert_eq!(p.stage, mr_job::Stage::Failed);
+    assert_eq!(p.last_error_code.as_deref(), Some("MEDIA_DECODE"));
+    assert_eq!(
+        row(&job, &twice).stage,
+        mr_job::Stage::Done,
+        "two interrupted starts are not enough"
+    );
+    assert!(
+        sink.items
+            .lock()
+            .unwrap()
+            .iter()
+            .any(|o| o.id == poison && o.error_code.as_deref() == Some("MEDIA_DECODE"))
+    );
+    // Retry gives it another chance, and it goes through.
+    assert_eq!(job.retry_failed(None).unwrap(), 1);
+    run(&mut job);
+    assert_eq!(row(&job, &poison).stage, mr_job::Stage::Done);
+}

@@ -11,22 +11,47 @@ use little_exif::metadata::Metadata;
 use little_exif::rational::uR64;
 
 use crate::fields::Capture;
+use crate::guard;
 
 /// Read `src`, apply the §4.3 photo field set (keeping other EXIF), write `dst`.
 /// Returns `(bytes_in, bytes_out)`.
 pub fn write_jpeg(src: &Path, dst: &Path, cap: &Capture) -> io::Result<(u64, u64)> {
-    let data = std::fs::read(src)?;
-    // Snapchat exports carry no EXIF at all, which little_exif reports as an error.
-    let mut md = match Metadata::new_from_vec(&data, FileExtension::JPEG) {
-        Ok(md) => md,
-        Err(e) if e.to_string().contains("No EXIF data found") => Metadata::new(),
-        Err(e) => return Err(e),
-    };
+    let data = guard::read_capped(src, guard::MAX_PHOTO_BYTES, "photo")?;
+    let mut md = existing_exif(&data)?.unwrap_or_else(Metadata::new);
     apply(&mut md, cap);
+    let bytes_in = data.len() as u64;
     let mut out = data;
-    md.write_to_vec(&mut out, FileExtension::JPEG)?;
+    guard::no_panic(|| md.write_to_vec(&mut out, FileExtension::JPEG))?;
     std::fs::write(dst, &out)?;
-    Ok((std::fs::metadata(src)?.len(), out.len() as u64))
+    Ok((bytes_in, out.len() as u64))
+}
+
+/// The EXIF a JPEG already has; empty when there is none (Snapchat exports
+/// carry none). The EXIF block is checked by [`guard::check_tiff`] and
+/// little_exif reads it from a minimal JPEG (SOI, that APP1, EOI), so it
+/// never parses the rest of an untrusted file.
+fn existing_exif(data: &[u8]) -> io::Result<Option<Metadata>> {
+    let bad = |e: String| guard::invalid(format!("unreadable EXIF: {e}"));
+    let Some(app1) = guard::first_app1(data).map_err(bad)? else {
+        return Ok(None);
+    };
+    let Some(tiff) = app1.strip_prefix(b"Exif\0\0") else {
+        // An APP1 that is not EXIF (XMP): no EXIF to keep.
+        return Ok(None);
+    };
+    guard::check_tiff(tiff).map_err(bad)?;
+    let mut mini = vec![0xFF, 0xD8, 0xFF, 0xE1];
+    mini.extend_from_slice(&((app1.len() + 2) as u16).to_be_bytes());
+    mini.extend_from_slice(app1);
+    mini.extend_from_slice(&[0xFF, 0xD9]);
+    guard::no_panic(|| Metadata::new_from_vec(&mini, FileExtension::JPEG)).map(Some)
+}
+
+/// Read the EXIF of a JPEG (the read-back of NFR-REL-05).
+pub fn read_jpeg(path: &Path) -> io::Result<Metadata> {
+    let data = guard::read_capped(path, guard::MAX_PHOTO_BYTES, "photo")?;
+    existing_exif(&data)?
+        .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "No EXIF data found"))
 }
 
 pub fn apply(md: &mut Metadata, cap: &Capture) {

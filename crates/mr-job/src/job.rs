@@ -1,6 +1,6 @@
 //! Jobs: create, open, run, retry, add a part, report (FR-33 to FR-40, FR-44).
 
-use std::collections::{BTreeMap, HashMap, VecDeque};
+use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::fs;
 use std::panic::AssertUnwindSafe;
 use std::path::{Path, PathBuf};
@@ -124,8 +124,68 @@ struct JobFile {
     output_root: PathBuf,
 }
 
+/// An engine error for the log: the kind and the OS message, without the
+/// path an I/O error carries.
+fn log_text(e: &JobError) -> String {
+    match e {
+        JobError::Io { source, .. } => format!("I/O: {source}"),
+        JobError::NoExport(_) => "no export among the inputs".into(),
+        JobError::TimeZone(_) => "unknown home time zone".into(),
+        other => mr_core::redact::text(&other.to_string()).to_string(),
+    }
+}
+
+/// What a worker tells the coordinator.
+enum WorkerMsg {
+    /// Record what the attempt is about to place, then answer (hardening 3).
+    Intent {
+        key: String,
+        written: Written,
+        ack: Sender<bool>,
+    },
+    Done {
+        key: String,
+        is_video: bool,
+        result: std::result::Result<Written, Failure>,
+        secs: f64,
+    },
+}
+
+/// Starts without an outcome after which an item is set aside (hardening 1c).
+pub const POISON_STARTS: u32 = 3;
+
 fn job_dir(state_dir: &Path, id: &str) -> PathBuf {
+    debug_assert!(valid_job_id(id).as_deref() == Some(id), "unchecked job id");
     state_dir.join(JOBS_DIR).join(id)
+}
+
+/// A job id as this engine writes it, a lower-case hyphenated UUID, or
+/// `None`. Ids name folders in the state directory, so anything else (an
+/// absolute path, `..`, a UNC path, which would also open an SMB
+/// connection) is refused before it is joined to a path.
+pub fn valid_job_id(id: &str) -> Option<String> {
+    let u = uuid::Uuid::try_parse(id.trim()).ok()?;
+    let canonical = u.hyphenated().to_string();
+    (canonical == id.trim().to_ascii_lowercase()).then_some(canonical)
+}
+
+/// The id the output folder's marker names, when it is a well-formed id.
+fn read_marker(root: &Path) -> Option<String> {
+    let path = marker_path(root);
+    if layout::is_redirected(&path) || fs::metadata(&path).ok()?.len() > 128 {
+        return None;
+    }
+    valid_job_id(std::str::from_utf8(&fs::read(&path).ok()?).ok()?)
+}
+
+/// The output folder a job in the state directory writes to, as a root key.
+fn job_root_key(state_dir: &Path, id: &str) -> Option<String> {
+    let dir = job_dir(state_dir, id);
+    if let Some((row, _)) = crate::state::peek(&dir.join(DB_FILE)) {
+        return Some(layout::root_key(Path::new(&row.output_path)));
+    }
+    let jf: JobFile = serde_json::from_str(&fs::read_to_string(dir.join(JOB_FILE)).ok()?).ok()?;
+    Some(layout::root_key(&jf.output_root))
 }
 
 fn marker_path(root: &Path) -> PathBuf {
@@ -139,7 +199,10 @@ pub fn list_jobs(state_dir: &Path) -> Vec<JobSummary> {
         return out;
     };
     for e in rd.flatten() {
-        let id = e.file_name().to_string_lossy().into_owned();
+        let name = e.file_name().to_string_lossy().into_owned();
+        let Some(id) = valid_job_id(&name).filter(|id| *id == name) else {
+            continue;
+        };
         if let Some((row, counts)) = crate::state::peek(&e.path().join(DB_FILE)) {
             out.push(JobSummary {
                 id,
@@ -172,13 +235,15 @@ pub fn list_jobs(state_dir: &Path) -> Vec<JobSummary> {
 /// the state directory's records).
 pub fn find_job_for_output(state_dir: &Path, dest: &Path) -> Option<String> {
     let root = layout::output_root(dest);
-    if let Ok(id) = fs::read_to_string(marker_path(&root)) {
-        let id = id.trim().to_string();
-        if job_dir(state_dir, &id).exists() {
-            return Some(id);
-        }
-    }
     let key = layout::root_key(&root);
+    // The marker is in the user's folder, so it is only a hint: it counts
+    // when it names a job of this state directory that writes to this very
+    // folder (a copied library carries a marker of another folder's job).
+    if let Some(id) = read_marker(&root)
+        && job_root_key(state_dir, &id).as_deref() == Some(key.as_str())
+    {
+        return Some(id);
+    }
     list_jobs(state_dir)
         .into_iter()
         .find(|j| layout::root_key(Path::new(&j.output_root)) == key)
@@ -226,14 +291,27 @@ impl Job {
         options.dest = layout::absolute(&options.dest);
         let root = layout::output_root(&options.dest);
         let mut adopt: Option<String> = None;
+        if let Err(why) = layout::check_own_folders(&root) {
+            return Err(JobError::io(
+                &root,
+                std::io::Error::new(std::io::ErrorKind::PermissionDenied, why),
+            ));
+        }
         if let Some(existing) = find_job_for_output(state_dir, &options.dest) {
             if job_dir(state_dir, &existing).join(DB_FILE).exists() {
                 return Err(JobError::OutputInUse { job_id: existing });
             }
             adopt = Some(existing);
-        } else if let Ok(id) = fs::read_to_string(marker_path(&root)) {
-            // Output from a job whose state is gone: adopt its files.
-            adopt = Some(id.trim().to_string());
+        } else if let Some(id) = read_marker(&root) {
+            // Output from a job whose state is gone: adopt the files that
+            // verify. Under the marker's id only if this state directory has
+            // no job of that id; one that does belongs to another folder (a
+            // copied library), so the adopted job gets a new id.
+            adopt = Some(if job_dir(state_dir, &id).exists() {
+                uuid::Uuid::new_v4().to_string()
+            } else {
+                id
+            });
         }
         let naming = Naming {
             keep: HashMap::new(),
@@ -299,6 +377,10 @@ impl Job {
     /// Open a job. A damaged state file is rebuilt from the output folder
     /// (`JOB_STATE_CORRUPT`); see [`Job::rebuilt`].
     pub fn open(state_dir: &Path, id: &str) -> Result<Job> {
+        let Some(id) = valid_job_id(id) else {
+            return Err(JobError::NoSuchJob(id.to_string()));
+        };
+        let id = id.as_str();
         let dir = job_dir(state_dir, id);
         if !dir.is_dir() {
             return Err(JobError::NoSuchJob(id.to_string()));
@@ -469,6 +551,8 @@ impl Job {
             if let Some(sha) = adopt_check(&self.root, &row) {
                 row.stage = Stage::Done;
                 row.output_path = Some(row.plan.output_rel.clone());
+                row.output_hashes
+                    .insert(row.plan.output_rel.clone(), sha.clone());
                 row.output_sha256 = Some(sha);
                 let beside = layout::overlay_beside(&row.plan.output_rel);
                 if row.plan.overlay.is_some() && layout::to_fs(&self.root, &beside).is_file() {
@@ -481,6 +565,21 @@ impl Job {
                     let oo = layout::original_overlay(&row.plan.output_rel);
                     if layout::to_fs(&self.root, &oo).is_file() {
                         row.originals_overlay = Some(oo);
+                    }
+                }
+                // Adopted sidecars become ours with the bytes they hold now.
+                for rel in [
+                    &row.overlay_output,
+                    &row.originals_main,
+                    &row.originals_overlay,
+                ]
+                .into_iter()
+                .flatten()
+                .cloned()
+                .collect::<Vec<_>>()
+                {
+                    if let Ok(h) = fingerprint::sha256_file(&layout::to_fs(&self.root, &rel)) {
+                        row.output_hashes.insert(rel, h);
                     }
                 }
                 row.done_utc = Some(now());
@@ -755,7 +854,7 @@ impl Job {
                 std::io::Error::new(std::io::ErrorKind::NotFound, "no such file or folder"),
             ));
         }
-        tracing::info!(job = %self.id, path = %mr_core::redact::path(&path), "part added");
+        tracing::info!(job = %self.id, inputs = self.row.inputs.len() + 1, "part added");
         if !self.row.inputs.contains(&path) {
             self.row.inputs.push(path);
         }
@@ -878,6 +977,9 @@ impl Job {
 
     /// Remove temp directories (NFR-PRV-09). Only while holding the run lock.
     fn clean_tmp(&self) {
+        if layout::check_own_folders(&self.root).is_err() {
+            return;
+        }
         let tmp = self.root.join(layout::STATE_DIR).join(layout::TMP_DIR);
         let _ = fs::remove_dir_all(layout::long_path(&tmp));
     }
@@ -904,10 +1006,150 @@ impl Job {
         }
     }
 
+    /// Hardening 3: an attempt that placed its files but was interrupted
+    /// before its checkpoint left an intent. When every file it names is
+    /// there with the hash recorded before the rename, the item is finished
+    /// from it instead of being redone (a re-encoded burn-in would not be
+    /// byte-identical, so a redo would write `_2` and orphan the first).
+    fn accept_intents(&mut self, sink: &dyn ProgressSink) -> Result<usize> {
+        let mut accepted = 0;
+        for row in self.db.items_in(Stage::Pending)? {
+            let Some(w) = row.intent.clone() else {
+                continue;
+            };
+            let all_there = !w.hashes.is_empty()
+                && w.hashes.iter().all(|(rel, sha)| {
+                    fingerprint::sha256_file(&layout::to_fs(&self.root, rel))
+                        .is_ok_and(|h| &h == sha)
+                });
+            if !all_there {
+                continue;
+            }
+            crate::process::remove_previous_outputs(&self.root, &row, &w);
+            let stage = if w.kept_with_error.is_some() {
+                Stage::Failed
+            } else {
+                Stage::Done
+            };
+            let (code, detail) = w.kept_with_error.clone().unzip();
+            self.db.mark_finished(
+                row.key(),
+                &Finished {
+                    stage: Some(stage),
+                    error_code: code.clone(),
+                    error_detail: detail.clone(),
+                    output_path: Some(w.output_rel.clone()),
+                    output_sha256: Some(w.output_sha256.clone()),
+                    overlay_output: w.overlay_rel.clone(),
+                    originals_main: w.originals_main.clone(),
+                    originals_overlay: w.originals_overlay.clone(),
+                    composite_pending: w.composite_pending,
+                    seconds: 0.0,
+                    output_hashes: w.hashes.iter().cloned().collect(),
+                },
+            )?;
+            self.db.journal_event(row.key(), "adopted")?;
+            for (c, d) in &w.warnings {
+                self.db
+                    .journal_event(row.key(), &format!("warning:{c}|{d}"))?;
+            }
+            sink.item(&ItemOutcome {
+                id: row.key().to_string(),
+                stage,
+                media_type: Some(
+                    if row.plan.is_video() {
+                        "video"
+                    } else {
+                        "photo"
+                    }
+                    .into(),
+                ),
+                output_path: Some(w.output_rel.clone()),
+                error_code: code,
+                error_detail: detail,
+                seconds: 0.0,
+            });
+            accepted += 1;
+        }
+        if accepted > 0 {
+            tracing::info!(job = %self.id, items = accepted, "interrupted items finished from their recorded outputs");
+        }
+        Ok(accepted)
+    }
+
+    /// A file that crashes or hangs the app would otherwise do so on every
+    /// resume. An item started [`POISON_STARTS`] times without an outcome
+    /// (each time the process went away while it was in flight) is marked
+    /// failed with `MEDIA_DECODE` so the rest of the job can finish; Retry
+    /// gives it another chance.
+    ///
+    /// Returns the other items with an interrupted start. They run first and
+    /// one at a time, so that a crash is charged to the item that caused it
+    /// and not to the three that happened to be in flight beside it.
+    fn fail_poison_items(&mut self, sink: &dyn ProgressSink) -> Result<HashSet<String>> {
+        let starts = self.db.unfinished_starts()?;
+        let suspects: HashSet<String> = starts
+            .iter()
+            .filter(|&(_, &n)| n < POISON_STARTS)
+            .map(|(k, _)| k.clone())
+            .collect();
+        if starts.values().all(|&n| n < POISON_STARTS) {
+            return Ok(suspects);
+        }
+        for row in self.db.items_in(Stage::Pending)? {
+            let n = starts.get(row.key()).copied().unwrap_or(0);
+            if n < POISON_STARTS {
+                continue;
+            }
+            let detail = format!(
+                "Memories Rescue stopped {n} times while working on this file, so it was set aside for the rest to finish; Retry tries it again"
+            );
+            self.db.mark_finished(
+                row.key(),
+                &Finished {
+                    stage: Some(Stage::Failed),
+                    error_code: Some("MEDIA_DECODE".into()),
+                    error_detail: Some(detail.clone()),
+                    ..Finished::default()
+                },
+            )?;
+            tracing::warn!(
+                job = %self.id,
+                at = %crate::process::entry_label(&row.plan.main),
+                starts = n,
+                code = "MEDIA_DECODE",
+                "item set aside after repeated interrupted starts"
+            );
+            sink.item(&ItemOutcome {
+                id: row.key().to_string(),
+                stage: Stage::Failed,
+                media_type: Some(
+                    if row.plan.is_video() {
+                        "video"
+                    } else {
+                        "photo"
+                    }
+                    .into(),
+                ),
+                output_path: None,
+                error_code: Some("MEDIA_DECODE".into()),
+                error_detail: Some(detail),
+                seconds: 0.0,
+            });
+        }
+        Ok(suspects)
+    }
+
     /// Remove temp files a crash left behind (NFR-PRV-09), for the app to
     /// call at start-up. Does nothing while the job is running elsewhere.
     pub fn clean_temp(&self) -> Result<()> {
         let _lock = self.run_lock()?;
+        if let Err(why) = layout::check_own_folders(&self.root) {
+            return Err(JobError::io(
+                &self.root,
+                std::io::Error::new(std::io::ErrorKind::PermissionDenied, why),
+            ));
+        }
         self.clean_tmp();
         Ok(())
     }
@@ -931,7 +1173,24 @@ impl Job {
         let started = Instant::now();
         let _lock = self.run_lock()?;
         let job_id = self.id.clone();
-        let logged = crate::control::LoggedSink::new(sink, &job_id);
+        let mut places: HashMap<String, String> = self
+            .db
+            .items()?
+            .iter()
+            .map(|r| {
+                (
+                    r.key().to_string(),
+                    crate::process::entry_label(&r.plan.main),
+                )
+            })
+            .collect();
+        for (n, c) in self.db.clip_rows()?.iter().enumerate() {
+            places.insert(
+                format!("clip:{}", c.group.id),
+                format!("clip group {}", n + 1),
+            );
+        }
+        let logged = crate::control::LoggedSink::new(sink, &job_id, places);
         let sink: &dyn ProgressSink = &logged;
         let result = self.run_locked(sink, control, started);
         match &result {
@@ -950,7 +1209,7 @@ impl Job {
             }
             Err(e) => tracing::error!(
                 job = %self.id,
-                error = %mr_core::redact::text(&e.to_string()),
+                error = %log_text(e),
                 "run stopped by an error"
             ),
         }
@@ -963,6 +1222,14 @@ impl Job {
         control: &Control,
         started: Instant,
     ) -> Result<Outcome> {
+        if let Err(detail) = layout::check_own_folders(&self.root) {
+            sink.issue("PERMISSION_DENIED", &detail);
+            return Ok(Outcome::Blocked {
+                code: "PERMISSION_DENIED".into(),
+                detail,
+                stats: self.stats(0, started)?,
+            });
+        }
         // Temp left by a crash is removed at the next start (NFR-PRV-09).
         self.clean_tmp();
         if let Some(why) = &self.rebuilt {
@@ -981,6 +1248,8 @@ impl Job {
             return Ok(Outcome::InputsChanged(changes));
         }
         self.apply_free_tier()?;
+        self.accept_intents(sink)?;
+        let suspects = self.fail_poison_items(sink)?;
         let open = self.db.items_in(Stage::Pending)?;
         let options = self.row.options.clone();
         if !options.ignore_space_check && !open.is_empty() {
@@ -1056,12 +1325,7 @@ impl Job {
         } else {
             std::thread::scope(|scope| -> Result<Outcome> {
                 let (job_tx, job_rx) = crossbeam_channel::bounded::<ItemRow>(workers);
-                let (res_tx, res_rx) = crossbeam_channel::unbounded::<(
-                    String,
-                    bool,
-                    std::result::Result<Written, Failure>,
-                    f64,
-                )>();
+                let (res_tx, res_rx) = crossbeam_channel::unbounded::<WorkerMsg>();
                 for _ in 0..workers {
                     let job_rx = job_rx.clone();
                     let res_tx = res_tx.clone();
@@ -1074,21 +1338,39 @@ impl Job {
                         let mut worker = Worker::new(d, part_by_path, root, compositor, settings);
                         for row in job_rx.iter() {
                             let t = Instant::now();
-                            let r =
-                                std::panic::catch_unwind(AssertUnwindSafe(|| worker.process(&row)))
-                                    .unwrap_or_else(|_| {
-                                        Err(Failure::Item {
-                                            code: "UNKNOWN".into(),
-                                            detail: "internal error while processing this item"
+                            let key = row.plan.key.clone();
+                            let mut intent = |w: &Written| -> std::result::Result<(), Failure> {
+                                let (ack, answer) = crossbeam_channel::bounded(1);
+                                let sent = res_tx.send(WorkerMsg::Intent {
+                                    key: key.clone(),
+                                    written: w.clone(),
+                                    ack,
+                                });
+                                match (sent, answer.recv()) {
+                                    (Ok(()), Ok(true)) => Ok(()),
+                                    _ => Err(Failure::Job {
+                                        code: "UNKNOWN".into(),
+                                        detail:
+                                            "the output could not be recorded before it was placed"
                                                 .into(),
-                                        })
-                                    });
-                            let _ = res_tx.send((
-                                row.plan.key.clone(),
-                                row.plan.is_video(),
-                                r,
-                                t.elapsed().as_secs_f64(),
-                            ));
+                                    }),
+                                }
+                            };
+                            let r = std::panic::catch_unwind(AssertUnwindSafe(|| {
+                                worker.process(&row, &mut intent)
+                            }))
+                            .unwrap_or_else(|_| {
+                                Err(Failure::Item {
+                                    code: "UNKNOWN".into(),
+                                    detail: "internal error while processing this item".into(),
+                                })
+                            });
+                            let _ = res_tx.send(WorkerMsg::Done {
+                                key,
+                                is_video: row.plan.is_video(),
+                                result: r,
+                                secs: t.elapsed().as_secs_f64(),
+                            });
                         }
                     });
                 }
@@ -1100,6 +1382,7 @@ impl Job {
                     sink,
                     control,
                     open,
+                    &suspects,
                     workers,
                     awake_active,
                     started,
@@ -1127,6 +1410,11 @@ impl Job {
         self.db.checkpoint();
         if matches!(outcome, Outcome::Completed(_) | Outcome::Cancelled(_)) {
             self.clean_tmp();
+            // Hardening 9: no half-written archive stays beside the finished ones.
+            let n = zipout::clean_partials(&options.dest);
+            if n > 0 {
+                tracing::info!(job = %self.id, removed = n, "unfinished ZIP files removed");
+            }
         }
         Ok(outcome)
     }
@@ -1135,15 +1423,11 @@ impl Job {
     fn coordinate(
         &mut self,
         job_tx: &Sender<ItemRow>,
-        res_rx: &crossbeam_channel::Receiver<(
-            String,
-            bool,
-            std::result::Result<Written, Failure>,
-            f64,
-        )>,
+        res_rx: &crossbeam_channel::Receiver<WorkerMsg>,
         sink: &dyn ProgressSink,
         control: &Control,
         open: Vec<ItemRow>,
+        suspects: &HashSet<String>,
         workers: usize,
         awake_active: bool,
         started: Instant,
@@ -1154,10 +1438,14 @@ impl Job {
         let video_limit = video_workers();
         let mut photos: VecDeque<ItemRow> = VecDeque::new();
         let mut videos: VecDeque<ItemRow> = VecDeque::new();
+        // Items that were in flight when an earlier run went away: alone first.
+        let mut solo: VecDeque<ItemRow> = VecDeque::new();
         let mut bytes_total = 0u64;
         for r in open {
             bytes_total += r.plan.main.size + r.plan.overlay.as_ref().map(|o| o.size).unwrap_or(0);
-            if r.plan.is_video() {
+            if suspects.contains(r.key()) {
+                solo.push_back(r);
+            } else if r.plan.is_video() {
                 videos.push_back(r);
             } else {
                 photos.push_back(r);
@@ -1167,7 +1455,7 @@ impl Job {
         let get = |k: &str| counts.get(k).copied().unwrap_or(0);
         let mut done = get("done");
         let mut failed = get("failed");
-        let total = done + failed + photos.len() + videos.len();
+        let total = done + failed + photos.len() + videos.len() + solo.len();
         let mut in_flight: HashMap<String, (ItemRow, bool)> = HashMap::new();
         let mut videos_in_flight = 0usize;
         let mut eta = Eta::default();
@@ -1208,6 +1496,24 @@ impl Job {
                 && control.may_dispatch()
                 && in_flight.len() < workers
             {
+                if !solo.is_empty() {
+                    if !in_flight.is_empty() {
+                        break;
+                    }
+                    let Some(mut row) = solo.pop_front() else {
+                        break;
+                    };
+                    row.attempts = self.db.mark_started(row.key())?;
+                    let is_video = row.plan.is_video();
+                    if is_video {
+                        videos_in_flight += 1;
+                    }
+                    in_flight.insert(row.key().to_string(), (row.clone(), is_video));
+                    if job_tx.send(row).is_err() {
+                        return Err(JobError::State("worker pool stopped".into()));
+                    }
+                    break;
+                }
                 let video_ok = videos_in_flight < video_limit;
                 let take_video = match (photos.front(), videos.front()) {
                     (Some(p), Some(v)) => video_ok && v.plan.chrono_rank < p.plan.chrono_rank,
@@ -1264,7 +1570,7 @@ impl Job {
                 if control.is_paused() {
                     return Ok(Outcome::Paused(stats()?));
                 }
-                if photos.is_empty() && videos.is_empty() {
+                if photos.is_empty() && videos.is_empty() && solo.is_empty() {
                     sink.progress(&self.progress_now(
                         done,
                         failed,
@@ -1310,7 +1616,17 @@ impl Job {
             }
 
             match res_rx.recv_timeout(Duration::from_millis(100)) {
-                Ok((key, is_video, result, secs)) => {
+                Ok(WorkerMsg::Intent { key, written, ack }) => {
+                    let ok = self.db.mark_intent(&key, &written).is_ok();
+                    let _ = ack.send(ok);
+                    continue;
+                }
+                Ok(WorkerMsg::Done {
+                    key,
+                    is_video,
+                    result,
+                    secs,
+                }) => {
                     let Some((row, _)) = in_flight.remove(&key) else {
                         continue;
                     };
@@ -1338,15 +1654,15 @@ impl Job {
                                     originals_overlay: w.originals_overlay.clone(),
                                     composite_pending: w.composite_pending,
                                     seconds: secs,
+                                    output_hashes: w.hashes.iter().cloned().collect(),
                                 },
                             )?;
                             for (c, d) in &w.warnings {
                                 self.db.journal_event(&key, &format!("warning:{c}|{d}"))?;
                                 tracing::info!(
                                     job = %self.id,
-                                    item = %key,
+                                    at = %crate::process::entry_label(&row.plan.main),
                                     code = %c,
-                                    detail = %mr_core::redact::text(d),
                                     "item warning"
                                 );
                             }
@@ -1564,6 +1880,7 @@ impl Job {
             .map(|r| (r.key().to_string(), r))
             .collect();
         let mut worker = Worker::new(d, part_by_path, self.root.clone(), compositor, settings);
+        let intents = self.db.clip_intents()?;
         for g in groups {
             if control.is_cancelled() || control.is_paused() {
                 break;
@@ -1599,20 +1916,61 @@ impl Job {
                 )?;
                 continue;
             }
+            // Hardening 3 for joins: an interrupted join whose file is there
+            // with the recorded hash is finished from it.
+            if let Some((rel, sha)) = intents.get(&id)
+                && fingerprint::sha256_file(&layout::to_fs(&self.root, rel))
+                    .is_ok_and(|h| &h == sha)
+            {
+                if let (Some(old), Some(old_sha)) = (&g.output_path, &g.output_sha256)
+                    && !old.eq_ignore_ascii_case(rel)
+                {
+                    crate::process::remove_if_unchanged(&self.root, old, old_sha);
+                }
+                self.db.finish_clip(&id, "done", Some((rel, sha)), None)?;
+                sink.item(&ItemOutcome {
+                    id: format!("clip:{id}"),
+                    stage: Stage::Done,
+                    media_type: Some("video".into()),
+                    output_path: Some(rel.clone()),
+                    error_code: None,
+                    error_detail: None,
+                    seconds: 0.0,
+                });
+                continue;
+            }
+            let mut previous: Vec<(String, Option<String>)> = g
+                .output_path
+                .clone()
+                .map(|p| (p, g.output_sha256.clone()))
+                .into_iter()
+                .collect();
+            if let Some((rel, sha)) = intents.get(&id) {
+                previous.push((rel.clone(), Some(sha.clone())));
+            }
             let work = GroupWork {
                 id: id.clone(),
                 output_rel: g.group.output_rel.clone(),
                 members,
-                previous: g.output_path.clone().map(|p| (p, g.output_sha256.clone())),
+                previous,
             };
             let t = Instant::now();
-            let result = std::panic::catch_unwind(AssertUnwindSafe(|| worker.process_group(&work)))
-                .unwrap_or_else(|_| {
-                    Err(Failure::Item {
-                        code: "UNKNOWN".into(),
-                        detail: "internal error while joining clips".into(),
-                    })
-                });
+            let db = &self.db;
+            let mut record = |rel: &str, sha: &str| -> std::result::Result<(), Failure> {
+                db.set_clip_intent(&id, rel, sha).map_err(|e| Failure::Job {
+                    code: "UNKNOWN".into(),
+                    detail: format!("the joined clip could not be recorded: {e}"),
+                })
+            };
+            let result = std::panic::catch_unwind(AssertUnwindSafe(|| {
+                worker.process_group(&work, &mut record)
+            }))
+            .unwrap_or_else(|_| {
+                Err(Failure::Item {
+                    code: "UNKNOWN".into(),
+                    detail: "internal error while joining clips".into(),
+                })
+            });
             let (stage, output, code, detail) = match result {
                 Ok(Some(w)) => {
                     for (c, dt) in &w.warnings {
@@ -1773,6 +2131,8 @@ impl Job {
         }
         if todo.is_empty() {
             tracing::debug!(job = %self.id, volumes = parts.len(), "ZIP output already complete");
+            // Hardening 9: every archive is in place, so a partial is stale.
+            zipout::clean_partials(&dest);
             return Ok(None);
         }
 
@@ -1987,6 +2347,7 @@ impl Job {
             seconds = format_args!("{:.1}", pack_started.elapsed().as_secs_f64()),
             "zip output finished"
         );
+        zipout::clean_partials(&dest);
         Ok(None)
     }
 

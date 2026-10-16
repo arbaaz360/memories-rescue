@@ -176,15 +176,26 @@ pub(crate) struct LoggedSink<'a> {
     inner: &'a dyn ProgressSink,
     job: &'a str,
     last: Mutex<(String, Option<std::time::Instant>)>,
+    /// Item key to "part N, entry M" (hardening 6: no names in the log).
+    places: std::collections::HashMap<String, String>,
 }
 
 impl<'a> LoggedSink<'a> {
-    pub(crate) fn new(inner: &'a dyn ProgressSink, job: &'a str) -> LoggedSink<'a> {
+    pub(crate) fn new(
+        inner: &'a dyn ProgressSink,
+        job: &'a str,
+        places: std::collections::HashMap<String, String>,
+    ) -> LoggedSink<'a> {
         LoggedSink {
             inner,
             job,
             last: Mutex::new((String::new(), None)),
+            places,
         }
+    }
+
+    fn place(&self, id: &str) -> &str {
+        self.places.get(id).map(String::as_str).unwrap_or("an item")
     }
 }
 
@@ -217,7 +228,7 @@ impl ProgressSink for LoggedSink<'_> {
         match (&o.stage, &o.error_code) {
             (Stage::Failed, code) | (_, code @ Some(_)) => tracing::warn!(
                 job = self.job,
-                item = %o.id,
+                at = self.place(&o.id),
                 code = code.as_deref().unwrap_or("UNKNOWN"),
                 detail = %mr_core::redact::text(o.error_detail.as_deref().unwrap_or("")),
                 kept = o.output_path.is_some(),
@@ -225,7 +236,7 @@ impl ProgressSink for LoggedSink<'_> {
             ),
             _ => tracing::debug!(
                 job = self.job,
-                item = %o.id,
+                at = self.place(&o.id),
                 seconds = format_args!("{:.3}", o.seconds),
                 "item done"
             ),

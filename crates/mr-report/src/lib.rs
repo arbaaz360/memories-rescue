@@ -329,11 +329,22 @@ pub const CSV_COLUMNS: [&str; 17] = [
     "composite_pending",
 ];
 
+/// One CSV cell. A cell that a spreadsheet would read as a formula (it
+/// starts with = + - @, their full-width forms, a tab or a carriage return)
+/// gets a leading apostrophe, so Excel, LibreOffice and Sheets show it as
+/// text: names and messages come from the export and must not run.
 fn csv_field(s: &str) -> String {
+    let s = if s.starts_with([
+        '=', '+', '-', '@', '\t', '\r', '\u{FF1D}', '\u{FF0B}', '\u{FF0D}', '\u{FF20}',
+    ]) {
+        format!("'{s}")
+    } else {
+        s.to_string()
+    };
     if s.contains([',', '"', '\n', '\r']) {
         format!("\"{}\"", s.replace('"', "\"\""))
     } else {
-        s.to_string()
+        s
     }
 }
 
@@ -653,6 +664,23 @@ mod tests {
         assert_eq!(t.by_status["failed"], 1);
         assert_eq!(t.by_status["missing_media"], 1);
         assert_eq!(t.by_confidence["ordinal"], 1);
+    }
+
+    #[test]
+    fn csv_cells_that_look_like_formulas_are_text() {
+        for (cell, want) in [
+            ("=HYPERLINK(\"x\")", "\"'=HYPERLINK(\"\"x\"\")\""),
+            ("+1", "'+1"),
+            ("-2+3", "'-2+3"),
+            ("@SUM(A1)", "'@SUM(A1)"),
+            ("\u{FF1D}1+1", "'\u{FF1D}1+1"),
+            ("\tx", "'\tx"),
+            ("\rx", "\"'\rx\""),
+            ("2021-12-25", "2021-12-25"),
+            ("plain, text", "\"plain, text\""),
+        ] {
+            assert_eq!(csv_field(cell), want, "{cell:?}");
+        }
     }
 
     #[test]

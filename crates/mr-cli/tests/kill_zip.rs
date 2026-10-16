@@ -76,6 +76,38 @@ fn mr_cli(bin: &str, args: &[&str], dest: &Path, state: &Path, first: bool) -> s
         .expect("spawn mr-cli")
 }
 
+/// A volume size that splits the packed output of `inputs` into at least
+/// `n` archives, from a probe run and the engine's own partition.
+fn volume_for(inputs: &[PathBuf], n: usize) -> (u64, usize) {
+    use mr_job::zipout::{self, PackFile};
+    let base = std::env::temp_dir().join(format!("mr-cli-kill-zip-probe-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&base);
+    let mut o = mr_job::Options::new(base.join("dest"));
+    o.home_tz = Some("Europe/London".into());
+    o.unlocked = true;
+    let mut job = Job::create(&base.join("state"), inputs, o).unwrap();
+    job.run(&mr_job::CollectingSink::default(), &mr_job::Control::new())
+        .unwrap();
+    let files: Vec<PackFile> = tree(job.output_root())
+        .into_iter()
+        .map(|(entry, p)| PackFile {
+            rel: entry["Memories Rescue/".len()..].to_string(),
+            entry,
+            size: std::fs::metadata(&p).unwrap().len(),
+            mtime: 0,
+        })
+        .collect();
+    let floor =
+        (files.iter().map(PackFile::cost).max().unwrap() + zipout::VOLUME_OVERHEAD).max(64 << 10);
+    let total: u64 = files.iter().map(PackFile::cost).sum();
+    let mut limit = (total / (n as u64 + 1)).max(floor);
+    while zipout::partition(&files, Some(limit)).len() < n && limit > floor {
+        limit = (limit * 9 / 10).max(floor);
+    }
+    let _ = std::fs::remove_dir_all(&base);
+    (limit, files.len())
+}
+
 /// Main files in F-01 on this machine (fewer without ffmpeg).
 fn fixtures_items() -> usize {
     let dir = fixtures::fixture_dir("small-2026b");
@@ -104,6 +136,12 @@ fn fr31_kill_while_packing_then_resume_cleanly() {
     let mut rng = Rng(seed);
     let started = Instant::now();
 
+    // A volume size giving at least 5 archives on this machine's fixture
+    // (the CI runners have no ffmpeg, so theirs has no videos).
+    let (volume, files) = volume_for(&inputs, 5);
+    let volume = volume.to_string();
+    // About 4 s of packing, whatever the file count, so the kills land in it.
+    let delay = (4000 / files.max(1)).clamp(25, 200).to_string();
     let mut run_args: Vec<String> = vec!["run".into()];
     run_args.extend(inputs.iter().map(|p| p.to_string_lossy().into_owned()));
     run_args.extend(
@@ -112,9 +150,9 @@ fn fr31_kill_while_packing_then_resume_cleanly() {
             "Europe/London",
             "--unlocked",
             "--zip-volume",
-            "256K",
+            &volume,
             "--test-zip-delay-ms",
-            "25",
+            &delay,
             "--quiet",
         ]
         .map(String::from),
