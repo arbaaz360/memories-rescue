@@ -8,3 +8,4 @@ this branch only hosts images for the PR description.
 - `zoom200/`: a 900×600 window at 200% zoom
 - `forced/`: forced colors (Windows high contrast) with reduced motion
 - `tauri/`: inside the Tauri window on Windows 11
+- `engine/`: the wired app (`npm run tauri dev`) on fixture F-05, from `scripts/tauri-walk.mjs`
