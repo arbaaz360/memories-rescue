@@ -109,7 +109,30 @@ when `TRUSTED_SIGNING_ENDPOINT` is set, else unsigned. macOS signs when
 `APPLE_TEAM_ID` instead of the API key; the API key is preferred for CI).
 
 Nothing in the repository holds a secret: `sign-windows.ps1` and the
-workflow pass them to the signing tools from the environment only.
+workflow pass them to the signing tools from the environment only, and the
+eSigner tool is started as `java -jar` directly, never through its `.bat`,
+so `cmd.exe` never parses a password or TOTP secret.
+
+### Supply chain of the workflows
+
+Both workflows run with every third-party action **pinned by commit SHA**
+(the tag it corresponds to is in the comment next to it), and `release.yml`
+has no `pull_request` trigger, so its secrets never meet code that has not
+been merged. The two signing tools are downloaded from fixed URLs and
+checked before use:
+
+| Tool | Pinned | Checked by |
+|---|---|---|
+| SSL.com CodeSignTool | GitHub release `SSLcom/CodeSignTool` v1.3.2, `CodeSignTool-v1.3.2.zip` | SHA-256 `f14b1e1ef14bfa1fd00279c363aab0debbf5dcfba0e4bcdce5d22bb771de0e3a` |
+| Microsoft.Trusted.Signing.Client | NuGet flat container, version 1.0.95 (`TSC_VERSION`; nuget.org lists none of its versions any more, but exact versions stay downloadable) | SHA-512 base64 `uTRnbWSg1agZUh8J5bqJXhJr4LZ9dzs6Xy9PNxK4yA9ubpGuPq71bz1AZMmiKs/HVbQc3NUChtGMVexqmuV+kA==`, equal to NuGet's catalogue `packageHash` |
+| actionlint (CI) | `rhysd/actionlint:1.7.12` | image digest in `ci.yml` |
+
+To bump an action: `gh api repos/<owner>/<repo>/git/ref/tags/<tag>` (follow
+an annotated tag's object once more with `git/tags/<sha>`), put the commit
+SHA in `uses:` and the tag in the comment. To bump a tool: download the new
+archive, hash it (`sha256sum`, or SHA-512 base64 for the NuGet package, which
+must equal the `packageHash` in its catalogue entry), and change the two
+values in the step.
 
 ## Owner's steps
 

@@ -20,6 +20,10 @@
 # Without signing secrets the build still runs and the release is labelled
 # "unsigned build"; without a pinned minimal ffmpeg the Windows build can use
 # the development ffmpeg only when dispatched by hand with allow_dev_ffmpeg.
+#
+# Supply chain: every third-party action is pinned by commit SHA (tag in the
+# comment), the two signing tools are pinned by version and hash, and this
+# workflow has no pull_request trigger, so secrets never meet unreviewed code.
 name: Release
 
 on:
@@ -58,24 +62,26 @@ jobs:
       prerelease: ${{ steps.meta.outputs.prerelease }}
       notes: ${{ steps.meta.outputs.notes }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           ref: ${{ env.TAG }}
 
       - name: Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable branch, 2026-10-16
+        with:
+          toolchain: stable
 
       - name: Rust cache
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
 
       - name: Node 22
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: 22
           cache: npm
 
       - name: Python 3.12
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version: "3.12"
 
@@ -124,28 +130,29 @@ jobs:
             bundle_dir: target/universal-apple-darwin/release/bundle
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           ref: ${{ env.TAG }}
 
       - name: Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable branch, 2026-10-16
         with:
+          toolchain: stable
           targets: ${{ matrix.rust_targets }}
 
       - name: Rust cache
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           key: release-${{ matrix.target }}
 
       - name: Node 22
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: 22
           cache: npm
 
       - name: Python 3.12
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version: "3.12"
 
@@ -186,26 +193,48 @@ jobs:
           echo "MR_RELEASE_SIGNED=$signed" >> "$GITHUB_ENV"
           echo "signing: $signed"
 
+      # Pinned release of SSL.com's CodeSignTool (the platform-independent
+      # archive: jar + conf, run with the runner's Java), verified by SHA-256
+      # before anything in it is used. Bump: new tag, new hash from a local
+      # download (sha256sum CodeSignTool-vX.Y.Z.zip).
       - name: Install CodeSignTool (SSL.com eSigner)
         if: runner.os == 'Windows' && env.WINDOWS_SIGNER == 'esigner'
         shell: pwsh
+        env:
+          CST_VERSION: "1.3.2"
+          CST_SHA256: "f14b1e1ef14bfa1fd00279c363aab0debbf5dcfba0e4bcdce5d22bb771de0e3a"
         run: |
-          $zip = Join-Path $env:RUNNER_TEMP "CodeSignTool.zip"
-          Invoke-WebRequest -Uri "https://www.ssl.com/download/codesigntool-for-windows/" -OutFile $zip
-          Expand-Archive -Path $zip -DestinationPath (Join-Path $env:RUNNER_TEMP "CodeSignTool") -Force
-          $bat = Get-ChildItem -Path (Join-Path $env:RUNNER_TEMP "CodeSignTool") -Filter CodeSignTool.bat -Recurse | Select-Object -First 1
-          if (-not $bat) { throw "CodeSignTool.bat not found in the download" }
-          "CODESIGNTOOL_DIR=$($bat.DirectoryName)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          $zip = Join-Path $env:RUNNER_TEMP "CodeSignTool-v$env:CST_VERSION.zip"
+          Invoke-WebRequest -Uri "https://github.com/SSLcom/CodeSignTool/releases/download/v$env:CST_VERSION/CodeSignTool-v$env:CST_VERSION.zip" -OutFile $zip
+          $actual = (Get-FileHash -Algorithm SHA256 -Path $zip).Hash.ToLowerInvariant()
+          if ($actual -ne $env:CST_SHA256) { throw "CodeSignTool-v$env:CST_VERSION.zip: sha256 $actual does not match the pinned $env:CST_SHA256" }
+          $dir = Join-Path $env:RUNNER_TEMP "CodeSignTool"
+          Expand-Archive -Path $zip -DestinationPath $dir -Force
+          $jar = Get-ChildItem -Path $dir -Filter "code_sign_tool-*.jar" -Recurse | Select-Object -First 1
+          if (-not $jar) { throw "code_sign_tool jar not found in the archive" }
+          "CODESIGNTOOL_DIR=$($jar.Directory.Parent.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          java -version
 
+      # Pinned Microsoft.Trusted.Signing.Client package, fetched from the
+      # NuGet flat container and checked against its catalogue SHA-512
+      # (base64, as NuGet publishes it) before extraction. Bump: new version,
+      # new hash from the catalogue entry or a local download.
       - name: Install Trusted Signing client (Azure)
         if: runner.os == 'Windows' && env.WINDOWS_SIGNER == 'azure'
         shell: pwsh
+        env:
+          TSC_VERSION: "1.0.95"
+          TSC_SHA512_BASE64: "uTRnbWSg1agZUh8J5bqJXhJr4LZ9dzs6Xy9PNxK4yA9ubpGuPq71bz1AZMmiKs/HVbQc3NUChtGMVexqmuV+kA=="
         run: |
+          $pkg = Join-Path $env:RUNNER_TEMP "microsoft.trusted.signing.client.$env:TSC_VERSION.zip"
+          Invoke-WebRequest -Uri "https://api.nuget.org/v3-flatcontainer/microsoft.trusted.signing.client/$env:TSC_VERSION/microsoft.trusted.signing.client.$env:TSC_VERSION.nupkg" -OutFile $pkg
+          $actual = [Convert]::ToBase64String([System.Security.Cryptography.SHA512]::Create().ComputeHash([System.IO.File]::ReadAllBytes($pkg)))
+          if ($actual -ne $env:TSC_SHA512_BASE64) { throw "Microsoft.Trusted.Signing.Client $env:TSC_VERSION: sha512 does not match the pinned value" }
           $out = Join-Path $env:RUNNER_TEMP "tsc"
-          nuget install Microsoft.Trusted.Signing.Client -x -OutputDirectory $out
-          $dlib = Get-ChildItem -Path $out -Filter Azure.CodeSigning.Dlib.dll -Recurse | Where-Object { $_.FullName -match '\\x64\\' } | Select-Object -First 1
-          if (-not $dlib) { throw "Azure.CodeSigning.Dlib.dll not found" }
-          "TRUSTED_SIGNING_DLIB=$($dlib.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          Expand-Archive -Path $pkg -DestinationPath $out -Force
+          $dlib = Join-Path $out "bin\x64\Azure.CodeSigning.Dlib.dll"
+          if (-not (Test-Path $dlib)) { throw "Azure.CodeSigning.Dlib.dll not found in the package" }
+          "TRUSTED_SIGNING_DLIB=$dlib" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
       # notarytool wants the App Store Connect key as a file.
       - name: Apple API key file
@@ -224,7 +253,7 @@ jobs:
       # signs updater artifacts, and uploads everything plus latest.json to a
       # draft release on the releases repository.
       - name: Build, sign and upload
-        uses: tauri-apps/tauri-action@v1.0.0
+        uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f # v1.0.0
         env:
           GITHUB_TOKEN: ${{ secrets.RELEASES_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -280,13 +309,13 @@ jobs:
           MATRIX_TARGET: ${{ matrix.target }}
 
       - name: Upload build record
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: build-info-${{ matrix.target }}
           path: build-info/
 
       - name: Upload bundles (for inspection)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: bundles-${{ matrix.target }}
           path: |
@@ -302,11 +331,11 @@ jobs:
     needs: [checks, build]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           ref: ${{ env.TAG }}
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           pattern: build-info-*
           path: build-info
