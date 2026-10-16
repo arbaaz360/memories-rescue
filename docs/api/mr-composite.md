@@ -446,7 +446,7 @@ shares code with the crate.
 
 | Test | Covers | CI (no ffmpeg) |
 |---|---|---|
-| 42 unit tests (`cargo test -p mr-composite --lib`) | probe parsers (matrix, `stts`, `elst`, EXIF, SPS, `hvcC`, `esds`), placement, bitrate, every argument array, encoder selection with fake `-encoders` listings (Windows LGPL, macOS, none), the software path, concat quoting, the §4.5 rules, photo orientation and blending, error codes; retry and timeout against a real ffmpeg | run; the two ffmpeg ones skip |
+| 43 unit tests (`cargo test -p mr-composite --lib`) | probe parsers (matrix, `stts`, `elst`, EXIF, SPS, `hvcC`, `esds`), placement, bitrate, every argument array, encoder selection with fake `-encoders` listings (Windows LGPL, macOS, none), the software path, concat quoting, the §4.5 rules, photo orientation and blending, error codes; retry and timeout against a real ffmpeg | run; the two ffmpeg ones skip |
 | `tests/photo.rs` | FR-23 AC1, quality option, `MEDIA_DECODE` | **run** (F-07 photos need only Pillow) |
 | `tests/video.rs` | FR-24 AC1, AC2, encoder plan, compatibility transcode | skip |
 | `tests/clips.rs` | FR-27 detection, AC1, AC2, per-segment overlays, rotated copy join, refusal | skip |
