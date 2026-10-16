@@ -1552,7 +1552,9 @@ fn template_without_shortid_is_refused() {
         let r = plan(&inputs, &o);
         assert_eq!(r.is_ok(), ok, "{template:?}: {:?}", r.err());
         if !ok {
-            assert!(matches!(r, Err(mr_job::JobError::InvalidOptions(_))));
+            assert!(
+                matches!(&r, Err(mr_job::JobError::State(s)) if s.starts_with("invalid options"))
+            );
         }
     }
     let mut job = Job::create(&e.state, &inputs, options(&e.dest)).unwrap();
@@ -1560,7 +1562,7 @@ fn template_without_shortid_is_refused() {
     bad.output_template = "{date}.{ext}".into();
     assert!(matches!(
         job.set_options(bad),
-        Err(mr_job::JobError::InvalidOptions(_))
+        Err(mr_job::JobError::State(s)) if s.starts_with("invalid options")
     ));
     run(&mut job);
 }

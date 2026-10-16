@@ -647,7 +647,7 @@ impl Job {
     /// uncertain-location setting re-plans the items not yet written.
     pub fn set_options(&mut self, options: Options) -> Result<Option<Replanned>> {
         if let Some(problem) = options.template_problem() {
-            return Err(JobError::InvalidOptions(problem));
+            return Err(JobError::State(format!("invalid options: {problem}")));
         }
         let mut options = options;
         options.dest = self.row.options.dest.clone();

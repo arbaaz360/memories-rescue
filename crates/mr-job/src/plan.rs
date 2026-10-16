@@ -353,7 +353,7 @@ pub(crate) fn plan_with(
     naming: &Naming,
 ) -> Result<(Plan, Discovery)> {
     if let Some(problem) = options.template_problem() {
-        return Err(JobError::InvalidOptions(problem));
+        return Err(JobError::State(format!("invalid options: {problem}")));
     }
     let d = discover(inputs);
     let export = match d.exports.len() {
