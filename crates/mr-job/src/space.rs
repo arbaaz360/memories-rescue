@@ -126,9 +126,16 @@ pub fn available_space(path: &Path) -> Option<u64> {
     None
 }
 
-/// Bytes as GB with one decimal, for messages.
+/// Bytes in GB with one decimal, for messages; small amounts in MB or KB.
 pub fn gb(bytes: u64) -> String {
-    format!("{:.1} GB", bytes as f64 / 1_000_000_000.0)
+    let b = bytes as f64;
+    if b >= 1e9 {
+        format!("{:.1} GB", b / 1e9)
+    } else if b >= 1e6 {
+        format!("{:.1} MB", b / 1e6)
+    } else {
+        format!("{:.0} KB", (b / 1e3).ceil())
+    }
 }
 
 #[cfg(test)]
