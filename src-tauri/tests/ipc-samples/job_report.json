@@ -79,5 +79,23 @@
     "metadata_only": false,
     "workers": null,
     "excluded_clip_groups": []
-  }
+  },
+  "clips": [
+    {
+      "group_id": "2018-06-02_7C1E9A40",
+      "clip_count": 3,
+      "total_seconds": 24,
+      "status": "done",
+      "output_path": "D:\\Memories\\Memories Rescue\\2018\\06\\2018-06-02_140311_7C1E9A40-joined.mp4",
+      "error_code": null
+    },
+    {
+      "group_id": "2019-12-24_B3D0F218",
+      "clip_count": 4,
+      "total_seconds": 37.6,
+      "status": "done",
+      "output_path": "D:\\Memories\\Memories Rescue\\2019\\12\\2019-12-24_194205_B3D0F218-joined.mp4",
+      "error_code": null
+    }
+  ]
 }

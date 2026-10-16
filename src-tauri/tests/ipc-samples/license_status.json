@@ -6,5 +6,6 @@
   "grace_until": null,
   "product_url": "https://novabyteworks.gumroad.com/l/memories-rescue",
   "price_display": null,
-  "free_limit": 100
+  "free_limit": 100,
+  "activation_limit": 5
 }

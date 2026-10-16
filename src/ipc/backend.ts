@@ -8,6 +8,9 @@
  * 2. Inside Tauri: probe `app_info`. If it answers, Tauri. If it fails
  *    (typically "command app_info not found" while the engine is not wired),
  *    mock, and the reason is kept for the dev badge and About.
+ * A release build passes `createMock: null`: it never runs on the mock, and
+ * a failed probe gives `backend: null`, which the window shows as a plain
+ * error screen.
  * `sidecar_versions` is probed separately and never blocks the first paint.
  */
 
@@ -24,7 +27,8 @@ export interface Backend {
 export type SelectionReason = "no_tauri" | "engine" | "engine_missing" | "engine_error";
 
 export interface Selection {
-  backend: Backend;
+  /** null in a release build when the engine did not answer: show the error screen. */
+  backend: Backend | null;
   reason: SelectionReason;
   /** Message of the failed probe, when the mock was chosen inside Tauri. */
   detail: string | null;
@@ -33,7 +37,8 @@ export interface Selection {
 export interface SelectDeps {
   isTauri: () => boolean;
   createTauri: () => Backend;
-  createMock: () => Backend;
+  /** null in release builds: the mock is not even bundled there. */
+  createMock: (() => Backend | Promise<Backend>) | null;
   /** How long the engine probe may take before the mock takes over. */
   timeoutMs?: number;
 }
@@ -60,14 +65,15 @@ function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
 }
 
 export async function selectBackend(deps: SelectDeps): Promise<Selection> {
-  if (!deps.isTauri()) return { backend: deps.createMock(), reason: "no_tauri", detail: null };
+  const mock = async () => (deps.createMock ? await deps.createMock() : null);
+  if (!deps.isTauri()) return { backend: await mock(), reason: "no_tauri", detail: null };
   const tauri = deps.createTauri();
   try {
     await withTimeout(tauri.call("app_info", {}), deps.timeoutMs ?? 3000);
     return { backend: tauri, reason: "engine", detail: null };
   } catch (err) {
     const detail = toIpcError(err).message || String(err);
-    return { backend: deps.createMock(), reason: isCommandMissing(err) ? "engine_missing" : "engine_error", detail };
+    return { backend: await mock(), reason: isCommandMissing(err) ? "engine_missing" : "engine_error", detail };
   }
 }
 

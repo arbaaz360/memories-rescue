@@ -37,6 +37,7 @@
       "nsis",
       "msi"
     ],
+    "createUpdaterArtifacts": true,
     "publisher": "NovaByteWorks",
     "externalBin": [
       "binaries/ffmpeg",
@@ -62,5 +63,16 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ]
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDdFNUY0OUU5MDBCQzAxN0EKUldSNkFid0E2VWxmZmdxdDJ1WUdrbWlnL2NBNXhsSE5QOThyR1FycG0ySGFzNEZEb0Mwb2NyQWEK",
+      "endpoints": [
+        "https://github.com/arbaaz360/memories-rescue-releases/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
   }
 }

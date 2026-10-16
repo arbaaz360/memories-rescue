@@ -232,13 +232,13 @@ describe("licence and settings", () => {
   it("keeps settings in memory and returns copies", async () => {
     const m = engine();
     const s = await m.call("get_settings", {});
-    expect(s.telemetry).toBe(false);
+    expect(s.update_checks).toBe(true);
     expect(s.apply_uncertain_locations).toBe(false);
-    await m.call("set_settings", { settings: { ...s, telemetry: true, language: "en-US" } });
+    await m.call("set_settings", { settings: { ...s, update_checks: false, language: "en-US" } });
     const again = await m.call("get_settings", {});
-    expect(again.telemetry).toBe(true);
-    again.telemetry = false;
-    expect((await m.call("get_settings", {})).telemetry).toBe(true);
+    expect(again.update_checks).toBe(false);
+    again.update_checks = true;
+    expect((await m.call("get_settings", {})).update_checks).toBe(false);
   });
 
   it("lists a resumable job only in the resume scenario", async () => {

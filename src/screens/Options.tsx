@@ -5,6 +5,7 @@ import { byteBaseFor, formatBytes, joinPath } from "../format/format";
 import type { JobOptions, OverlayMode } from "../ipc/types";
 import { ActionBar, Button, Callout, Checkbox, ErrorCallout, RadioGroup, ScreenTitle, SpaceMeter } from "../ui/components";
 import { IconArrowBack, IconFolder } from "../ui/icons";
+import { HevcNotice } from "../ui/HevcNotice";
 
 const OVERLAY_MODES: readonly OverlayMode[] = ["burn_in_keep_originals", "burn_in_only", "separate_file", "ignore"];
 const SPACE_MARGIN = 1.1;
@@ -102,6 +103,7 @@ export function Options() {
   return (
     <div class="screen">
       <ScreenTitle lede={t("options-lede")}>{t("options-title")}</ScreenTitle>
+      <HevcNotice notice={store.summary.value?.hevc_notice ?? null} onEnable={() => set({ windows_compatibility: true })} />
 
       <section class="card" aria-labelledby="dest-title">
         <h2 id="dest-title" class="card-title">

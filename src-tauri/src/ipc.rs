@@ -4,7 +4,6 @@
 //! these types against JSON produced by the TypeScript mock.
 
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
 
 // ---------------------------------------------------------------------------
 // Errors (SRS §8)
@@ -248,6 +247,8 @@ pub struct ExportSummary {
     pub total_bytes: u64,
     pub issues: Vec<Issue>,
     pub blocked: bool,
+    /// FR-51: HEVC videos this computer cannot play, from a sample.
+    pub hevc_notice: Option<HevcNotice>,
 }
 
 // ---------------------------------------------------------------------------
@@ -420,6 +421,7 @@ pub struct PlanPreview {
     pub space: SpaceEstimate,
     pub estimated_seconds: f64,
     pub free_limit: FreeLimitInfo,
+    pub hevc_notice: Option<HevcNotice>,
 }
 
 // ---------------------------------------------------------------------------
@@ -564,6 +566,8 @@ pub struct JobReport {
     pub can_unlock: bool,
     pub can_add_part: bool,
     pub options: JobOptions,
+    /// FR-27: joined clip groups.
+    pub clips: Vec<ClipOutcome>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -604,17 +608,7 @@ pub struct Settings {
     pub zip_volume_bytes: Option<u64>,
     pub update_checks: bool,
     pub update_channel: UpdateChannel,
-    pub telemetry: bool,
     pub language: String,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct TelemetryPayload {
-    pub app_version: String,
-    pub os_family: String,
-    pub items_processed_bucket: String,
-    pub error_code_counts: BTreeMap<String, u64>,
-    pub crash_signatures: Vec<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -635,6 +629,8 @@ pub struct LicenseStatus {
     pub product_url: String,
     pub price_display: Option<String>,
     pub free_limit: u64,
+    /// Q-06: computers one key may be activated on (build configuration).
+    pub activation_limit: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -647,6 +643,62 @@ pub struct AppInfo {
     pub privacy_policy_url: String,
     pub support_email: String,
     pub website_url: String,
+    pub terms_url: String,
+    pub faq_url: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct HevcNotice {
+    /// HEVC videos found in the sample.
+    pub hevc: u64,
+    /// Videos sampled (up to 16).
+    pub sampled: u64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ClipStatus {
+    Pending,
+    Done,
+    Failed,
+    Skipped,
+    Declined,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ClipOutcome {
+    /// mr-job's group id (the first clip's item key); what `excluded_clip_groups` lists.
+    pub group_id: String,
+    pub clip_count: u64,
+    pub total_seconds: f64,
+    pub status: ClipStatus,
+    pub output_path: Option<String>,
+    pub error_code: Option<ErrorCode>,
+}
+
+/// An update the feed offers (§10.2).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct UpdateInfo {
+    pub version: String,
+    pub current_version: String,
+    pub date: Option<String>,
+    pub notes: Option<String>,
+    pub channel: UpdateChannel,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct DiagnosticsFile {
+    pub name: String,
+    pub bytes: u64,
+    /// `logs`, `app`, `settings`, `jobs`, `journal`.
+    pub kind: String,
+}
+
+/// What Export diagnostics will save, shown before saving (FR-41, NFR-PRV-06).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct DiagnosticsPreview {
+    pub destination: String,
+    pub files: Vec<DiagnosticsFile>,
 }
 
 /// What `sidecar_versions` returns to the window.
@@ -654,8 +706,9 @@ pub struct AppInfo {
 pub struct SidecarVersions {
     /// First line of `ffmpeg -version`, e.g. `ffmpeg version n9.0.2-28-g669f5ab083-20261015 ...`.
     pub ffmpeg: String,
-    /// Output of `exiftool -ver`, e.g. `13.59`.
-    pub exiftool: String,
+    /// Output of `exiftool -ver`, e.g. `13.59`; `None` when it is not
+    /// bundled (Q-02: release builds write metadata in Rust and ship ffmpeg only).
+    pub exiftool: Option<String>,
 }
 
 /// Event names, as the window listens for them.
@@ -664,4 +717,5 @@ pub mod events {
     pub const ITEM: &str = "item";
     pub const JOB_STATE: &str = "job_state";
     pub const WARNING: &str = "warning";
+    pub const UPDATE_AVAILABLE: &str = "update_available";
 }

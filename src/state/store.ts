@@ -10,6 +10,8 @@ import type { Host } from "../ipc/host";
 import {
   toIpcError,
   type AppInfo,
+  type DiagnosticsPreview,
+  type UpdateInfo,
   type ExportSummary,
   type InputFile,
   type IpcError,
@@ -92,6 +94,17 @@ export class AppStore {
   readonly report = signal<JobReport | null>(null);
   readonly outputPath = signal<string | null>(null);
   readonly diagnosticsPath = signal<string | null>(null);
+  /** What Export diagnostics would save; shown in a dialog before saving (FR-41). */
+  readonly diagnosticsPreview = signal<DiagnosticsPreview | null>(null);
+  readonly diagnosticsBusy = signal(false);
+  /** An update the feed offers (§10.2); null when none or dismissed. */
+  readonly update = signal<UpdateInfo | null>(null);
+  readonly updateBusy = signal(false);
+  readonly updateError = signal<IpcError | null>(null);
+  /** Result of the last "Check now" in Settings: "none" when up to date. */
+  readonly updateCheck = signal<"idle" | "checking" | "none" | "found">("idle");
+  /** FR-51 notice dismissed for this session. */
+  readonly hevcDismissed = signal(false);
   readonly startBusy = signal(false);
 
   readonly license = signal<LicenseStatus | null>(null);
@@ -145,6 +158,9 @@ export class AppStore {
       await this.backend.on("warning", (w) => {
         this.notices.value = [...this.notices.value.filter((n) => n.code !== w.code), w];
       }),
+      await this.backend.on("update_available", (u) => {
+        this.update.value = u;
+      }),
     );
     const [settings, license, resumable, appInfo] = await Promise.all([
       this.backend.call("get_settings", {}),
@@ -159,6 +175,8 @@ export class AppStore {
       this.appInfo.value = appInfo;
     });
     this.applyLanguage(settings.language);
+    // §10.2: check at launch unless turned off (the engine repeats it every 24 h).
+    if (settings.update_checks) void this.checkForUpdate(false);
   }
 
   dispose(): void {
@@ -638,12 +656,32 @@ export class AppStore {
     await this.addPartToJob(paths);
   }
 
+  /** First step of Export diagnostics: list what the ZIP will hold (NFR-PRV-06). */
+  async previewDiagnostics(): Promise<void> {
+    this.diagnosticsBusy.value = true;
+    try {
+      this.diagnosticsPreview.value = await this.backend.call("diagnostics_preview", {});
+    } catch (e) {
+      this.jobError.value = toIpcError(e);
+    } finally {
+      this.diagnosticsBusy.value = false;
+    }
+  }
+
+  closeDiagnostics(): void {
+    this.diagnosticsPreview.value = null;
+  }
+
   async exportDiagnostics(): Promise<void> {
+    this.diagnosticsBusy.value = true;
     try {
       this.diagnosticsPath.value = await this.backend.call("export_diagnostics", {});
+      this.diagnosticsPreview.value = null;
       this.announce(this.t("results-diagnostics-saved"));
     } catch (e) {
       this.jobError.value = toIpcError(e);
+    } finally {
+      this.diagnosticsBusy.value = false;
     }
   }
 
@@ -748,8 +786,44 @@ export class AppStore {
     this.announce(this.t("settings-saved"));
   }
 
-  telemetryPreview() {
-    return this.backend.call("telemetry_preview", {});
+  // ---------------------------------------------------------------------------
+  // Updates (§10.2)
+  // ---------------------------------------------------------------------------
+
+  /** `force` is "Check now" in Settings; otherwise the engine honours the update-checks setting. */
+  async checkForUpdate(force: boolean): Promise<void> {
+    if (force) this.updateCheck.value = "checking";
+    try {
+      const found = await this.backend.call("check_update", { force });
+      this.update.value = found;
+      if (force) this.updateCheck.value = found ? "found" : "none";
+    } catch (e) {
+      // A failed check changes nothing; it is shown only when the user asked.
+      if (force) {
+        this.updateCheck.value = "idle";
+        this.updateError.value = toIpcError(e);
+      }
+    }
+  }
+
+  /** True while a job runs: updates never install then (§10.2). */
+  readonly jobRunning = computed(() => this.flow.value.jobState === "running");
+
+  async installUpdate(): Promise<void> {
+    if (this.jobRunning.value) return;
+    this.updateBusy.value = true;
+    this.updateError.value = null;
+    try {
+      await this.backend.call("install_update", {});
+    } catch (e) {
+      this.updateError.value = toIpcError(e);
+    } finally {
+      this.updateBusy.value = false;
+    }
+  }
+
+  dismissUpdate(): void {
+    this.update.value = null;
   }
 
   dismissNotice(code: string): void {

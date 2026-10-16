@@ -108,6 +108,38 @@ function Groups(props: { report: JobReport }) {
   );
 }
 
+/** FR-27: the split videos joined back together, and any that were not. */
+function JoinedClips(props: { report: JobReport }) {
+  const store = useStore();
+  const i18n = useI18n();
+  const t = i18n.t;
+  const clips = props.report.clips;
+  if (clips.length === 0) return null;
+  const done = clips.filter((c) => c.status === "done").length;
+  return (
+    <section class="card outcome-group group-saved" aria-labelledby="g-clips">
+      <h3 id="g-clips" class="card-title">
+        {t("results-clips-title", { count: done })}
+      </h3>
+      <ul class="clip-list">
+        {clips.map((c) => (
+          <li key={c.group_id}>
+            <span>{t("results-clip", { count: c.clip_count, seconds: Math.round(c.total_seconds) })}</span>
+            <Badge tone={c.status === "done" ? "success" : c.status === "failed" ? "danger" : "neutral"}>{t("results-clip-status", { status: c.status })}</Badge>
+            {c.status === "done" && c.output_path ? (
+              <Button variant="ghost" onClick={() => void store.openPath(c.output_path ?? "")}>
+                {t("results-clip-open")}
+              </Button>
+            ) : null}
+            {c.error_code ? <span class="muted">{t(errorMessageId(c.error_code))}</span> : null}
+          </li>
+        ))}
+      </ul>
+      <p class="field-desc">{t("results-clips-note")}</p>
+    </section>
+  );
+}
+
 /** S6: outcome by status, with "not in your export" kept apart from "failed" (NFR-USE-04). */
 export function Results() {
   const store = useStore();
@@ -142,6 +174,7 @@ export function Results() {
       ) : null}
 
       <Groups report={report} />
+      <JoinedClips report={report} />
 
       <section class="card report-card" aria-labelledby="report-title">
         <h2 id="report-title" class="card-title">
@@ -170,7 +203,9 @@ export function Results() {
           <IconExternal size={18} />
           {t("results-open-folder")}
         </Button>
-        <Button onClick={() => void store.exportDiagnostics()}>{t("results-diagnostics")}</Button>
+        <Button onClick={() => void store.previewDiagnostics()} busy={store.diagnosticsBusy.value}>
+          {t("results-diagnostics")}
+        </Button>
         <Button variant="ghost" onClick={() => void store.newJob()}>
           {t("results-new-job")}
         </Button>

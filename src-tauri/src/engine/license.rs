@@ -10,6 +10,12 @@
 //!   most every 30 days with `increment_uses_count=false`; transport errors,
 //!   timeouts, 429, 5xx and non-Gumroad bodies change nothing (rule 3). Only an
 //!   explicit revocation (rule 4) starts a 14-day grace period.
+//! * Q-06 (provisional): one key may be active on `activation_limit`
+//!   computers (build configuration, default 5). Activation first asks
+//!   Gumroad without incrementing and reads `uses`; a key already at the
+//!   limit is refused before it costs a use. Deactivation is local only:
+//!   Gumroad's decrement endpoint needs the seller's token, which never
+//!   ships in the app, so freeing a computer is a support request.
 
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -27,6 +33,8 @@ const SECRET_ENTRY: &str = "install-secret";
 const RECHECK_DAYS: i64 = 30;
 const GRACE_DAYS: i64 = 14;
 pub const DEFAULT_VERIFY_URL: &str = "https://api.gumroad.com/v2/licenses/verify";
+/// Q-06: computers per key unless the build says otherwise.
+pub const DEFAULT_ACTIVATION_LIMIT: u64 = 5;
 
 /// The OS keychain, or a stand-in for tests.
 pub trait SecretStore: Send + Sync {
@@ -98,12 +106,15 @@ pub struct GumroadConfig {
     pub verify_url: String,
     pub product_url: String,
     pub price_display: Option<String>,
+    /// Q-06: `MR_ACTIVATION_LIMIT` at build time, default 5.
+    pub activation_limit: u64,
 }
 
 impl GumroadConfig {
-    /// `MR_GUMROAD_PRODUCT_ID`, `MR_GUMROAD_PRODUCT_URL` and `MR_PRICE_DISPLAY`
-    /// at build time. Debug builds also read them at run time, plus
-    /// `MR_GUMROAD_VERIFY_URL` to point at a fake Gumroad on loopback.
+    /// `MR_GUMROAD_PRODUCT_ID`, `MR_GUMROAD_PRODUCT_URL`, `MR_PRICE_DISPLAY`
+    /// and `MR_ACTIVATION_LIMIT` at build time. Debug builds also read them
+    /// at run time, plus `MR_GUMROAD_VERIFY_URL` to point at a fake Gumroad
+    /// on loopback.
     pub fn from_build() -> GumroadConfig {
         let runtime = |k: &str| {
             if cfg!(debug_assertions) {
@@ -119,11 +130,14 @@ impl GumroadConfig {
                 .unwrap_or_else(|| DEFAULT_VERIFY_URL.to_string()),
             product_url: runtime("MR_GUMROAD_PRODUCT_URL")
                 .or_else(|| option_env!("MR_GUMROAD_PRODUCT_URL").map(str::to_string))
-                .unwrap_or_else(|| {
-                    "https://novabyteworks.gumroad.com/l/memories-rescue".to_string()
-                }),
+                .unwrap_or_else(|| crate::links::LINKS.gumroad_product.clone()),
             price_display: runtime("MR_PRICE_DISPLAY")
                 .or_else(|| option_env!("MR_PRICE_DISPLAY").map(str::to_string)),
+            activation_limit: runtime("MR_ACTIVATION_LIMIT")
+                .or_else(|| option_env!("MR_ACTIVATION_LIMIT").map(str::to_string))
+                .and_then(|v| v.trim().parse().ok())
+                .filter(|n| *n > 0)
+                .unwrap_or(DEFAULT_ACTIVATION_LIMIT),
         }
     }
 }
@@ -252,6 +266,7 @@ impl Licenser {
             product_url: self.config.product_url.clone(),
             price_display: self.config.price_display.clone(),
             free_limit: mr_job::FREE_TIER_ITEMS as u64,
+            activation_limit: self.config.activation_limit,
         }
     }
 
@@ -278,6 +293,32 @@ impl Licenser {
             )
             .with_detail("MR_GUMROAD_PRODUCT_ID not set at build time"));
         };
+        // Q-06: ask first without counting a use; a key at the limit is refused here.
+        let limit = self.config.activation_limit;
+        match check(&self.config.verify_url, &product, key, false) {
+            (Verdict::Valid, Some(uses)) if uses >= limit => {
+                tracing::info!("activation refused: key at its limit of {limit}");
+                return Err(IpcError::new(
+                    ErrorCode::LicenseInvalid,
+                    format!("This key is already active on {limit} computers."),
+                )
+                .with_detail(format!("activation_limit:{limit}")));
+            }
+            (Verdict::Valid, _) => {}
+            (Verdict::Rejected, _) => {
+                return Err(IpcError::new(
+                    ErrorCode::LicenseInvalid,
+                    "That key wasn't recognised.",
+                ));
+            }
+            (Verdict::Unreachable(why), _) => {
+                return Err(IpcError::new(
+                    ErrorCode::LicenseOffline,
+                    "Connect to the internet once to activate.",
+                )
+                .with_detail(why));
+            }
+        }
         match verify(&self.config.verify_url, &product, key, true) {
             Verdict::Valid => {
                 self.secrets.set(KEY_ENTRY, key).map_err(|e| {
@@ -307,6 +348,8 @@ impl Licenser {
         }
     }
 
+    /// Local only (Q-06): forgets the key on this computer. Gumroad's use
+    /// count is not lowered; the window says so before it asks.
     pub fn deactivate(&self) -> LicenseStatus {
         self.secrets.delete(KEY_ENTRY);
         self.store(free());
@@ -386,12 +429,17 @@ pub fn mask(key: &str) -> String {
 
 /// One POST to Gumroad's licence verify endpoint, classified per §9.3.
 pub fn verify(url: &str, product_id: &str, key: &str, increment: bool) -> Verdict {
+    check(url, product_id, key, increment).0
+}
+
+/// [`verify`] plus Gumroad's `uses` count when the reply has one (Q-06).
+pub fn check(url: &str, product_id: &str, key: &str, increment: bool) -> (Verdict, Option<u64>) {
     let client = match reqwest::blocking::Client::builder()
         .timeout(Duration::from_secs(15))
         .build()
     {
         Ok(c) => c,
-        Err(e) => return Verdict::Unreachable(e.to_string()),
+        Err(e) => return (Verdict::Unreachable(e.to_string()), None),
     };
     let form = [
         ("product_id", product_id),
@@ -403,17 +451,22 @@ pub fn verify(url: &str, product_id: &str, key: &str, increment: bool) -> Verdic
     ];
     let resp = match client.post(url).form(&form).send() {
         Ok(r) => r,
-        Err(e) => return Verdict::Unreachable(e.to_string()),
+        Err(e) => return (Verdict::Unreachable(e.to_string()), None),
     };
     let status = resp.status();
     if status.as_u16() == 429 || status.is_server_error() {
-        return Verdict::Unreachable(format!("HTTP {status}"));
+        return (Verdict::Unreachable(format!("HTTP {status}")), None);
     }
     let Ok(body) = resp.json::<serde_json::Value>() else {
-        return Verdict::Unreachable(format!("HTTP {status}: not Gumroad's JSON"));
+        return (
+            Verdict::Unreachable(format!("HTTP {status}: not Gumroad's JSON")),
+            None,
+        );
     };
-    classify(&body)
-        .unwrap_or_else(|| Verdict::Unreachable(format!("HTTP {status}: not Gumroad's JSON")))
+    let uses = body.get("uses").and_then(|u| u.as_u64());
+    let verdict = classify(&body)
+        .unwrap_or_else(|| Verdict::Unreachable(format!("HTTP {status}: not Gumroad's JSON")));
+    (verdict, uses)
 }
 
 /// Rule 4: `success: false`, or `success: true` with the purchase refunded or
@@ -505,6 +558,7 @@ mod tests {
             verify_url: String::new(),
             product_url: "u".into(),
             price_display: None,
+            activation_limit: DEFAULT_ACTIVATION_LIMIT,
         };
         let l = Licenser::new(dir.clone(), secrets.clone(), config.clone());
         assert_eq!(l.status().tier, LicenseTier::Free);
@@ -550,6 +604,7 @@ mod tests {
                 verify_url: String::new(),
                 product_url: "u".into(),
                 price_display: None,
+                activation_limit: DEFAULT_ACTIVATION_LIMIT,
             },
         );
         assert_eq!(

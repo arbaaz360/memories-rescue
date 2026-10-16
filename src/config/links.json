@@ -1,0 +1,13 @@
+{
+  "$comment": "Every outside address the app shows or calls, in one place. Rust reads this file with include_str! (src-tauri/src/links.rs) and the mock engine imports it. Site pages marked TODO are placeholders until the site session publishes them. The stable updater feed is repeated in src-tauri/tauri.conf.json (plugins.updater.endpoints), which Tauri requires; keep the two equal.",
+  "website": "https://novabyteworks.com",
+  "privacy": "https://novabyteworks.com/privacy",
+  "terms": "https://novabyteworks.com/memories-rescue/terms",
+  "faq": "https://novabyteworks.com/memories-rescue/faq",
+  "ffmpeg_source": "https://novabyteworks.com/memories-rescue/ffmpeg-source",
+  "support_email": "support@novabyteworks.com",
+  "gumroad_product": "https://novabyteworks.gumroad.com/l/memories-rescue",
+  "update_feed_stable": "https://github.com/arbaaz360/memories-rescue-releases/releases/latest/download/latest.json",
+  "update_feed_beta": "https://github.com/arbaaz360/memories-rescue-releases/releases/latest/download/latest-beta.json",
+  "todo": ["terms", "faq", "ffmpeg_source", "gumroad_product"]
+}

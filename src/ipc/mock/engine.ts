@@ -58,12 +58,13 @@ import {
   type FakeItem,
 } from "./scenario";
 import { mockThumbPath } from "./thumbs";
+import { MOCK_KEY_PATTERN } from "./key";
+import links from "../../config/links.json";
 
 export const FREE_LIMIT = 100;
 /** Keys the mock accepts: MOCK-XXXX-XXXX-XXXX with hex groups. Anything containing OFFLINE simulates no network. */
-export const MOCK_KEY_PATTERN = /^MOCK(-[0-9A-F]{4}){3}$/;
-export const MOCK_VALID_KEY = "MOCK-1234-5678-9ABC";
-const PRODUCT_URL = "https://novabyteworks.gumroad.com/l/memories-rescue";
+export { MOCK_KEY_PATTERN, MOCK_VALID_KEY } from "./key";
+const PRODUCT_URL = links.gumroad_product;
 
 export interface MockConfig {
   scenarios?: readonly string[];
@@ -340,7 +341,6 @@ export class MockBackend implements Backend {
       zip_volume_bytes: null,
       update_checks: true,
       update_channel: "stable",
-      telemetry: false,
       language: "system",
     };
     const licensed = this.has("licensed");
@@ -353,6 +353,7 @@ export class MockBackend implements Backend {
       product_url: PRODUCT_URL,
       price_display: null,
       free_limit: FREE_LIMIT,
+      activation_limit: 5,
     };
     if (this.has("resume")) {
       const dest = paths.destinations[0];
@@ -431,13 +432,34 @@ export class MockBackend implements Backend {
       this.settings = { ...settings };
       return this.settings;
     },
-    telemetry_preview: () => ({
-      app_version: __APP_VERSION__,
-      os_family: this.config.platform,
-      items_processed_bucket: "1k-10k",
-      error_code_counts: { FFMPEG_FAIL: 1, MEDIA_DECODE: 1, METADATA_WRITE: 1, ZIP_ENTRY_CRC: 1 },
-      crash_signatures: [],
+    diagnostics_preview: () => ({
+      destination: this.diagnosticsPath(),
+      files: [
+        { name: "logs/memories-rescue.log", bytes: 182_400, kind: "logs" },
+        { name: "app.json", bytes: 612, kind: "app" },
+        { name: "settings.json", bytes: 704, kind: "settings" },
+        { name: "jobs.json", bytes: 1_380, kind: "jobs" },
+        ...[...this.jobs.keys()].slice(0, 5).map((id) => ({ name: `journal-${id}.json`, bytes: 48_000, kind: "journal" })),
+      ],
     }),
+    check_update: ({ force }) => {
+      if (!force && !this.settings.update_checks) return null;
+      if (!this.has("update")) return null;
+      return {
+        version: "1.0.1",
+        current_version: __APP_VERSION__,
+        date: "2026-11-28T10:00:00Z",
+        notes: "Faster video captions and two fixes for Windows compatibility mode.",
+        channel: this.settings.update_channel,
+      };
+    },
+    install_update: () => {
+      if ([...this.jobs.values()].some((j) => j.state === "running")) {
+        throw err("UNKNOWN", "Finish or pause the running job first.", "job running");
+      }
+      console.info("[mock] install_update: would download, install and restart");
+      return null;
+    },
     license_status: () => this.license,
     activate: ({ key }) => this.activate(key),
     deactivate: () => {
@@ -449,13 +471,7 @@ export class MockBackend implements Backend {
       console.info(`[mock] open_path ${path}`);
       return null;
     },
-    export_diagnostics: () => {
-      const win = this.config.platform === "windows" || this.config.platform === "other";
-      const day = new Date(this.config.now()).toISOString().slice(0, 10);
-      return win
-        ? `C:\\Users\\you\\Desktop\\memories-rescue-diagnostics-${day}.zip`
-        : `/Users/you/Desktop/memories-rescue-diagnostics-${day}.zip`;
-    },
+    export_diagnostics: () => this.diagnosticsPath(),
     app_info: () => this.appInfo(),
     sidecar_versions: () => {
       throw err("UNKNOWN", "The bundled tools only run inside the app, not in the browser preview.");
@@ -562,6 +578,7 @@ export class MockBackend implements Backend {
         total_bytes: usable.reduce((n, u) => n + u.size_bytes, 0),
         issues,
         blocked: true,
+        hevc_notice: null,
       };
     }
 
@@ -601,6 +618,7 @@ export class MockBackend implements Backend {
       total_bytes: usable.reduce((n, u) => n + u.size_bytes, 0),
       issues,
       blocked: false,
+      hevc_notice: this.hevcNotice(false),
     };
   }
 
@@ -738,28 +756,7 @@ export class MockBackend implements Backend {
         };
       });
 
-    const clipGroups: ClipGroup[] = [];
-    const inRange = (y: number) => !options.clip_rejoin_years || (y >= options.clip_rejoin_years.from && y <= options.clip_rejoin_years.to);
-    if (options.clip_rejoin && !options.metadata_only) {
-      if (parts.includes(1) && inRange(2018)) {
-        clipGroups.push({
-          group_id: "clip-2018-06-02-7C1E9A40",
-          item_ids: ["7C1E9A40", "7C1E9A41", "7C1E9A42"],
-          total_seconds: 24.0,
-          planned_path: "2018/06/2018-06-02_140311_7C1E9A40_joined.mp4",
-          start_time: "2018-06-02T14:03:11+01:00",
-        });
-      }
-      if (parts.includes(2) && inRange(2019)) {
-        clipGroups.push({
-          group_id: "clip-2019-12-24-B3D0F218",
-          item_ids: ["B3D0F218", "B3D0F219", "B3D0F21A", "B3D0F21B"],
-          total_seconds: 37.6,
-          planned_path: "2019/12/2019-12-24_194205_B3D0F218_joined.mp4",
-          start_time: "2019-12-24T19:42:05-05:00",
-        });
-      }
-    }
+    const clipGroups = mockClipGroups(parts, options);
 
     const warnings = summary.issues.filter((i) => i.code !== "JSON_MISSING");
     const planId = `plan-${this.plans.size + 1}`;
@@ -790,6 +787,7 @@ export class MockBackend implements Backend {
         limit: FREE_LIMIT,
         items_beyond: this.license.tier === "free" ? Math.max(0, agg.items - FREE_LIMIT) : 0,
       },
+      hevc_notice: this.hevcNotice(options.windows_compatibility),
     };
   }
 
@@ -1187,6 +1185,17 @@ export class MockBackend implements Backend {
       can_unlock: job.counts.skipped_free_limit > 0,
       can_add_part: job.missingParts().length > 0,
       options: structuredClone(job.options),
+      clips: mockClipGroups(job.parts, job.options).map((g) => {
+        const skipped = job.options.excluded_clip_groups.includes(g.group_id);
+        return {
+          group_id: g.group_id,
+          clip_count: g.item_ids.length,
+          total_seconds: g.total_seconds,
+          status: skipped ? ("skipped" as const) : finished ? ("done" as const) : ("pending" as const),
+          output_path: !skipped && finished ? joinPath(out, ...g.planned_path.split("/")) : null,
+          error_code: null,
+        };
+      }),
     };
   }
 
@@ -1197,6 +1206,7 @@ export class MockBackend implements Backend {
   private activate(key: string): LicenseStatus {
     const k = key.trim().toUpperCase();
     if (k.includes("OFFLINE")) throw err("LICENSE_OFFLINE", "Couldn't reach Gumroad.", "network unreachable (mock)");
+    if (k.includes("LIMIT")) throw err("LICENSE_INVALID", "This key is already active on 5 computers.", "activation_limit:5");
     if (!MOCK_KEY_PATTERN.test(k)) throw err("LICENSE_INVALID", "That key wasn't recognised.");
     const now = new Date(this.config.now()).toISOString();
     this.license = {
@@ -1218,12 +1228,51 @@ export class MockBackend implements Backend {
       os_family: this.config.platform,
       licenses_path: joinPath(root, "LICENSES"),
       third_party_notices_path: joinPath(root, "THIRD_PARTY_NOTICES.md"),
-      ffmpeg_source_url: "https://novabyteworks.com/memories-rescue/ffmpeg-source",
-      privacy_policy_url: "https://novabyteworks.com/memories-rescue/privacy",
-      support_email: "support@novabyteworks.com",
-      website_url: "https://novabyteworks.com",
+      ffmpeg_source_url: links.ffmpeg_source,
+      privacy_policy_url: links.privacy,
+      support_email: links.support_email,
+      website_url: links.website,
+      terms_url: links.terms,
+      faq_url: links.faq,
     };
   }
+
+  private diagnosticsPath(): string {
+    const win = this.config.platform === "windows" || this.config.platform === "other";
+    const day = new Date(this.config.now()).toISOString().slice(0, 10);
+    return win ? `C:\\Users\\you\\Desktop\\memories-rescue-diagnostics-${day}.zip` : `/Users/you/Desktop/memories-rescue-diagnostics-${day}.zip`;
+  }
+
+  /** `?mock=hevc`: the export has HEVC videos this computer cannot play (FR-51). */
+  private hevcNotice(compat: boolean) {
+    return this.has("hevc") && !compat ? { hevc: 3, sampled: 16 } : null;
+  }
+}
+
+/** The two split videos of the fake export (FR-27), when rejoin is on and their parts are present. */
+export function mockClipGroups(parts: number[], options: JobOptions): ClipGroup[] {
+  const groups: ClipGroup[] = [];
+  const inRange = (y: number) => !options.clip_rejoin_years || (y >= options.clip_rejoin_years.from && y <= options.clip_rejoin_years.to);
+  if (!options.clip_rejoin || options.metadata_only) return groups;
+  if (parts.includes(1) && inRange(2018)) {
+    groups.push({
+      group_id: "2018-06-02_7C1E9A40",
+      item_ids: ["2018-06-02_7C1E9A40", "2018-06-02_7C1E9A41", "2018-06-02_7C1E9A42"],
+      total_seconds: 24.0,
+      planned_path: "2018/06/2018-06-02_140311_7C1E9A40-joined.mp4",
+      start_time: "2018-06-02T14:03:11+01:00",
+    });
+  }
+  if (parts.includes(2) && inRange(2019)) {
+    groups.push({
+      group_id: "2019-12-24_B3D0F218",
+      item_ids: ["2019-12-24_B3D0F218", "2019-12-24_B3D0F219", "2019-12-24_B3D0F21A", "2019-12-24_B3D0F21B"],
+      total_seconds: 37.6,
+      planned_path: "2019/12/2019-12-24_194205_B3D0F218-joined.mp4",
+      start_time: "2019-12-24T19:42:05-05:00",
+    });
+  }
+  return groups;
 }
 
 /** Simulated latencies so loading states are visible in the browser. */

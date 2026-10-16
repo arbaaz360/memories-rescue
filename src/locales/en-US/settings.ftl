@@ -36,19 +36,19 @@ settings-license-unlock = Unlock
 settings-license-deactivate = Deactivate on this computer
 settings-license-buy-page = Purchase page
 settings-deactivate-title = Deactivate on this computer?
-settings-deactivate-body = The key is removed from this computer and the free version returns. You can activate again later with the same key.
+settings-deactivate-body = The key is removed from this computer only, and the free version returns here. Gumroad still counts this computer as one of the key's { $limit } activations; to move the license to another computer, write to { $email }.
 settings-deactivate-keep = Keep it
 settings-deactivate-confirm = Deactivate
 
 settings-privacy = Privacy
-settings-telemetry = Send anonymous usage counts
-settings-telemetry-desc = Off by default. Only counts are sent: app version, system, a rough number of items and error counts. Never photos, file names, places or your license.
-settings-telemetry-preview = Show exactly what would be sent
-settings-telemetry-preview-desc = This is the whole message, as it would be sent today.
+settings-privacy-body = Your photos, videos, file names, dates and places never leave this computer. { -product } goes online only to check a license key with Gumroad (when you activate it, then about once a month) and, if update checks are on, to look for a new version.
 
 settings-updates = Updates
 settings-update-checks = Check for updates
-settings-update-checks-desc = Updates install only when you agree, and never during a job.
+settings-update-checks-desc = Checks when the app starts and once a day. Updates install only when you agree, and never during a job.
+settings-update-check-now = Check now
+settings-update-none = You have the latest version.
+settings-update-found = Version { $version } is available.
 settings-channel = Update channel
 settings-channel-stable = Stable
 settings-channel-beta = Beta (early versions)
@@ -84,3 +84,6 @@ about-privacy = Privacy policy
 about-support-title = Support
 about-support-body = Questions, problems or ideas: write to us. Exporting diagnostics from the results screen helps us help you, and holds no photos.
 about-website = NovaByteWorks website
+
+about-terms = Terms of use
+about-faq = Help and questions

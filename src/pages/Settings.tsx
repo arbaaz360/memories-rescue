@@ -2,7 +2,7 @@ import { useEffect, useId, useMemo, useState } from "preact/hooks";
 import { useI18n } from "../i18n/context";
 import { useStore } from "../state/context";
 import { formatInstant } from "../format/format";
-import type { OverlayMode, Settings, TelemetryPayload } from "../ipc/types";
+import type { OverlayMode, Settings } from "../ipc/types";
 import { ActionBar, Badge, Button, Callout, Checkbox, Dialog, RadioGroup, ScreenTitle } from "../ui/components";
 import { IconArrowBack, IconExternal } from "../ui/icons";
 import { YearRange, timeZones } from "../screens/Options";
@@ -32,7 +32,7 @@ export function templateExample(template: string): string {
 
 const OVERLAY_MODES: readonly OverlayMode[] = ["burn_in_keep_originals", "burn_in_only", "separate_file", "ignore"];
 
-/** Settings (FR-48, FR-47 licence management, NFR-PRV-04 telemetry preview, §10.2 update channel). */
+/** Settings (FR-48, FR-47 licence management, §10.2 updates). No telemetry in v1.0 (Q-12). */
 export function SettingsPage() {
   const store = useStore();
   const i18n = useI18n();
@@ -40,16 +40,12 @@ export function SettingsPage() {
   const saved = store.settings.value;
   const license = store.license.value;
   const [draft, setDraft] = useState<Settings | null>(saved);
-  const [payload, setPayload] = useState<TelemetryPayload | null>(null);
   const [confirmDeactivate, setConfirmDeactivate] = useState(false);
   const [saving, setSaving] = useState(false);
   const ids = { tz: useId(), workers: useId(), template: useId(), channel: useId(), language: useId(), zip: useId() };
   const zones = useMemo(() => timeZones(draft?.home_timezone ?? ""), [draft?.home_timezone]);
 
   useEffect(() => setDraft(saved), [saved]);
-  useEffect(() => {
-    void store.telemetryPreview().then(setPayload).catch(() => setPayload(null));
-  }, [store]);
 
   if (!draft || !saved) return null;
   const set = (patch: Partial<Settings>) => setDraft({ ...draft, ...patch });
@@ -213,14 +209,7 @@ export function SettingsPage() {
           <h2 id="s-privacy" class="card-title">
             {t("settings-privacy")}
           </h2>
-          <Checkbox checked={draft.telemetry} onChange={(v) => set({ telemetry: v })} label={t("settings-telemetry")} description={t("settings-telemetry-desc")} />
-          <details class="payload">
-            <summary>{t("settings-telemetry-preview")}</summary>
-            <p class="field-desc">{t("settings-telemetry-preview-desc")}</p>
-            <pre class="code-block" tabIndex={0} aria-label={t("settings-telemetry-preview")}>
-              {payload ? JSON.stringify(payload, null, 2) : "…"}
-            </pre>
-          </details>
+          <p>{t("settings-privacy-body")}</p>
         </section>
 
         <section class="card" aria-labelledby="s-updates">
@@ -234,6 +223,18 @@ export function SettingsPage() {
               <option value="stable">{t("settings-channel-stable")}</option>
               <option value="beta">{t("settings-channel-beta")}</option>
             </select>
+          </div>
+          <div class="row-actions">
+            <Button onClick={() => void store.checkForUpdate(true)} busy={store.updateCheck.value === "checking"}>
+              {t("settings-update-check-now")}
+            </Button>
+            <span class="muted" role="status">
+              {store.updateCheck.value === "none"
+                ? t("settings-update-none")
+                : store.updateCheck.value === "found" && store.update.value
+                  ? t("settings-update-found", { version: store.update.value.version })
+                  : ""}
+            </span>
           </div>
         </section>
 
@@ -288,7 +289,7 @@ export function SettingsPage() {
           </>
         }
       >
-        <p>{t("settings-deactivate-body")}</p>
+        <p>{t("settings-deactivate-body", { limit: license?.activation_limit ?? 5, email: store.appInfo.value?.support_email ?? "support@novabyteworks.com" })}</p>
       </Dialog>
     </div>
   );

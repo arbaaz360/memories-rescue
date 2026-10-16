@@ -142,12 +142,6 @@ pub fn set_settings(engine: E<'_>, settings: Settings) -> IpcResult<Settings> {
 }
 
 #[tauri::command]
-pub async fn telemetry_preview(engine: E<'_>) -> IpcResult<TelemetryPayload> {
-    let e = engine.inner().clone();
-    blocking(move || Ok(e.telemetry_preview())).await
-}
-
-#[tauri::command]
 pub fn license_status(engine: E<'_>) -> IpcResult<LicenseStatus> {
     Ok(engine.license.status())
 }
@@ -167,6 +161,8 @@ pub fn deactivate(engine: E<'_>) -> IpcResult<LicenseStatus> {
 /// The window has no open-path permission; this is the only way it opens paths.
 #[tauri::command]
 pub fn open_path(app: AppHandle, path: String) -> IpcResult<()> {
+    // Resource paths come back as `\\?\C:\...`; the shell opens plain ones.
+    let path = crate::engine::plain_path(&path);
     let p = PathBuf::from(&path);
     if !p.exists() {
         return Err(IpcError::new(
@@ -181,6 +177,24 @@ pub fn open_path(app: AppHandle, path: String) -> IpcResult<()> {
 }
 
 #[tauri::command]
+pub async fn diagnostics_preview(engine: E<'_>) -> IpcResult<DiagnosticsPreview> {
+    let e = engine.inner().clone();
+    blocking(move || Ok(e.diagnostics_preview())).await
+}
+
+/// §10.2. `force` (the Settings button) checks even when update checks are off.
+#[tauri::command]
+pub async fn check_update(app: AppHandle, force: bool) -> IpcResult<Option<UpdateInfo>> {
+    crate::updater::check(&app, force).await
+}
+
+/// §10.2: only after the user agreed, never while a job runs; restarts the app.
+#[tauri::command]
+pub async fn install_update(app: AppHandle) -> IpcResult<()> {
+    crate::updater::install(&app).await
+}
+
+#[tauri::command]
 pub async fn export_diagnostics(engine: E<'_>) -> IpcResult<String> {
     let e = engine.inner().clone();
     blocking(move || e.export_diagnostics()).await
@@ -191,14 +205,15 @@ pub fn app_info(engine: E<'_>) -> IpcResult<AppInfo> {
     Ok(engine.app_info())
 }
 
-/// Run both bundled sidecars and return what they report. Fails with a
-/// readable message if either is missing, cannot start, or exits non-zero,
-/// which is what the installed-app smoke test looks for.
+/// Run the bundled sidecars and return what they report. Fails with a
+/// readable message if ffmpeg is missing, cannot start, or exits non-zero,
+/// which is what the installed-app smoke test looks for. exiftool is only in
+/// development bundles (Q-02); without it `exiftool` is `null`.
 #[tauri::command]
 pub async fn sidecar_versions(app: AppHandle) -> Result<SidecarVersions, String> {
     Ok(SidecarVersions {
         ffmpeg: first_line(&app, "ffmpeg", &["-version"]).await?,
-        exiftool: first_line(&app, "exiftool", &["-ver"]).await?,
+        exiftool: first_line(&app, "exiftool", &["-ver"]).await.ok(),
     })
 }
 

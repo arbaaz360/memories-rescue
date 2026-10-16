@@ -30,7 +30,9 @@ export function AboutPage() {
                 {sidecars?.status === "ok" ? (
                   <>
                     <span class="mono block">{sidecars.versions.ffmpeg}</span>
-                    <span class="mono block">{t("about-exiftool", { version: sidecars.versions.exiftool })}</span>
+                    {sidecars.versions.exiftool ? (
+                      <span class="mono block">{t("about-exiftool", { version: sidecars.versions.exiftool })}</span>
+                    ) : null}
                   </>
                 ) : sidecars?.status === "failed" ? (
                   <span class="field-error">{t("about-tools-failed", { message: sidecars.message })}</span>
@@ -63,6 +65,14 @@ export function AboutPage() {
               <Button onClick={() => void store.host.openUrl(info.privacy_policy_url)}>
                 <IconExternal size={18} />
                 {t("about-privacy")}
+              </Button>
+              <Button onClick={() => void store.host.openUrl(info.terms_url)}>
+                <IconExternal size={18} />
+                {t("about-terms")}
+              </Button>
+              <Button onClick={() => void store.host.openUrl(info.faq_url)}>
+                <IconExternal size={18} />
+                {t("about-faq")}
               </Button>
             </div>
           </section>

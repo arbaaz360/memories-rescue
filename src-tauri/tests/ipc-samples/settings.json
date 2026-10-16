@@ -16,6 +16,5 @@
   "zip_volume_bytes": null,
   "update_checks": true,
   "update_channel": "stable",
-  "telemetry": false,
   "language": "system"
 }

@@ -30,6 +30,15 @@ chrono = { workspace = true, features = ["clock"] }
 mr-core = { path = "../crates/mr-core" }
 mr-job = { path = "../crates/mr-job" }
 mr-report = { path = "../crates/mr-report" }
+# Q-04: the app sets the encoder options (software h264_mf, 1.3x bitrate).
+mr-composite = { path = "../crates/mr-composite" }
+# FR-41: the rotating, redacted log; mr-composite's `log` records join it.
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", default-features = false, features = ["fmt", "registry", "std", "tracing-log"] }
+regex.workspace = true
+# §10.2: signed updates from the releases repository (Rust side only; the window has no updater permission).
+# No `zip` feature: Tauri 2 installs the signed NSIS .exe directly; zipped bundles were v1 only.
+tauri-plugin-updater = { version = "2.14", default-features = false, features = ["native-tls", "system-proxy"] }
 uuid = { version = "1", features = ["v4"] }
 fs4 = "1"
 iana-time-zone = "0.1"

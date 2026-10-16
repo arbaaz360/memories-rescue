@@ -84,3 +84,45 @@ results-announce-partial =
     }
 results-announce-failed = The job stopped.
 results-announce-cancelled = Job canceled.
+
+## Joined split videos (FR-27)
+
+results-clips-title =
+    { $count ->
+        [0] Split videos
+        [one] One split video joined back together
+       *[other] { $count } split videos joined back together
+    }
+results-clip =
+    { $count ->
+        [one] One clip, { $seconds } seconds
+       *[other] { $count } clips, { $seconds } seconds
+    }
+results-clip-status =
+    { $status ->
+        [done] Joined
+        [failed] Not joined
+        [skipped] Left as clips
+        [declined] Not joined on this computer
+       *[pending] Waiting
+    }
+results-clip-open = Open video
+results-clips-note = The separate clips are kept next to each joined video.
+
+## Export diagnostics (FR-41)
+
+diagnostics-title = Export diagnostics
+diagnostics-intro = This saves a ZIP file you can attach to an email to support. It holds:
+diagnostics-kind =
+    { $kind ->
+        [logs] What { -product } did and any errors, with your home folder shown as ~ and no web addresses.
+        [app] The app version and your system type.
+        [settings] Your settings, without your license key.
+        [jobs] For each job: when it ran, its status and how many items had each outcome.
+        [journal] The order in which a job's items were processed, by item number.
+       *[other] Details for support.
+    }
+diagnostics-not-included = Not included: your photos and videos, their file names, the export's data file, places, and your license key.
+diagnostics-destination = It will be saved here:
+diagnostics-cancel = Cancel
+diagnostics-save = Save ZIP

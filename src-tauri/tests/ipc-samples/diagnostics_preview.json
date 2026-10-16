@@ -1,0 +1,30 @@
+{
+  "destination": "C:\\Users\\you\\Desktop\\memories-rescue-diagnostics-2026-10-16.zip",
+  "files": [
+    {
+      "name": "logs/memories-rescue.log",
+      "bytes": 182400,
+      "kind": "logs"
+    },
+    {
+      "name": "app.json",
+      "bytes": 612,
+      "kind": "app"
+    },
+    {
+      "name": "settings.json",
+      "bytes": 704,
+      "kind": "settings"
+    },
+    {
+      "name": "jobs.json",
+      "bytes": 1380,
+      "kind": "jobs"
+    },
+    {
+      "name": "journal-job-1.json",
+      "bytes": 48000,
+      "kind": "journal"
+    }
+  ]
+}

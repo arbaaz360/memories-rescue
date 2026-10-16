@@ -10,7 +10,9 @@ use std::process::Command;
 use std::sync::{Arc, Mutex, Once};
 use std::time::{Duration, Instant};
 
-use memories_rescue_lib::engine::license::{GumroadConfig, MemorySecrets};
+use memories_rescue_lib::engine::license::{
+    DEFAULT_ACTIVATION_LIMIT, GumroadConfig, MemorySecrets,
+};
 use memories_rescue_lib::engine::{CollectingSink, Engine, Paths};
 use memories_rescue_lib::ipc::*;
 
@@ -85,6 +87,10 @@ fn env_with(gumroad: GumroadConfig) -> Env {
         pictures_dir: root.join("pictures"),
         desktop_dir: root.join("desktop"),
         resource_dir: None,
+        log_dir: root.join("logs"),
+        // The pass-through compositor: these tests are about the adapter;
+        // tests/media.rs runs the real one.
+        ffmpeg: None,
     };
     for d in [&paths.pictures_dir, &paths.desktop_dir] {
         std::fs::create_dir_all(d).unwrap();
@@ -112,6 +118,7 @@ fn env() -> Env {
         verify_url: String::new(),
         product_url: "https://example.invalid".into(),
         price_display: None,
+        activation_limit: DEFAULT_ACTIVATION_LIMIT,
     })
 }
 
@@ -420,8 +427,9 @@ fn free_tier_stops_at_100_and_later_finishes_partial() {
     assert!(!last.sleep_prevented);
 }
 
-/// A loopback stand-in for Gumroad's verify endpoint: `GOOD-KEY` is valid,
-/// anything else is unknown. Records every request body.
+/// A loopback stand-in for Gumroad's verify endpoint: `GOOD-KEY` is valid
+/// and used once, `LIMIT-KEY` is valid and already used 5 times, anything
+/// else is unknown. Records every request body.
 fn fake_gumroad() -> (String, Arc<Mutex<Vec<String>>>) {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let url = format!(
@@ -447,9 +455,12 @@ fn fake_gumroad() -> (String, Arc<Mutex<Vec<String>>>) {
             let mut body = vec![0u8; len];
             let _ = reader.read_exact(&mut body);
             let body = String::from_utf8_lossy(&body).into_owned();
-            let good = body.contains("license_key=GOOD-KEY");
+            let limit = body.contains("license_key=LIMIT-KEY");
+            let good = limit || body.contains("license_key=GOOD-KEY");
             seen.lock().unwrap().push(body);
-            let json = if good {
+            let json = if limit {
+                r#"{"success":true,"uses":5,"purchase":{"refunded":false,"chargebacked":false}}"#
+            } else if good {
                 r#"{"success":true,"uses":1,"purchase":{"refunded":false,"chargebacked":false}}"#
             } else {
                 r#"{"success":false,"message":"That license does not exist for the provided product."}"#
@@ -474,6 +485,7 @@ fn activation_unlocks_the_rest_and_only_activation_counts_a_use() {
         verify_url: url,
         product_url: "https://example.invalid".into(),
         price_display: None,
+        activation_limit: DEFAULT_ACTIVATION_LIMIT,
     });
     let inputs = env
         .engine
@@ -499,16 +511,37 @@ fn activation_unlocks_the_rest_and_only_activation_counts_a_use() {
         env.engine.license.activate("WRONG").unwrap_err().code,
         ErrorCode::LicenseInvalid
     );
-    let status = env.engine.license.activate("GOOD-KEY").unwrap();
-    assert_eq!(status.tier, LicenseTier::Licensed);
-    assert_eq!(status.key_masked.as_deref(), Some("****-****-****-DKEY"));
+    // Q-06: an unknown key is refused by the first, non-counting request.
     assert!(
         bodies
             .lock()
             .unwrap()
             .iter()
-            .all(|b| b.contains("increment_uses_count=true") && b.contains("product_id=prod-123"))
+            .all(|b| b.contains("increment_uses_count=false"))
     );
+    // A key already on 5 computers is refused before it costs a use.
+    let n = bodies.lock().unwrap().len();
+    let limit = env.engine.license.activate("LIMIT-KEY").unwrap_err();
+    assert_eq!(limit.code, ErrorCode::LicenseInvalid);
+    assert_eq!(limit.detail.as_deref(), Some("activation_limit:5"));
+    assert!(
+        bodies.lock().unwrap()[n..]
+            .iter()
+            .all(|b| b.contains("increment_uses_count=false"))
+    );
+    assert_eq!(env.engine.license.status().tier, LicenseTier::Free);
+
+    let n = bodies.lock().unwrap().len();
+    let status = env.engine.license.activate("GOOD-KEY").unwrap();
+    assert_eq!(status.tier, LicenseTier::Licensed);
+    assert_eq!(status.key_masked.as_deref(), Some("****-****-****-DKEY"));
+    assert_eq!(status.activation_limit, 5);
+    // The first activation counts one use: a check, then the one increment.
+    let sent: Vec<String> = bodies.lock().unwrap()[n..].to_vec();
+    assert_eq!(sent.len(), 2, "{sent:?}");
+    assert!(sent[0].contains("increment_uses_count=false"));
+    assert!(sent[1].contains("increment_uses_count=true"));
+    assert!(sent.iter().all(|b| b.contains("product_id=prod-123")));
 
     let before = items_for(&env, &job).len();
     env.engine.resume(&job).unwrap();
@@ -562,6 +595,7 @@ fn adding_the_missing_part_processes_only_its_items() {
         verify_url: url,
         product_url: "u".into(),
         price_display: None,
+        activation_limit: DEFAULT_ACTIVATION_LIMIT,
     });
     env.engine.license.activate("GOOD-KEY").unwrap();
     let inputs = env
@@ -604,9 +638,10 @@ fn adding_the_missing_part_processes_only_its_items() {
 fn settings_persist_and_diagnostics_hold_no_export_content() {
     let env = env();
     let mut s = env.engine.get_settings();
-    assert!(!s.telemetry, "telemetry is off by default");
+    assert!(s.update_checks, "update checks are on by default (§10.2)");
+    assert_eq!(s.update_channel, UpdateChannel::Stable);
     assert_eq!(s.destination, env.root.join("pictures").to_string_lossy());
-    s.telemetry = true;
+    s.update_channel = UpdateChannel::Beta;
     s.output_template = "{date}_{shortid}.{ext}".into();
     env.engine.set_settings(s.clone()).unwrap();
     let bad = Settings {
@@ -640,22 +675,64 @@ fn settings_persist_and_diagnostics_hold_no_export_content() {
             JobState::FreeLimitReached,
         ],
     );
+    // FR-41: a log line the way the app writes it (home as ~, no URLs).
+    let home = std::env::var("USERPROFILE")
+        .or_else(|_| std::env::var("HOME"))
+        .unwrap();
+    {
+        use memories_rescue_lib::logging::{FILES, MAX_FILE, Redactor, RotatingFile, SharedLog};
+        use tracing_subscriber::fmt::MakeWriter;
+        let log = SharedLog::new(
+            RotatingFile::open(&env.engine.paths.log_dir, MAX_FILE, FILES).unwrap(),
+            Redactor::new(&home),
+        );
+        let mut w = log.make_writer();
+        writeln!(
+            w,
+            "INFO read {home}/Downloads/mydata~1.zip; GET https://cf-st.sc-cdn.net/a.mp4?sid=SECRET"
+        )
+        .unwrap();
+    }
+    // Shown before saving: exactly what the ZIP will hold.
+    let preview = env.engine.diagnostics_preview();
+    assert!(preview.destination.ends_with(".zip"));
+    assert!(Path::new(&preview.destination).starts_with(env.root.join("desktop")));
+    let kinds: Vec<&str> = preview.files.iter().map(|f| f.kind.as_str()).collect();
+    for k in ["logs", "app", "settings", "jobs", "journal"] {
+        assert!(kinds.contains(&k), "{k} missing from {kinds:?}");
+    }
+    assert!(preview.files.iter().all(|f| f.bytes > 0));
     let zip_path = env.engine.export_diagnostics().unwrap();
+    assert_eq!(zip_path, preview.destination);
     let mut z = zip::ZipArchive::new(std::fs::File::open(&zip_path).unwrap()).unwrap();
     let names: Vec<String> = (0..z.len())
         .map(|i| z.by_index(i).unwrap().name().unwrap().to_string())
         .collect();
-    assert!(names.contains(&"app.json".to_string()) && names.contains(&"jobs.json".to_string()));
+    let listed: Vec<String> = preview.files.iter().map(|f| f.name.clone()).collect();
+    assert_eq!(names, listed);
+    assert!(names.contains(&"logs/memories-rescue.log".to_string()));
+    let key = regex::Regex::new(r"\d{4}-\d{2}-\d{2}_[0-9A-F]{8}-").unwrap();
     for (i, name) in names.iter().enumerate() {
         let mut text = String::new();
         z.by_index(i).unwrap().read_to_string(&mut text).unwrap();
         assert!(!text.contains("memories/"), "{name}: names an export entry");
         assert!(!text.contains("Download Link"), "{name}: JSON content");
+        assert!(
+            !text.contains("SECRET") && !text.contains("sc-cdn"),
+            "{name}: a URL"
+        );
+        assert!(!text.contains(&home), "{name}: the home folder");
+        assert!(!text.to_lowercase().contains("telemetry"), "{name}");
+        if name.starts_with("journal-") {
+            // Items by number, never by key (capture date + export file ID).
+            assert!(text.contains("\"item-1\""), "{name}");
+            assert!(!key.is_match(&text), "{name}: an item key");
+        }
     }
     let info = env.engine.app_info();
     assert_eq!(info.support_email, "support@novabyteworks.com");
-    assert_eq!(
-        env.engine.telemetry_preview().app_version,
-        env!("CARGO_PKG_VERSION")
-    );
+    assert_eq!(info.privacy_policy_url, "https://novabyteworks.com/privacy");
+    assert!(info.terms_url.starts_with("https://novabyteworks.com/"));
+    assert!(info.faq_url.starts_with("https://novabyteworks.com/"));
+    assert!(!env.engine.any_job_running());
 }

@@ -62,3 +62,13 @@ options-timezone-desc = Used for memories without a location. Memories with a lo
 
 options-free-note = The free version rescues the first { $limit } memories of each job. You can unlock the rest at any time without starting again.
 options-preview = Preview first
+
+## FR-51: HEVC playback on Windows
+
+hevc-title = Some videos may not play on this computer
+hevc-body =
+    { $hevc ->
+        [one] One of { $sampled } videos checked is HEVC
+       *[other] { $hevc } of { $sampled } videos checked are HEVC
+    }, a format Windows plays only with Microsoft's HEVC Video Extensions. Turn on "Maximize Windows compatibility" to save your videos as H.264, which every Windows PC plays.
+hevc-enable = Turn on Windows compatibility
