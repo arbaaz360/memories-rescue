@@ -20,6 +20,16 @@ npm-debug.log*
 # Third-party sidecar binaries (python tools/sidecars.py fetch); the README is tracked
 /third_party/*
 !/third_party/README.md
+# The minimal LGPL ffmpeg build recipe and its compliance texts are tracked;
+# downloads, build trees and staged binaries are not.
+!/third_party/ffmpeg/
+/third_party/ffmpeg/*
+!/third_party/ffmpeg/build.sh
+!/third_party/ffmpeg/README.md
+!/third_party/ffmpeg/COPYING.LGPLv2.1
+!/third_party/ffmpeg/LICENSE-ffmpeg.md
+!/third_party/ffmpeg/SOURCE_OFFER.txt
+!/third_party/ffmpeg/PUBLISHING.md
 /src-tauri/binaries/
 
 # Python
