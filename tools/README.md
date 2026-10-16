@@ -11,6 +11,9 @@ URLs on the reserved `.invalid` domain. No real user data, ever.
 ### Requirements
 
 - Python 3.10 or newer with [Pillow](https://pypi.org/project/pillow/) (`pip install pillow`).
+- On Windows also [tzdata](https://pypi.org/project/tzdata/) (`pip install tzdata`): `tz-edge`
+  computes its expected local times with `zoneinfo`, and Windows has no system zone database.
+  macOS and Linux use the system one.
 - ffmpeg on `PATH`, optional, used by `small-2026b` and `small-2026a` only.
   Without it their video *files* are left out of the ZIP; the JSON entries are
   still written, `truth.json` marks each one with `main_skipped: "ffmpeg_missing"`,
