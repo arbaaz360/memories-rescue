@@ -29,7 +29,7 @@ WAL allows concurrent readers).
 ```rust
 let mut o = mr_job::Options::new(dest);      // defaults below
 o.home_tz = Some("Europe/London".into());    // None: system zone, then UTC
-o.unlocked = license_is_valid;               // false: first 100 items (FR-44)
+o.unlocked = license_is_valid;               // false: 100 items per install (FR-44, see Free tier)
 ```
 
 | Field | Default | SRS |
@@ -58,7 +58,11 @@ as JSON.
 let p: Plan = mr_job::plan(&inputs, &options)?;
 ```
 
-Writes nothing. When the job will use a real compositor, call
+Writes nothing. Its free-tier figures (`to_process`, `skipped_free_limit`,
+`FREE_LIMIT`, the FR-28 estimate, `free_items`) assume a fresh allowance;
+`plan.fit_free_tier(&options, &set)` fits them to an install's free set,
+which the app does on every preview (see Free tier). When the job will use a
+real compositor, call
 `mr_job::plan_for(&inputs, &options, &compositor)` instead (or
 `plan.adjust_for_compositor(&compositor)`): `COMPOSITE_PENDING` (overlays saved
 beside the files) is only warned about with the pass-through. `Plan` holds
@@ -189,7 +193,7 @@ gives the user-facing sentence from SRS section 8.
 job.retry_failed(Some(new_options))?;  // FR-39: only failed items go back to pending
 job.add_part(&path)?;                  // FR-40: returns Replanned
 job.reindex()?;                        // after InputsChanged
-job.unlock()?;                         // FR-44: skipped_free_limit -> pending
+job.unlock()?;                         // FR-44: skipped_free_limit -> pending; nothing done is redone
 job.set_options(options)?;             // home zone / template / uncertain locations re-plan
 let files = job.report()?;             // FR-38
 let data = job.report_data()?;         // the same rows, for an in-app Results table
@@ -333,6 +337,50 @@ texts and for support:
 | A junction or symlink at `Memories Rescue`, `.memories-rescue` or `tmp` | `Job::create` and `clean_temp` fail with `PermissionDenied`; `run` returns `Blocked` with `PERMISSION_DENIED` and a plain message; nothing is written or cleaned through the link |
 | report.csv | Cells that would start a spreadsheet formula get a leading apostrophe |
 | An interrupted ZIP pack | Its `.partial` files are removed when a pack finishes and when a run completes or is cancelled |
+| The free set (`free-set.json`) edited, replaced by an older copy or deleted | Read as the table in Free tier says: never more free items than the keychain's count allows |
+
+## Free tier (FR-44, per install)
+
+The 100 free items belong to the install, not to a job (`mr_job::free`).
+Without a licence an item runs when its key is already in the install's
+free set (the same memories into another folder, a retry, or the same
+memories from a newer export: keys are the filename date and Snapchat's
+id), or while the set holds fewer than 100; new items go in chronological
+order, and an item joins the set as it finishes, done or failed. Licensed
+runs leave the set alone.
+
+```rust
+// The app, once at start: its per-install secret and a keychain Seal.
+let set = mr_job::free::install(&state_dir, FreeSet::open(
+    state_dir.join(mr_job::free::FREE_FILE), secret.as_bytes(), Some(Box::new(seal))));
+set.used();                                  // items used on this install
+plan.fit_free_tier(&options, &set);          // the preview's figures
+```
+
+Every job of the state directory uses that set (`Job::free_set`); a state
+directory nobody installed one for (mr-cli, tests) gets its own file under
+a fixed key. Staging marks what the set does not cover `skipped_free_limit`;
+each item is admitted again as it starts, holding a reservation until it
+finishes, so two jobs running at once cannot spend the same places; a run's
+unfinished reservations are released when it returns. A crash loses only
+reservations.
+
+The file holds 8-byte HMAC-SHA256 hashes of item keys, never the keys, and an
+HMAC over its contents with the per-install secret (SRS §9.3 rule 5:
+casual-tampering resistance, not DRM). The app also keeps the set's size in
+the keychain, written after the file:
+
+| File | Keychain count | Used | Free to redo |
+|---|---|---|---|
+| valid | valid | the larger of the two | the file's items |
+| valid | missing or edited | the file's size | the file's items |
+| missing, unreadable or edited | valid | the count | none |
+| missing, unreadable or edited | missing or edited | 0 | none |
+
+Deleting or editing the file gives no new free items; it only loses free
+re-processing. A fresh allowance takes removing keychain entries (the
+per-install secret, which also drops a licence, or the file and the
+count together).
 
 ## The compositor seam
 
