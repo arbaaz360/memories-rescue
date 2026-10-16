@@ -182,9 +182,8 @@ pub fn pcm_mono(ffmpeg: &Path, video: &Path) -> Vec<i16> {
             "pipe:1".as_ref(),
         ],
     );
-    raw.chunks_exact(2)
-        .map(|b| i16::from_le_bytes([b[0], b[1]]))
-        .collect()
+    let (samples, _) = raw.as_chunks::<2>();
+    samples.iter().map(|b| i16::from_le_bytes(*b)).collect()
 }
 
 /// RMS of consecutive 10 ms windows.
