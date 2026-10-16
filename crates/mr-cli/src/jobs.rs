@@ -717,11 +717,27 @@ pub fn cmd_run(
     drive(&mut job, quiet, json)
 }
 
-pub fn cmd_resume(state: &Path, id: &str, unlock: bool, quiet: bool, json: bool) -> ExitCode {
+/// `zip`: `Some(volume size)` turns ZIP output on for the job first.
+pub fn cmd_resume(
+    state: &Path,
+    id: &str,
+    unlock: bool,
+    zip: Option<Option<u64>>,
+    quiet: bool,
+    json: bool,
+) -> ExitCode {
     let mut job = match Job::open(state, id) {
         Ok(j) => j,
         Err(e) => return fail(e),
     };
+    if let Some(volume) = zip {
+        let mut o = job.options().clone();
+        o.zip_output = true;
+        o.zip_volume_bytes = volume;
+        if let Err(e) = job.set_options(o) {
+            return fail(e);
+        }
+    }
     if let Some(why) = job.rebuilt() {
         eprintln!("note: {why}");
     }

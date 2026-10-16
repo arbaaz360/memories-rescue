@@ -105,6 +105,12 @@ enum Command {
         /// Unlock the full version for this job first (FR-44).
         #[arg(long)]
         unlocked: bool,
+        /// Turn ZIP output on for this job (FR-31); finished jobs are packed.
+        #[arg(long)]
+        zip_output: bool,
+        /// ZIP volume size, as for `run` (implies --zip-output).
+        #[arg(long, value_name = "SIZE")]
+        zip_volume: Option<String>,
         #[arg(long)]
         quiet: bool,
         #[arg(long)]
@@ -278,9 +284,20 @@ fn dispatch(cli: Cli) -> ExitCode {
             job,
             state_dir,
             unlocked,
+            zip_output,
+            zip_volume,
             quiet,
             json,
-        } => jobs::cmd_resume(&state(&state_dir), &job, unlocked, quiet, json),
+        } => {
+            let zip = match zip_volume.as_deref().map(jobs::parse_size).transpose() {
+                Ok(v) => (zip_output || v.is_some()).then_some(v),
+                Err(e) => {
+                    eprintln!("error: {e}");
+                    return ExitCode::from(2);
+                }
+            };
+            jobs::cmd_resume(&state(&state_dir), &job, unlocked, zip, quiet, json)
+        }
         Command::Retry {
             job,
             state_dir,
