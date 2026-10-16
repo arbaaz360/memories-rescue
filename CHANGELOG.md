@@ -8,6 +8,13 @@ the version being released.
 
 ## [Unreleased]
 
+### Security
+
+- A damaged or crafted MP4/MOV in an export no longer crashes or hangs the
+  run: the media probe checks every box size and offset, bounds its walks and
+  its memory, and an absurd overlay aspect is refused before resizing. Such
+  a file now gets a skipped probe, or is copied as-is and flagged.
+
 ## [0.1.0] - 2026-10-16
 
 First internal build (milestones M0 to M3 of the SRS).

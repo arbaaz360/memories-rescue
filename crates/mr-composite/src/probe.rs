@@ -174,26 +174,63 @@ impl ImageInfo {
     }
 }
 
+/// Largest `moov` read into memory.
+const MAX_MOOV: u64 = 256 << 20;
+/// Top-level boxes looked at before giving up; real files have under ten.
+const MAX_TOP_LEVEL_BOXES: usize = 1024;
+/// Children listed per container; real containers have a few dozen at most.
+/// Bounds the memory a file made of millions of tiny boxes could claim.
+const MAX_CHILDREN: usize = 1 << 16;
+
 /// Probe one file by its contents (the extension is not consulted).
+///
+/// Every parser here is total: damaged or crafted input gives an `Err` (or
+/// a field left `None`), never a panic, an endless loop or an unbounded
+/// allocation. Offsets use checked arithmetic, every box must fit inside its
+/// parent and be at least as long as its header, loops advance by at least
+/// one header per step, and box counts and the `moov` size are capped.
 pub fn probe(path: &Path) -> Result<MediaInfo, Error> {
     let mut f = BufReader::with_capacity(1 << 16, File::open(path)?);
     let len = f.get_ref().metadata()?.len();
+    probe_seekable(&mut f, len).map_err(|e| match e {
+        Error::Unsupported(m) if m == NOT_MEDIA => {
+            Error::Unsupported(format!("{}: {NOT_MEDIA}", path.display()))
+        }
+        other => other,
+    })
+}
+
+const NOT_MEDIA: &str = "not a JPEG, PNG or ISO BMFF file";
+
+/// [`probe`] over any seekable source of `len` bytes.
+pub(crate) fn probe_seekable<R: Read + Seek>(f: &mut R, len: u64) -> Result<MediaInfo, Error> {
     let mut head = [0u8; 12];
-    let n = f.read(&mut head)?;
+    let n = read_up_to(f, &mut head)?;
     f.seek(SeekFrom::Start(0))?;
     if n >= 2 && head[..2] == [0xFF, 0xD8] {
-        return probe_jpeg(&mut f, len);
+        return probe_jpeg(f, len);
     }
     if n >= 8 && head[..8] == [0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A] {
-        return probe_png(&mut f, len);
+        return probe_png(f, len);
     }
     if n >= 8 && is_box_type(&head[4..8]) {
-        return probe_mp4(&mut f, len);
+        return probe_mp4(f, len);
     }
-    Err(Error::Unsupported(format!(
-        "{}: not a JPEG, PNG or ISO BMFF file",
-        path.display()
-    )))
+    Err(Error::Unsupported(NOT_MEDIA.into()))
+}
+
+/// Fill as much of `buf` as the source has (a single `read` may return less).
+fn read_up_to<R: Read>(r: &mut R, buf: &mut [u8]) -> std::io::Result<usize> {
+    let mut n = 0;
+    while n < buf.len() {
+        match r.read(&mut buf[n..]) {
+            Ok(0) => break,
+            Ok(k) => n += k,
+            Err(e) if e.kind() == std::io::ErrorKind::Interrupted => {}
+            Err(e) => return Err(e),
+        }
+    }
+    Ok(n)
 }
 
 fn is_box_type(t: &[u8]) -> bool {
@@ -215,20 +252,28 @@ struct TopBox {
     size: u64,
 }
 
+/// The top-level boxes, in order. Stops at the first box that does not fit:
+/// a box must be at least as long as its header and end inside the file.
+/// `pos` only ever grows (by at least 8 bytes) and never passes `len`.
 fn top_level<R: Read + Seek>(r: &mut R, len: u64) -> Result<Vec<TopBox>, Error> {
     let mut boxes = Vec::new();
     let mut pos = 0u64;
     let mut hdr = [0u8; 16];
-    while pos + 8 <= len {
+    while boxes.len() < MAX_TOP_LEVEL_BOXES {
+        // Invariant: pos <= len.
+        let remaining = len - pos;
+        if remaining < 8 {
+            break;
+        }
         r.seek(SeekFrom::Start(pos))?;
-        let n = r.read(&mut hdr)?;
+        let n = read_up_to(r, &mut hdr[..remaining.min(16) as usize])?;
         if n < 8 {
             break;
         }
         let size32 = u32::from_be_bytes([hdr[0], hdr[1], hdr[2], hdr[3]]) as u64;
         let typ = [hdr[4], hdr[5], hdr[6], hdr[7]];
         let (size, header_len) = match size32 {
-            0 => (len - pos, 8),
+            0 => (remaining, 8),
             1 if n >= 16 => (
                 u64::from_be_bytes([
                     hdr[8], hdr[9], hdr[10], hdr[11], hdr[12], hdr[13], hdr[14], hdr[15],
@@ -238,7 +283,7 @@ fn top_level<R: Read + Seek>(r: &mut R, len: u64) -> Result<Vec<TopBox>, Error> 
             1 => break,
             s => (s, 8),
         };
-        if size < header_len || pos + size > len {
+        if size < header_len || size > remaining {
             break;
         }
         boxes.push(TopBox {
@@ -247,7 +292,7 @@ fn top_level<R: Read + Seek>(r: &mut R, len: u64) -> Result<Vec<TopBox>, Error> 
             header_len,
             size,
         });
-        pos += size;
+        pos += size; // size <= remaining, so pos <= len
     }
     Ok(boxes)
 }
@@ -258,24 +303,32 @@ struct Child {
     payload: std::ops::Range<usize>,
 }
 
-/// Children of a container payload. Tolerant: stops at the first malformed box.
+/// Children of a container payload. Tolerant: stops at the first malformed
+/// box (shorter than its header, or not ending inside `buf`). Sizes are
+/// compared as `u64` against the bytes left, so no sum can wrap; `pos` only
+/// grows and never passes `buf.len()`, so every range is in bounds.
 fn children(buf: &[u8]) -> Vec<Child> {
     let mut out = Vec::new();
     let mut pos = 0usize;
-    while pos + 8 <= buf.len() {
-        let size32 = be32(buf, pos).unwrap_or(0) as usize;
-        let typ = [buf[pos + 4], buf[pos + 5], buf[pos + 6], buf[pos + 7]];
-        let (size, hdr) = match size32 {
-            0 => (buf.len() - pos, 8),
-            1 => match be64(buf, pos + 8) {
-                Some(s) => (s as usize, 16),
-                None => break,
-            },
-            s => (s, 8),
-        };
-        if size < hdr || pos + size > buf.len() {
+    while out.len() < MAX_CHILDREN {
+        let remaining = buf.len() - pos; // pos <= buf.len()
+        if remaining < 8 {
             break;
         }
+        let Some(size32) = be32(buf, pos) else { break };
+        let typ = [buf[pos + 4], buf[pos + 5], buf[pos + 6], buf[pos + 7]];
+        let (size, hdr): (u64, usize) = match size32 {
+            0 => (remaining as u64, 8),
+            1 => match be64(buf, pos + 8) {
+                Some(s) => (s, 16),
+                None => break,
+            },
+            s => (s as u64, 8),
+        };
+        if size < hdr as u64 || size > remaining as u64 {
+            break;
+        }
+        let size = size as usize; // <= remaining
         out.push(Child {
             typ,
             payload: pos + hdr..pos + size,
@@ -293,16 +346,17 @@ fn child<'a>(buf: &'a [u8], typ: &[u8; 4]) -> Option<&'a [u8]> {
 }
 
 fn be16(b: &[u8], at: usize) -> Option<u16> {
-    b.get(at..at + 2).map(|s| u16::from_be_bytes([s[0], s[1]]))
+    b.get(at..at.checked_add(2)?)
+        .map(|s| u16::from_be_bytes([s[0], s[1]]))
 }
 
 fn be32(b: &[u8], at: usize) -> Option<u32> {
-    b.get(at..at + 4)
+    b.get(at..at.checked_add(4)?)
         .map(|s| u32::from_be_bytes([s[0], s[1], s[2], s[3]]))
 }
 
 fn be64(b: &[u8], at: usize) -> Option<u64> {
-    b.get(at..at + 8)
+    b.get(at..at.checked_add(8)?)
         .map(|s| u64::from_be_bytes([s[0], s[1], s[2], s[3], s[4], s[5], s[6], s[7]]))
 }
 
@@ -329,14 +383,26 @@ fn probe_mp4<R: Read + Seek>(r: &mut R, len: u64) -> Result<MediaInfo, Error> {
         .iter()
         .find(|b| &b.typ == b"moov")
         .ok_or_else(|| Error::Unsupported("no moov box (not a finished MP4/MOV)".into()))?;
-    let payload_len = (moov.size - moov.header_len) as usize;
-    if payload_len > 256 << 20 {
+    // top_level() guarantees header_len <= size and start + size <= len.
+    let payload_len = moov.size - moov.header_len;
+    if payload_len > MAX_MOOV {
         return Err(Error::Unsupported("moov larger than 256 MiB".into()));
     }
     r.seek(SeekFrom::Start(moov.start + moov.header_len))?;
-    let mut payload = vec![0u8; payload_len];
-    r.read_exact(&mut payload)?;
+    let payload = read_exactly(r, payload_len)?;
     Ok(info_from_moov(&payload, container, brand, len))
+}
+
+/// Read `n` bytes (n <= MAX_MOOV) into a buffer that grows with what the
+/// source actually delivers, so a box that only claims a large size cannot
+/// make us allocate it up front.
+fn read_exactly<R: Read>(r: &mut R, n: u64) -> Result<Vec<u8>, Error> {
+    let mut buf = Vec::with_capacity(n.min(1 << 20) as usize);
+    r.take(n).read_to_end(&mut buf)?;
+    if (buf.len() as u64) < n {
+        return Err(Error::Unsupported("truncated moov box".into()));
+    }
+    Ok(buf)
 }
 
 /// Probe an MP4/MOV from a forward-only stream, such as an entry being read
@@ -345,11 +411,16 @@ fn probe_mp4<R: Read + Seek>(r: &mut R, len: u64) -> Result<MediaInfo, Error> {
 /// it are skipped by reading. When `moov` sits after `mdat` the whole `mdat`
 /// is read past, so `limit` caps how many bytes may be consumed before
 /// `moov` starts: past it the probe gives up with `Unsupported`.
+///
+/// Like [`probe`] it is total: every step consumes at least one 8-byte
+/// header from the stream, positions use checked arithmetic, the number of
+/// boxes is capped, and `moov` is read into a buffer that grows only with
+/// the bytes actually there (at most 256 MiB).
 pub fn probe_reader<R: Read>(mut r: R, len: u64, limit: u64) -> Result<MediaInfo, Error> {
     let mut pos = 0u64;
     let mut brand = None;
     let mut container = Container::Mp4;
-    loop {
+    for _ in 0..MAX_TOP_LEVEL_BOXES {
         let mut hdr = [0u8; 8];
         if let Err(e) = r.read_exact(&mut hdr) {
             return match e.kind() {
@@ -377,13 +448,15 @@ pub fn probe_reader<R: Read>(mut r: R, len: u64, limit: u64) -> Result<MediaInfo
             return Err(Error::Unsupported("malformed box header".into()));
         }
         let payload_len = size - header_len;
+        let end = pos
+            .checked_add(size)
+            .ok_or_else(|| Error::Unsupported("box size overflows the file".into()))?;
         match &typ {
             b"moov" => {
-                if payload_len > 256 << 20 {
+                if payload_len > MAX_MOOV {
                     return Err(Error::Unsupported("moov larger than 256 MiB".into()));
                 }
-                let mut payload = vec![0u8; payload_len as usize];
-                r.read_exact(&mut payload)?;
+                let payload = read_exactly(&mut r, payload_len)?;
                 return Ok(info_from_moov(&payload, container, brand, len));
             }
             b"ftyp" if payload_len >= 4 => {
@@ -400,7 +473,7 @@ pub fn probe_reader<R: Read>(mut r: R, len: u64, limit: u64) -> Result<MediaInfo
                 brand = Some(fourcc(&major));
             }
             _ => {
-                if pos + size > limit {
+                if end > limit {
                     return Err(Error::Unsupported(format!(
                         "moov not within the first {} MiB",
                         limit >> 20
@@ -412,8 +485,11 @@ pub fn probe_reader<R: Read>(mut r: R, len: u64, limit: u64) -> Result<MediaInfo
                 }
             }
         }
-        pos += size;
+        pos = end;
     }
+    Err(Error::Unsupported(format!(
+        "no moov box in the first {MAX_TOP_LEVEL_BOXES} boxes"
+    )))
 }
 
 fn info_from_moov(
@@ -691,10 +767,16 @@ fn parse_stsz(p: &[u8]) -> Option<(u64, u32)> {
     if sample_size != 0 {
         return Some((sample_size as u64 * count as u64, count));
     }
-    let mut total = 0u64;
-    for i in 0..count as usize {
-        total += be32(p, 12 + i * 4)? as u64;
+    // The table must hold `count` entries; a larger count is a damaged box.
+    let table = p.get(12..)?;
+    if (count as usize) > table.len() / 4 {
+        return None;
     }
+    let (entries, _) = table.as_chunks::<4>();
+    let total = entries
+        .iter()
+        .take(count as usize)
+        .fold(0u64, |t, e| t.saturating_add(u32::from_be_bytes(*e) as u64));
     Some((total, count))
 }
 
@@ -708,10 +790,15 @@ fn parse_stts(p: &[u8], timescale: u32) -> (u32, Option<f64>, bool) {
             _ => break,
         }
     }
-    let frames: u64 = entries.iter().map(|(n, _)| *n as u64).sum();
-    let ticks: u64 = entries.iter().map(|(n, d)| *n as u64 * *d as u64).sum();
+    // Each n * d fits in u64; their sum need not, so saturate.
+    let frames: u64 = entries
+        .iter()
+        .fold(0u64, |t, (n, _)| t.saturating_add(*n as u64));
+    let ticks: u64 = entries
+        .iter()
+        .fold(0u64, |t, (n, d)| t.saturating_add(*n as u64 * *d as u64));
     if frames == 0 || ticks == 0 || timescale == 0 {
-        return (frames as u32, None, false);
+        return (frames.min(u32::MAX as u64) as u32, None, false);
     }
     // A single trailing sample with its own duration is how muxers close a
     // constant-rate stream; it does not make the stream variable.
@@ -727,7 +814,7 @@ fn parse_stts(p: &[u8], timescale: u32) -> (u32, Option<f64>, bool) {
         frames as f64 * timescale as f64 / ticks as f64
     };
     let rate = (rate * 1000.0).round() / 1000.0;
-    (frames as u32, Some(rate), !constant)
+    (frames.min(u32::MAX as u64) as u32, Some(rate), !constant)
 }
 
 /// `(bit depth, profile)` from an `avcC` record: the optional extension
@@ -955,10 +1042,16 @@ fn probe_png<R: Read>(r: &mut R, len: u64) -> Result<MediaInfo, Error> {
     let mut pos = 8usize;
     let mut size = None;
     let mut orientation = 1u8;
-    while pos + 8 <= data.len() {
-        let chunk_len = be32(&data, pos).unwrap_or(0) as usize;
+    while data.len().saturating_sub(pos) >= 8 {
+        let Some(chunk_len) = be32(&data, pos) else {
+            break;
+        };
         let typ = &data[pos + 4..pos + 8];
-        let body = data.get(pos + 8..pos + 8 + chunk_len).unwrap_or(&[]);
+        // length + type + body + CRC; a chunk that runs past the data ends the walk.
+        let Some(next) = (pos + 12).checked_add(chunk_len as usize) else {
+            break;
+        };
+        let body = data.get(pos + 8..next - 4).unwrap_or(&[]);
         match typ {
             b"IHDR" => {
                 if let (Some(w), Some(h)) = (be32(body, 0), be32(body, 4)) {
@@ -973,7 +1066,7 @@ fn probe_png<R: Read>(r: &mut R, len: u64) -> Result<MediaInfo, Error> {
             b"IDAT" | b"IEND" => break,
             _ => {}
         }
-        pos += 12 + chunk_len;
+        pos = next;
     }
     let (width, height) = size.ok_or_else(|| Error::Unsupported("PNG without IHDR".into()))?;
     Ok(photo_info(Container::Png, len, width, height, orientation))
@@ -1010,7 +1103,7 @@ pub(crate) fn tiff_orientation(t: &[u8]) -> Option<u8> {
         _ => return None,
     };
     let rd16 = |at: usize| -> Option<u16> {
-        let s = t.get(at..at + 2)?;
+        let s = t.get(at..at.checked_add(2)?)?;
         Some(if le {
             u16::from_le_bytes([s[0], s[1]])
         } else {
@@ -1018,7 +1111,7 @@ pub(crate) fn tiff_orientation(t: &[u8]) -> Option<u8> {
         })
     };
     let rd32 = |at: usize| -> Option<u32> {
-        let s = t.get(at..at + 4)?;
+        let s = t.get(at..at.checked_add(4)?)?;
         Some(if le {
             u32::from_le_bytes([s[0], s[1], s[2], s[3]])
         } else {
@@ -1031,9 +1124,9 @@ pub(crate) fn tiff_orientation(t: &[u8]) -> Option<u8> {
     let ifd = rd32(4)? as usize;
     let count = rd16(ifd)? as usize;
     for i in 0..count.min(512) {
-        let e = ifd + 2 + i * 12;
+        let e = ifd.checked_add(2 + i * 12)?;
         if rd16(e)? == 0x0112 {
-            let v = rd16(e + 8)? as u8;
+            let v = rd16(e.checked_add(8)?)? as u8;
             return (1..=8).contains(&v).then_some(v);
         }
     }
@@ -1151,3 +1244,7 @@ mod tests {
         assert_eq!(esds_object_type(&p), Some(0x40));
     }
 }
+
+#[cfg(test)]
+#[path = "probe_fuzz.rs"]
+mod fuzz;

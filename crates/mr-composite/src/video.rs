@@ -132,6 +132,37 @@ pub fn aspect_difference(target: (u32, u32), overlay: (u32, u32)) -> f64 {
 /// §4.4 scale and aspect rule, shared with photos: stretch to the target
 /// when the aspects agree within `tolerance`, otherwise fit to the width and
 /// centre vertically.
+/// An overlay that, fitted to the width, would come out more than this many
+/// times taller than the picture is refused: scaling it would need an absurd
+/// buffer (a crafted 1x100000 PNG on a 1080-wide photo asks for ~460 GB, and
+/// a failed allocation aborts the process). Real overlays are the picture's
+/// size or a phone screen's.
+pub const MAX_OVERLAY_STRETCH: u64 = 8;
+
+/// [`place_overlay`] for untrusted sizes: `MEDIA_DECODE` for an empty picture
+/// or overlay, or a placement more than [`MAX_OVERLAY_STRETCH`] times taller
+/// than the picture.
+pub fn checked_placement(
+    target: (u32, u32),
+    overlay: (u32, u32),
+    tolerance: f64,
+) -> Result<Placement, Error> {
+    if target.0 == 0 || target.1 == 0 || overlay.0 == 0 || overlay.1 == 0 {
+        return Err(Error::Unsupported(format!(
+            "cannot place a {}x{} overlay on a {}x{} picture",
+            overlay.0, overlay.1, target.0, target.1
+        )));
+    }
+    let p = place_overlay(target, overlay, tolerance);
+    if p.height as u64 > target.1 as u64 * MAX_OVERLAY_STRETCH {
+        return Err(Error::Unsupported(format!(
+            "a {}x{} overlay would be {} px tall on a {}x{} picture",
+            overlay.0, overlay.1, p.height, target.0, target.1
+        )));
+    }
+    Ok(p)
+}
+
 pub fn place_overlay(target: (u32, u32), overlay: (u32, u32), tolerance: f64) -> Placement {
     let (w, h) = target;
     // The epsilon keeps an exact 2% difference a match despite float rounding.
@@ -356,7 +387,7 @@ pub fn composite_plan(
     let pix = encoder.pix_fmt();
     let filter = match overlay {
         Some(ov) => {
-            let p = place_overlay(output_size, ov.size, opts.aspect_tolerance);
+            let p = checked_placement(output_size, ov.size, opts.aspect_tolerance)?;
             if p.aspect_mismatch {
                 warnings.push(Warning::OverlayAspectMismatch {
                     overlay: ov.size,
@@ -627,6 +658,58 @@ pub(crate) mod tests {
         // Exactly at the boundary is still a match.
         assert!(!place_overlay((1000, 1000), (1020, 1000), 0.02).aspect_mismatch);
         assert!(place_overlay((1000, 1000), (1021, 1000), 0.02).aspect_mismatch);
+    }
+
+    #[test]
+    fn absurd_overlays_are_refused_not_allocated() {
+        // A 1x100000 overlay fitted to a 1080-wide frame would be 108 million
+        // px tall: refused before anything is scaled.
+        let e = checked_placement((1080, 1920), (1, 100_000), 0.02).unwrap_err();
+        assert_eq!(e.code(), "MEDIA_DECODE");
+        for (t, o) in [
+            ((0, 10), (1, 1)),
+            ((10, 0), (1, 1)),
+            ((10, 10), (0, 1)),
+            ((10, 10), (1, 0)),
+        ] {
+            assert_eq!(
+                checked_placement(t, o, 0.02).unwrap_err().code(),
+                "MEDIA_DECODE"
+            );
+        }
+        // Up to MAX_OVERLAY_STRETCH times the frame height is allowed.
+        assert_eq!(
+            checked_placement((100, 100), (1, 8), 0.02).unwrap().height,
+            800
+        );
+        assert!(checked_placement((100, 100), (1, 9), 0.02).is_err());
+        // Real mismatches (a 9:16 overlay on a 16:9 frame) still pass.
+        let p = checked_placement((1280, 720), (1080, 1920), 0.02).unwrap();
+        assert_eq!((p.width, p.height), (1280, 2276));
+        // A very wide overlay fits to width and is short: fine.
+        assert_eq!(
+            checked_placement((1080, 1920), (100_000, 1), 0.02)
+                .unwrap()
+                .height,
+            1
+        );
+
+        let info = video_info("avc1", (1920, 1080), 0, 900, Some("aac"));
+        let ov = PathBuf::from("ov.png");
+        let e = composite_plan(
+            Path::new("m.mp4"),
+            &info,
+            Some(OverlayInput {
+                path: &ov,
+                size: (1, 100_000),
+            }),
+            Path::new("o.mp4"),
+            MF,
+            false,
+            &VideoOptions::default(),
+        )
+        .unwrap_err();
+        assert_eq!(e.code(), "MEDIA_DECODE");
     }
 
     #[test]

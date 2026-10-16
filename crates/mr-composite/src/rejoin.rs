@@ -20,8 +20,8 @@ use crate::Error;
 use crate::ffmpeg::VideoEncoder;
 use crate::probe::MediaInfo;
 use crate::video::{
-    AudioPlan, OverlayInput, Plan, VideoOptions, Warning, aspect_difference, encoder_bitrate_kbps,
-    even_size, head_args, place_overlay, rotation_filters, tail_args,
+    AudioPlan, OverlayInput, Plan, VideoOptions, Warning, aspect_difference, checked_placement,
+    encoder_bitrate_kbps, even_size, head_args, rotation_filters, tail_args,
 };
 
 /// What the detector needs to know about one item. The engine builds these
@@ -410,7 +410,7 @@ pub fn rejoin_plan(
                 if let Some(Some(ov)) = overlays.get(k) {
                     args.push("-i".into());
                     args.push(ov.path.as_os_str().to_owned());
-                    let p = place_overlay(size, ov.size, opts.aspect_tolerance);
+                    let p = checked_placement(size, ov.size, opts.aspect_tolerance)?;
                     if p.aspect_mismatch {
                         warnings.push(Warning::OverlayAspectMismatch {
                             overlay: ov.size,
