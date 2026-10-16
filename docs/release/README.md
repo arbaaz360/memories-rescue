@@ -194,6 +194,11 @@ app can ever accept an update again**; keep a copy outside this machine.
 
 ## Known gaps
 
+- `bundle.createUpdaterArtifacts: true` is not in the overlay yet: Tauri
+  refuses it while `plugins.updater` is absent from `tauri.conf.json`. When
+  the updater plugin lands (public key, endpoint), set it next to that
+  config; until then a release has no `.sig` files and no `latest.json`.
+
 - MSI is per-machine (Tauri's WiX template); the NSIS build is the per-user
   consumer download. A per-user MSI needs a custom `main.wxs`.
 - No Mac was available while this was written: the macOS job, the
