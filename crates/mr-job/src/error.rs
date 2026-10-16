@@ -13,6 +13,9 @@ pub enum JobError {
     MultipleExports(usize),
     #[error("unknown home time zone {0:?}")]
     TimeZone(String),
+    /// Options the engine refuses, e.g. a template without `{shortid}`.
+    #[error("invalid options: {0}")]
+    InvalidOptions(String),
     #[error("no job {0} in this state directory")]
     NoSuchJob(String),
     /// The output folder already belongs to a job: resume it instead.

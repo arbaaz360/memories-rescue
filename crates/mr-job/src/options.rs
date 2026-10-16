@@ -175,6 +175,34 @@ impl Options {
         }
     }
 
+    /// Why the output template is refused, if it is (section 3.7): only the
+    /// known tokens, `{shortid}` (or the longer `{id}`) so that two items in
+    /// the same second do not collide, and `{ext}`. The app's Settings
+    /// screen applies the same rule; the engine checks again.
+    pub fn template_problem(&self) -> Option<String> {
+        const TOKENS: [&str; 5] = ["{date}", "{time}", "{shortid}", "{id}", "{ext}"];
+        let t = &self.output_template;
+        if t.trim().is_empty() {
+            return Some("the output template is empty".into());
+        }
+        let mut rest = t.clone();
+        for tok in TOKENS {
+            rest = rest.replace(tok, "");
+        }
+        if rest.contains('{') || rest.contains('}') {
+            return Some(format!("unknown token in the output template {t:?}"));
+        }
+        if !t.contains("{shortid}") && !t.contains("{id}") {
+            return Some(format!(
+                "the output template {t:?} must contain {{shortid}}"
+            ));
+        }
+        if !t.contains("{ext}") {
+            return Some(format!("the output template {t:?} must contain {{ext}}"));
+        }
+        None
+    }
+
     /// Photo workers per section 4.2: `min(physical cores - 1, 4)`, at least 1.
     pub fn worker_count(&self) -> usize {
         self.workers.unwrap_or_else(default_workers).max(1)

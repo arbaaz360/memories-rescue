@@ -1534,3 +1534,33 @@ fn f03_mixed_export_runs_each_entry_on_its_path() {
         "mains plus overlays beside them"
     );
 }
+
+#[test]
+fn template_without_shortid_is_refused() {
+    let inputs = zips_in(&fixture_dir("small-2026a"));
+    let e = env("template");
+    let mut o = options(&e.dest);
+    for (template, ok) in [
+        ("{date}_{time}_{shortid}.{ext}", true),
+        ("{id}.{ext}", true),
+        ("{date}_{time}.{ext}", false),
+        ("{date}_{shortid}", false),
+        ("{date}_{shortid}_{camera}.{ext}", false),
+        ("   ", false),
+    ] {
+        o.output_template = template.into();
+        let r = plan(&inputs, &o);
+        assert_eq!(r.is_ok(), ok, "{template:?}: {:?}", r.err());
+        if !ok {
+            assert!(matches!(r, Err(mr_job::JobError::InvalidOptions(_))));
+        }
+    }
+    let mut job = Job::create(&e.state, &inputs, options(&e.dest)).unwrap();
+    let mut bad = options(&e.dest);
+    bad.output_template = "{date}.{ext}".into();
+    assert!(matches!(
+        job.set_options(bad),
+        Err(mr_job::JobError::InvalidOptions(_))
+    ));
+    run(&mut job);
+}

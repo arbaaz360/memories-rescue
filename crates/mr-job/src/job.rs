@@ -646,6 +646,9 @@ impl Job {
     /// Change the options. A change of home zone, template or the
     /// uncertain-location setting re-plans the items not yet written.
     pub fn set_options(&mut self, options: Options) -> Result<Option<Replanned>> {
+        if let Some(problem) = options.template_problem() {
+            return Err(JobError::InvalidOptions(problem));
+        }
         let mut options = options;
         options.dest = self.row.options.dest.clone();
         let replan = options.home_tz != self.row.options.home_tz
