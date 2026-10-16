@@ -10,6 +10,10 @@
 //!   most every 30 days with `increment_uses_count=false`; transport errors,
 //!   timeouts, 429, 5xx and non-Gumroad bodies change nothing (rule 3). Only an
 //!   explicit revocation (rule 4) starts a 14-day grace period.
+//! * During the grace period the key is checked again every day: one wrong
+//!   "not valid" from Gumroad must not cost a customer their licence, so a
+//!   valid answer restores it. Further rejections keep the period's end
+//!   date; they never extend it.
 //! * Q-06 (provisional): one key may be active on `activation_limit`
 //!   computers (build configuration, default 5). Activation first asks
 //!   Gumroad without incrementing and reads `uses`; a key already at the
@@ -32,6 +36,8 @@ const KEY_ENTRY: &str = "license-key";
 const SECRET_ENTRY: &str = "install-secret";
 const RECHECK_DAYS: i64 = 30;
 const GRACE_DAYS: i64 = 14;
+/// How often a key in its grace period is checked again.
+const GRACE_RECHECK_HOURS: i64 = 24;
 pub const DEFAULT_VERIFY_URL: &str = "https://api.gumroad.com/v2/licenses/verify";
 /// Q-06: computers per key unless the build says otherwise.
 pub const DEFAULT_ACTIVATION_LIMIT: u64 = 5;
@@ -356,19 +362,27 @@ impl Licenser {
         self.status()
     }
 
-    /// Background re-check (§9.3 rules 3 and 4). Returns true when the
-    /// licence was revoked by this check, so the caller can warn once.
+    /// Background re-check (§9.3 rules 3 and 4), when [`recheck_due`] says
+    /// so. Returns true when this check revoked a licensed key, so the
+    /// caller can warn once.
     pub fn recheck_if_due(&self) -> bool {
+        // Applies the end of an expired grace period first.
+        let tier = self.status().tier;
         let c = self.cache.lock().expect("licence").clone();
-        if c.tier != "licensed" {
+        let last = c.last_check_at.as_deref().and_then(parse);
+        if tier == LicenseTier::Free || !recheck_due(&c.tier, last, Utc::now()) {
             return false;
         }
-        let due = c
-            .last_check_at
-            .as_deref()
-            .and_then(parse)
-            .is_none_or(|t| Utc::now() - t >= chrono::Duration::days(RECHECK_DAYS));
-        if !due {
+        self.recheck_now()
+    }
+
+    /// One re-check now, with `increment_uses_count=false`. A valid answer
+    /// keeps or restores the licence; a rejection starts the grace period
+    /// (licensed) or keeps its end date (grace). Returns true when this
+    /// check revoked a licensed key.
+    pub fn recheck_now(&self) -> bool {
+        let c = self.cache.lock().expect("licence").clone();
+        if c.tier != "licensed" && c.tier != "grace" {
             return false;
         }
         let (Some(product), Some(key)) =
@@ -376,10 +390,23 @@ impl Licenser {
         else {
             return false;
         };
+        let now = super::now_utc();
         match verify(&self.config.verify_url, &product, &key, false) {
             Verdict::Valid => {
+                if c.tier == "grace" {
+                    tracing::info!("licence valid again: the grace period is over");
+                }
                 self.store(Cache {
-                    last_check_at: Some(super::now_utc()),
+                    tier: "licensed".into(),
+                    grace_until: None,
+                    last_check_at: Some(now),
+                    ..c
+                });
+                false
+            }
+            Verdict::Rejected if c.tier == "grace" => {
+                self.store(Cache {
+                    last_check_at: Some(now),
                     ..c
                 });
                 false
@@ -387,17 +414,32 @@ impl Licenser {
             Verdict::Rejected => {
                 let until = (Utc::now() + chrono::Duration::days(GRACE_DAYS))
                     .to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+                tracing::warn!("licence rejected by Gumroad: grace period until {until}");
                 self.store(Cache {
                     tier: "grace".into(),
                     grace_until: Some(until),
-                    last_check_at: Some(super::now_utc()),
+                    last_check_at: Some(now),
                     ..c
                 });
                 true
             }
-            Verdict::Unreachable(_) => false,
+            Verdict::Unreachable(why) => {
+                tracing::info!(detail = %super::redact_home(&why), "licence re-check could not reach Gumroad");
+                false
+            }
         }
     }
+}
+
+/// Whether a background re-check is due: every 30 days while licensed,
+/// every day during the grace period, never on the free tier.
+pub fn recheck_due(tier: &str, last_check: Option<DateTime<Utc>>, now: DateTime<Utc>) -> bool {
+    let every = match tier {
+        "licensed" => chrono::Duration::days(RECHECK_DAYS),
+        "grace" => chrono::Duration::hours(GRACE_RECHECK_HOURS),
+        _ => return false,
+    };
+    last_check.is_none_or(|t| now - t >= every)
 }
 
 fn free() -> Cache {
@@ -516,6 +558,18 @@ fn hex(b: &[u8]) -> String {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn recheck_is_monthly_when_licensed_and_daily_in_grace() {
+        let now = Utc::now();
+        let ago = |h: i64| Some(now - chrono::Duration::hours(h));
+        assert!(!recheck_due("licensed", ago(29 * 24), now));
+        assert!(recheck_due("licensed", ago(30 * 24), now));
+        assert!(!recheck_due("grace", ago(23), now));
+        assert!(recheck_due("grace", ago(24), now));
+        assert!(recheck_due("grace", None, now));
+        assert!(!recheck_due("free", None, now));
+    }
 
     #[test]
     fn hmac_matches_rfc_4231_case_2() {

@@ -7,6 +7,7 @@ use std::io::{BufRead, BufReader, Read, Write};
 use std::net::TcpListener;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, Once};
 use std::time::{Duration, Instant};
 
@@ -428,9 +429,10 @@ fn free_tier_stops_at_100_and_later_finishes_partial() {
 }
 
 /// A loopback stand-in for Gumroad's verify endpoint: `GOOD-KEY` is valid
-/// and used once, `LIMIT-KEY` is valid and already used 5 times, anything
-/// else is unknown. Records every request body.
-fn fake_gumroad() -> (String, Arc<Mutex<Vec<String>>>) {
+/// and used once, `LIMIT-KEY` is valid and already used 5 times,
+/// `FLAKY-KEY` is valid unless the returned switch is set, anything else is
+/// unknown. Records every request body.
+fn fake_gumroad() -> (String, Arc<Mutex<Vec<String>>>, Arc<AtomicBool>) {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let url = format!(
         "http://{}/v2/licenses/verify",
@@ -438,6 +440,8 @@ fn fake_gumroad() -> (String, Arc<Mutex<Vec<String>>>) {
     );
     let bodies = Arc::new(Mutex::new(Vec::new()));
     let seen = bodies.clone();
+    let revoked = Arc::new(AtomicBool::new(false));
+    let flaky_revoked = revoked.clone();
     std::thread::spawn(move || {
         for stream in listener.incoming().flatten() {
             let mut reader = BufReader::new(stream.try_clone().unwrap());
@@ -456,7 +460,9 @@ fn fake_gumroad() -> (String, Arc<Mutex<Vec<String>>>) {
             let _ = reader.read_exact(&mut body);
             let body = String::from_utf8_lossy(&body).into_owned();
             let limit = body.contains("license_key=LIMIT-KEY");
-            let good = limit || body.contains("license_key=GOOD-KEY");
+            let flaky =
+                body.contains("license_key=FLAKY-KEY") && !flaky_revoked.load(Ordering::SeqCst);
+            let good = limit || flaky || body.contains("license_key=GOOD-KEY");
             seen.lock().unwrap().push(body);
             let json = if limit {
                 r#"{"success":true,"uses":5,"purchase":{"refunded":false,"chargebacked":false}}"#
@@ -474,12 +480,12 @@ fn fake_gumroad() -> (String, Arc<Mutex<Vec<String>>>) {
             );
         }
     });
-    (url, bodies)
+    (url, bodies, revoked)
 }
 
 #[test]
 fn activation_unlocks_the_rest_and_only_activation_counts_a_use() {
-    let (url, bodies) = fake_gumroad();
+    let (url, bodies, _) = fake_gumroad();
     let env = env_with(GumroadConfig {
         product_id: Some("prod-123".into()),
         verify_url: url,
@@ -589,7 +595,7 @@ fn activation_unlocks_the_rest_and_only_activation_counts_a_use() {
 
 #[test]
 fn adding_the_missing_part_processes_only_its_items() {
-    let (url, _) = fake_gumroad();
+    let (url, _, _) = fake_gumroad();
     let env = env_with(GumroadConfig {
         product_id: Some("p".into()),
         verify_url: url,
@@ -851,5 +857,51 @@ fn open_path_opens_only_what_the_engine_handed_out() {
             .unwrap_err()
             .code,
         ErrorCode::PartMissing
+    );
+}
+
+#[test]
+fn a_licence_in_its_grace_period_is_checked_again_and_restored() {
+    let (url, bodies, revoked) = fake_gumroad();
+    let env = env_with(GumroadConfig {
+        product_id: Some("p".into()),
+        verify_url: url,
+        product_url: "u".into(),
+        price_display: None,
+        activation_limit: DEFAULT_ACTIVATION_LIMIT,
+    });
+    let lic = &env.engine.license;
+    assert_eq!(
+        lic.activate("FLAKY-KEY").unwrap().tier,
+        LicenseTier::Licensed
+    );
+
+    // One "not valid" from Gumroad: the grace period starts.
+    revoked.store(true, Ordering::SeqCst);
+    assert!(lic.recheck_now(), "a revocation is reported once");
+    let grace = lic.status();
+    assert_eq!(grace.tier, LicenseTier::Grace);
+    let until = grace.grace_until.clone().expect("grace end");
+    assert!(lic.unlocked(), "still unlocked during the grace period");
+
+    // Checked again in grace (daily, not monthly): a further rejection keeps the end date.
+    assert!(!lic.recheck_now());
+    assert_eq!(lic.status().tier, LicenseTier::Grace);
+    assert_eq!(lic.status().grace_until.as_deref(), Some(until.as_str()));
+
+    // Gumroad says valid again: the licence is restored.
+    revoked.store(false, Ordering::SeqCst);
+    assert!(!lic.recheck_now());
+    let back = lic.status();
+    assert_eq!(back.tier, LicenseTier::Licensed);
+    assert_eq!(back.grace_until, None);
+    assert!(
+        bodies
+            .lock()
+            .unwrap()
+            .iter()
+            .skip(2)
+            .all(|b| b.contains("increment_uses_count=false")),
+        "re-checks never count a use"
     );
 }

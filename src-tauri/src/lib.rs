@@ -100,8 +100,9 @@ pub fn run() {
             app.manage(engine.clone());
             // §10.2: at launch and every 24 hours, unless turned off in Settings.
             updater::schedule(handle.clone());
-            // §9.3 rule 3: at most every 30 days, never blocking anything.
-            std::thread::spawn(move || {
+            // §9.3 rule 3: at most every 30 days (every day during the grace
+            // period), never blocking anything; looked at every 6 hours.
+            std::thread::spawn(move || loop {
                 if engine.license.recheck_if_due() {
                     engine.emit(
                         ipc::events::WARNING,
@@ -113,6 +114,7 @@ pub fn run() {
                         },
                     );
                 }
+                std::thread::sleep(std::time::Duration::from_secs(6 * 60 * 60));
             });
             Ok(())
         })
