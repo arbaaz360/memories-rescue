@@ -21,3 +21,6 @@ unlock-later = Later
 unlock-later-limit = Finish for now
 unlock-activated = Unlocked. Thank you!
 unlock-already = { -product } is unlocked on this computer with key { $key }.
+
+unlock-limit-title = This key is already active on { $limit } computers
+unlock-limit-next = That is the most one key allows. To use it here instead, write to { $email } and we will free one up.

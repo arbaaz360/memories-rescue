@@ -147,6 +147,15 @@ export interface ExportSummary {
   issues: Issue[];
   /** True when nothing can be processed (legacy-only, or no media at all). */
   blocked: boolean;
+  /** FR-51: HEVC videos this computer cannot play, from a sample; null when there is nothing to say. */
+  hevc_notice: HevcNotice | null;
+}
+
+export interface HevcNotice {
+  /** HEVC videos found in the sample. */
+  hevc: number;
+  /** Videos sampled (up to 16). */
+  sampled: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -295,6 +304,7 @@ export interface PlanPreview {
   space: SpaceEstimate;
   estimated_seconds: number;
   free_limit: FreeLimitInfo;
+  hevc_notice: HevcNotice | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -400,6 +410,8 @@ export interface EngineEvents {
   item: ItemEvent;
   job_state: JobStateEvent;
   warning: WarningEvent;
+  /** The 24-hour check (or the one at launch) found an update. */
+  update_available: UpdateInfo;
 }
 
 export type StatusCounts = Record<ItemStatus, number>;
@@ -423,6 +435,21 @@ export interface JobReport {
   can_unlock: boolean;
   can_add_part: boolean;
   options: JobOptions;
+  /** FR-27: joined clip groups of this job. */
+  clips: ClipOutcome[];
+}
+
+export type ClipStatus = "pending" | "done" | "failed" | "skipped" | "declined";
+
+export interface ClipOutcome {
+  /** mr-job's group id (the first clip's item key); what `excluded_clip_groups` lists. */
+  group_id: string;
+  clip_count: number;
+  total_seconds: number;
+  status: ClipStatus;
+  /** Absolute path of the joined video once written. */
+  output_path: string | null;
+  error_code: ErrorCode | null;
 }
 
 export interface ResumableJob {
@@ -458,20 +485,32 @@ export interface Settings {
   zip_volume_bytes: number | null;
   update_checks: boolean;
   update_channel: UpdateChannel;
-  /** Default false (NFR-PRV-04). */
-  telemetry: boolean;
   /** BCP 47 tag or "system". */
   language: string;
 }
 
-/** NFR-PRV-04: exactly what an opted-in telemetry upload would contain. */
-export interface TelemetryPayload {
-  app_version: string;
-  os_family: string;
-  /** e.g. "1k-10k" */
-  items_processed_bucket: string;
-  error_code_counts: Record<string, number>;
-  crash_signatures: string[];
+/** An update the feed offers (§10.2). */
+export interface UpdateInfo {
+  version: string;
+  current_version: string;
+  /** ISO 8601, when the feed says. */
+  date: string | null;
+  notes: string | null;
+  channel: UpdateChannel;
+}
+
+/** What Export diagnostics will put in the ZIP, shown before saving (FR-41, NFR-PRV-06). */
+export interface DiagnosticsFile {
+  name: string;
+  bytes: number;
+  /** `logs`, `app`, `settings`, `jobs`, `journal`: the window explains each kind. */
+  kind: string;
+}
+
+export interface DiagnosticsPreview {
+  /** Where the ZIP will be written. */
+  destination: string;
+  files: DiagnosticsFile[];
 }
 
 export type LicenseTier = "free" | "licensed" | "grace";
@@ -488,6 +527,8 @@ export interface LicenseStatus {
   /** Display string from build configuration, null until the price is final (Q-05). */
   price_display: string | null;
   free_limit: number;
+  /** Computers one key may be activated on (Q-06, build configuration). */
+  activation_limit: number;
 }
 
 export interface AppInfo {
@@ -499,6 +540,8 @@ export interface AppInfo {
   privacy_policy_url: string;
   support_email: string;
   website_url: string;
+  terms_url: string;
+  faq_url: string;
 }
 
 export interface SidecarVersions {
@@ -535,7 +578,9 @@ export interface Commands {
   list_resumable_jobs: { args: Record<string, never>; result: ResumableJob[] };
   get_settings: { args: Record<string, never>; result: Settings };
   set_settings: { args: { settings: Settings }; result: Settings };
-  telemetry_preview: { args: Record<string, never>; result: TelemetryPayload };
+  diagnostics_preview: { args: Record<string, never>; result: DiagnosticsPreview };
+  check_update: { args: { force: boolean }; result: UpdateInfo | null };
+  install_update: { args: Record<string, never>; result: null };
   license_status: { args: Record<string, never>; result: LicenseStatus };
   activate: { args: { key: string }; result: LicenseStatus };
   deactivate: { args: Record<string, never>; result: LicenseStatus };
@@ -565,7 +610,9 @@ export const COMMAND_NAMES: readonly CommandName[] = [
   "list_resumable_jobs",
   "get_settings",
   "set_settings",
-  "telemetry_preview",
+  "diagnostics_preview",
+  "check_update",
+  "install_update",
   "license_status",
   "activate",
   "deactivate",
@@ -575,7 +622,7 @@ export const COMMAND_NAMES: readonly CommandName[] = [
   "sidecar_versions",
 ];
 
-export const EVENT_NAMES: readonly (keyof EngineEvents)[] = ["progress", "item", "job_state", "warning"];
+export const EVENT_NAMES: readonly (keyof EngineEvents)[] = ["progress", "item", "job_state", "warning", "update_available"];
 
 export function isIpcError(value: unknown): value is IpcError {
   if (typeof value !== "object" || value === null) return false;

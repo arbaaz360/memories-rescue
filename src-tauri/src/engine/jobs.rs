@@ -11,6 +11,14 @@
 //! first time that happens the job reports `free_limit_reached` and waits;
 //! `resume` then unlocks and continues (licence present) or finishes the job
 //! as `partial` (no licence), as the contract describes.
+//!
+//! Every run uses the engine's compositor (`Job::set_compositor`). A job
+//! that earlier finished items without burning their captions in (no
+//! sidecar then, or an older version) has them queued again on its next run
+//! (`Job::requeue_composite_pending`), so resuming it finishes the captions.
+//! Joined clips (FR-27) are reported per group in `JobReport::clips`; their
+//! `clip:<group id>` outcomes from mr-job are not items and are not sent as
+//! `item` events.
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -20,9 +28,9 @@ use std::sync::{Arc, Mutex};
 use mr_job::{Job, JobError, Outcome};
 
 use crate::ipc::{
-    ErrorCode, InputFile, IpcError, IpcResult, Issue, ItemEvent, ItemOutcome, ItemStatus,
-    JobOptions, JobReport, JobState, JobStateEvent, MediaType, ProgressEvent, ResumableJob, Stage,
-    StatusCounts, WarningEvent, events,
+    ClipOutcome, ClipStatus, ErrorCode, InputFile, IpcError, IpcResult, Issue, ItemEvent,
+    ItemOutcome, ItemStatus, JobOptions, JobReport, JobState, JobStateEvent, MediaType,
+    ProgressEvent, ResumableJob, Stage, StatusCounts, WarningEvent, events,
 };
 
 use super::analysis::media_type;
@@ -118,6 +126,45 @@ impl Engine {
 
     fn open(&self, job_id: &str) -> IpcResult<Job> {
         Job::open(self.state_dir(), job_id).map_err(job_error)
+    }
+
+    /// True while any job is processing; updates never install then (§10.2).
+    pub fn any_job_running(&self) -> bool {
+        self.jobs
+            .lock()
+            .expect("jobs")
+            .values()
+            .any(|h| h.is_running())
+    }
+
+    /// Items an earlier run finished with the caption beside them, queued
+    /// again now that captions can be burned in. Videos are only queued
+    /// when this computer can encode them (else they would be declined
+    /// again on every run); photos never need ffmpeg.
+    fn requeue_captions(&self, job: &mut Job) -> IpcResult<usize> {
+        let Some(media) = &self.media else {
+            return Ok(0);
+        };
+        if !job.options().overlay_mode.burns_in() {
+            return Ok(0);
+        }
+        let rows = job.items().map_err(job_error)?;
+        let pending: Vec<&mr_job::ItemRow> = rows
+            .iter()
+            .filter(|r| r.stage == mr_job::control::Stage::Done && r.composite_pending)
+            .collect();
+        if pending.is_empty() {
+            return Ok(0);
+        }
+        let photos = pending
+            .iter()
+            .any(|r| r.plan.kind == mr_job::MediaKind::Photo);
+        if !photos && media.encoder_plan().is_err() {
+            return Ok(0);
+        }
+        let n = job.requeue_composite_pending().map_err(job_error)?;
+        tracing::info!("{n} finished items queued again to burn their captions in");
+        Ok(n)
     }
 
     fn engine_options(&self, o: &JobOptions) -> mr_job::Options {
@@ -266,6 +313,8 @@ impl Engine {
 
     fn run_job(&self, h: &JobHandle, prep: Prep) -> IpcResult<(JobState, Option<IpcError>)> {
         let mut job = self.open(&h.id)?;
+        job.set_compositor(self.compositor.clone());
+        self.requeue_captions(&mut job)?;
         match prep {
             Prep::None => {}
             Prep::Unlock => {
@@ -451,6 +500,29 @@ impl Engine {
             Some(h) => h.state(),
             None => state_of_summary(&summary.status, &counts),
         };
+        let clips = job
+            .clip_groups()
+            .map_err(job_error)?
+            .into_iter()
+            .map(|c| ClipOutcome {
+                group_id: c.group.id.clone(),
+                clip_count: c.group.items.len() as u64,
+                total_seconds: c.group.total_secs,
+                status: match c.stage.as_str() {
+                    "done" => ClipStatus::Done,
+                    "failed" => ClipStatus::Failed,
+                    "skipped" => ClipStatus::Skipped,
+                    "declined" => ClipStatus::Declined,
+                    _ => ClipStatus::Pending,
+                },
+                output_path: c.output_path.as_ref().map(|p| {
+                    mr_job::layout::to_fs(&root, p)
+                        .to_string_lossy()
+                        .into_owned()
+                }),
+                error_code: c.error_code.as_deref().map(ErrorCode::from_engine),
+            })
+            .collect();
         let report_dir = root.join(mr_job::layout::REPORT_DIR);
         let existing = |name: &str| {
             let p = report_dir.join(name);
@@ -483,6 +555,7 @@ impl Engine {
             counts,
             failures,
             options: settings::from_engine(job.options()),
+            clips,
         })
     }
 
@@ -627,6 +700,14 @@ impl mr_job::ProgressSink for RunSink<'_> {
     }
 
     fn item(&self, o: &mr_job::ItemOutcome) {
+        if let Some(group) = o.id.strip_prefix("clip:") {
+            tracing::info!(
+                "clip group {group}: {:?} {}",
+                o.stage,
+                o.error_code.as_deref().unwrap_or("")
+            );
+            return;
+        }
         let item = self.outcome(o);
         if matches!(
             item.status,

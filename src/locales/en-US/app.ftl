@@ -63,3 +63,16 @@ dev-mock-badge =
        *[other] Mock engine
     }
 dev-mock-key = Mock engine: { $key } activates. A key containing OFFLINE simulates no network.
+
+## Updates (§10.2)
+
+update-title = Version { $version } is available
+update-body = You have { $current }. The update installs when you choose, then { -product } restarts. { $channel ->
+        [beta] This is the beta channel.
+       *[stable] {""}
+    }
+update-wait-for-job = A job is running. Updates never install during a job: finish or pause it first.
+update-install = Install and restart
+update-later = Later
+update-notes = What's new
+update-failed = The update could not be installed. Try again later, or download it from the website.

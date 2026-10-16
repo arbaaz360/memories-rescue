@@ -2,6 +2,11 @@
 //! `mr-job`, `mr-core` and `mr-report`. Independent of Tauri so it can be
 //! tested on the fixtures without a window; `commands.rs` is the thin Tauri
 //! layer. Events go out through [`EventSink`].
+//!
+//! Media work goes through mr-job's [`mr_job::Compositor`] seam: the real
+//! [`mr_job::MediaCompositor`] on the bundled ffmpeg sidecar when
+//! [`Paths::ffmpeg`] names one, else mr-job's pass-through (overlays saved
+//! beside the files), which is what the fast tests use.
 
 pub mod analysis;
 pub mod diagnostics;
@@ -36,6 +41,11 @@ pub struct Paths {
     pub desktop_dir: PathBuf,
     /// Bundled resources (licence texts), when known.
     pub resource_dir: Option<PathBuf>,
+    /// FR-41: the rotating log (`logging.rs`); Export diagnostics reads it.
+    pub log_dir: PathBuf,
+    /// The bundled ffmpeg sidecar. `None`, or an empty placeholder file,
+    /// keeps mr-job's pass-through compositor.
+    pub ffmpeg: Option<PathBuf>,
 }
 
 pub struct Engine {
@@ -47,6 +57,38 @@ pub struct Engine {
     pub(crate) jobs: Mutex<HashMap<String, Arc<jobs::JobHandle>>>,
     pub(crate) settings: Mutex<crate::ipc::Settings>,
     pub license: license::Licenser,
+    /// The real compositor, when the sidecar is there.
+    pub(crate) media: Option<Arc<mr_job::MediaCompositor>>,
+    /// What jobs and plans use: `media`, or the pass-through.
+    pub(crate) compositor: Arc<dyn mr_job::Compositor>,
+}
+
+/// Q-04: Microsoft's software H.264 encoder (`h264_mf`, no GPU first) with
+/// 1.3 times the source bitrate, which it needs to match OpenH264's quality.
+pub const MF_SOFTWARE_BITRATE_FACTOR: f64 = 1.3;
+
+/// The compositor the app runs, on the given ffmpeg.
+pub fn compositor_for(ffmpeg: &Path) -> mr_job::MediaCompositor {
+    let video = mr_composite::VideoOptions {
+        prefer_hardware: false,
+        mf_software_bitrate_factor: MF_SOFTWARE_BITRATE_FACTOR,
+        ..mr_composite::VideoOptions::default()
+    };
+    mr_job::MediaCompositor::with(mr_composite::Compositor::with_options(ffmpeg, video))
+}
+
+/// Debug builds only: `MR_TEST_HOOKS` as mr-job's [`mr_job::TestHooks`] JSON
+/// (`{"delay_ms":300,"fail_ids":["..."],"force_hevc_unplayable":true}`), so
+/// the walk-through of the real app can pause mid-run, fail an item or show
+/// the HEVC notice. Release builds never read it (and mr-job ignores hooks).
+pub fn test_hooks() -> mr_job::TestHooks {
+    if !cfg!(debug_assertions) {
+        return mr_job::TestHooks::default();
+    }
+    std::env::var("MR_TEST_HOOKS")
+        .ok()
+        .and_then(|v| serde_json::from_str(&v).ok())
+        .unwrap_or_default()
 }
 
 impl Engine {
@@ -59,6 +101,19 @@ impl Engine {
         let _ = std::fs::create_dir_all(&paths.state_dir);
         let settings = settings::load(&paths);
         let license = license::Licenser::new(paths.state_dir.clone(), secrets, gumroad);
+        let media = paths
+            .ffmpeg
+            .as_deref()
+            .filter(|p| std::fs::metadata(p).is_ok_and(|m| m.is_file() && m.len() > 0))
+            .map(|p| Arc::new(compositor_for(p)));
+        let compositor: Arc<dyn mr_job::Compositor> = match &media {
+            Some(m) => m.clone(),
+            None => Arc::new(mr_job::PassThrough),
+        };
+        tracing::info!(
+            compositor = compositor.name(),
+            "engine ready (bitrate factor {MF_SOFTWARE_BITRATE_FACTOR})"
+        );
         Arc::new(Engine {
             paths,
             sink,
@@ -68,13 +123,20 @@ impl Engine {
             jobs: Mutex::new(HashMap::new()),
             settings: Mutex::new(settings),
             license,
+            media,
+            compositor,
         })
+    }
+
+    /// Captions can be burned in (a real compositor is set).
+    pub fn burns_in(&self) -> bool {
+        self.media.is_some()
     }
 
     pub fn emit<T: Serialize>(&self, event: &str, payload: &T) {
         match serde_json::to_value(payload) {
             Ok(v) => self.sink.emit(event, v),
-            Err(e) => eprintln!("event {event} not serialisable: {e}"),
+            Err(e) => tracing::error!("event {event} not serialisable: {e}"),
         }
     }
 
@@ -136,16 +198,10 @@ pub fn io_error(path: &Path, e: &std::io::Error) -> IpcError {
     }
 }
 
-/// Home directory replaced by `~` (FR-41), for anything that may leave the machine.
+/// Home directory replaced by `~`, web addresses and query strings removed
+/// (FR-41), for anything that may leave the machine: the same rule as the log.
 pub fn redact_home(text: &str) -> String {
-    let home = std::env::var("USERPROFILE")
-        .or_else(|_| std::env::var("HOME"))
-        .unwrap_or_default();
-    if home.len() > 3 {
-        text.replace(&home, "~")
-    } else {
-        text.to_string()
-    }
+    crate::logging::redact(text)
 }
 
 pub fn now_utc() -> String {

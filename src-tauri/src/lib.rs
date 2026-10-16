@@ -5,12 +5,20 @@
 //! the adapter onto `mr-job` (testable without a window), `ipc.rs` the
 //! contract's types. ffmpeg and exiftool ship as sidecars and run from Rust
 //! only. The window uses the dialog, opener and notification plugins exactly
-//! as `capabilities/default.json` allows.
+//! as `capabilities/default.json` allows; the updater runs from Rust only
+//! (`updater.rs`), so the window has no updater permission.
+//!
+//! FR-41: `logging.rs` writes a rotating, redacted log to the app's log
+//! folder from the first line of `setup`.
 
 pub mod commands;
 pub mod engine;
 pub mod ipc;
+pub mod links;
+pub mod logging;
+pub mod updater;
 
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use tauri::{Emitter, Manager};
@@ -24,6 +32,23 @@ impl EventSink for WindowSink {
     fn emit(&self, event: &str, payload: serde_json::Value) {
         let _ = self.0.emit(event, payload);
     }
+}
+
+/// The ffmpeg sidecar. tauri-build copies `binaries/ffmpeg-<target triple>`
+/// next to the app's own executable as `ffmpeg[.exe]`, in `tauri dev` and in
+/// the installed app alike (the shell plugin's `sidecar()` looks there too).
+pub fn ffmpeg_sidecar() -> Option<PathBuf> {
+    let exe = std::env::current_exe().ok()?;
+    Some(
+        exe.parent()?
+            .join(format!("ffmpeg{}", std::env::consts::EXE_SUFFIX)),
+    )
+}
+
+fn log_dir(app: &tauri::AppHandle) -> PathBuf {
+    app.path()
+        .app_log_dir()
+        .unwrap_or_else(|_| std::env::temp_dir().join("memories-rescue-logs"))
 }
 
 fn paths(app: &tauri::AppHandle) -> Paths {
@@ -42,7 +67,18 @@ fn paths(app: &tauri::AppHandle) -> Paths {
             .or_else(|_| p.download_dir())
             .unwrap_or(home),
         resource_dir: p.resource_dir().ok(),
+        log_dir: log_dir(app),
+        ffmpeg: ffmpeg_sidecar(),
     }
+}
+
+/// Panics go to the log (redacted like every line) before the default hook.
+fn log_panics() {
+    let default = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        tracing::error!("panic: {info}");
+        default(info);
+    }));
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -52,8 +88,18 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .manage(updater::Updates::default())
         .setup(|app| {
             let handle = app.handle().clone();
+            if logging::init(&log_dir(&handle)) {
+                log_panics();
+            }
+            tracing::info!(
+                "Memories Rescue {} starting on {}",
+                env!("CARGO_PKG_VERSION"),
+                engine::os_family()
+            );
             let engine = Engine::new(
                 paths(&handle),
                 Arc::new(WindowSink(handle.clone())),
@@ -61,6 +107,8 @@ pub fn run() {
                 license::GumroadConfig::from_build(),
             );
             app.manage(engine.clone());
+            // §10.2: at launch and every 24 hours, unless turned off in Settings.
+            updater::schedule(handle.clone());
             // §9.3 rule 3: at most every 30 days, never blocking anything.
             std::thread::spawn(move || {
                 if engine.license.recheck_if_due() {
@@ -95,11 +143,13 @@ pub fn run() {
             commands::list_resumable_jobs,
             commands::get_settings,
             commands::set_settings,
-            commands::telemetry_preview,
             commands::license_status,
             commands::activate,
             commands::deactivate,
             commands::open_path,
+            commands::diagnostics_preview,
+            commands::check_update,
+            commands::install_update,
             commands::export_diagnostics,
             commands::app_info,
             commands::sidecar_versions,

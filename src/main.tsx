@@ -4,9 +4,10 @@ import "./styles/app.css";
 import { App } from "./app";
 import { detectTauri, probeSidecars, selectBackend } from "./ipc/backend";
 import { BrowserHost, detectPlatform, type Host } from "./ipc/host";
-import { MockBackend, mockConfigFromUrl } from "./ipc/mock/engine";
 import { TauriBackend } from "./ipc/tauri";
 import { AppStore } from "./state/store";
+import { createI18n } from "./i18n/l10n";
+import { StartupError } from "./pages/StartupError";
 
 declare global {
   interface Window {
@@ -22,11 +23,22 @@ declare global {
 async function boot(): Promise<void> {
   const inTauri = detectTauri();
   const platform = detectPlatform(navigator.userAgent);
+  // Release builds never run on the mock (it is not even in their bundle).
   const selection = await selectBackend({
     isTauri: () => inTauri,
     createTauri: () => new TauriBackend(),
-    createMock: () => new MockBackend(mockConfigFromUrl(window.location.search, platform)),
+    createMock: import.meta.env.DEV
+      ? async () => {
+          const { MockBackend, mockConfigFromUrl } = await import("./ipc/mock/engine");
+          return new MockBackend(mockConfigFromUrl(window.location.search, platform));
+        }
+      : null,
   });
+  if (!selection.backend) {
+    renderStartupError(selection.detail);
+    return;
+  }
+  const backend = selection.backend;
 
   let host: Host;
   if (inTauri) {
@@ -36,7 +48,7 @@ async function boot(): Promise<void> {
     host = new BrowserHost(platform);
   }
 
-  const store = new AppStore(selection.backend, host, { reason: selection.reason, detail: selection.detail });
+  const store = new AppStore(backend, host, { reason: selection.reason, detail: selection.detail });
   await store.init();
 
   const root = document.getElementById("app");
@@ -47,19 +59,26 @@ async function boot(): Promise<void> {
   void probeSidecars(inTauri, () => new TauriBackend()).then((probe) => {
     store.sidecars.value = probe;
     if (import.meta.env.DEV) {
-      window.__mrBoot = { backend: selection.backend.kind, reason: selection.reason, detail: selection.detail, sidecars: probe };
+      window.__mrBoot = { backend: backend.kind, reason: selection.reason, detail: selection.detail, sidecars: probe };
       console.info("[boot]", window.__mrBoot);
     }
   });
 
   if (import.meta.env.DEV) {
-    window.__mrBoot = { backend: selection.backend.kind, reason: selection.reason, detail: selection.detail, sidecars: null };
+    window.__mrBoot = { backend: backend.kind, reason: selection.reason, detail: selection.detail, sidecars: null };
     window.__mrStore = store;
     window.__runAxe = async () => {
       const axe = (await import("axe-core")).default;
       return axe.run(document, { runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"] } });
     };
   }
+}
+
+/** A release build whose engine did not answer: a plain screen, never the mock. */
+function renderStartupError(detail: string | null): void {
+  const i18n = createI18n("system", navigator.languages ?? [navigator.language]);
+  const root = document.getElementById("app");
+  if (root) render(<StartupError i18n={i18n} detail={detail} />, root);
 }
 
 void boot().catch((e: unknown) => {

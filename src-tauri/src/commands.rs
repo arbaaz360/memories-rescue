@@ -142,12 +142,6 @@ pub fn set_settings(engine: E<'_>, settings: Settings) -> IpcResult<Settings> {
 }
 
 #[tauri::command]
-pub async fn telemetry_preview(engine: E<'_>) -> IpcResult<TelemetryPayload> {
-    let e = engine.inner().clone();
-    blocking(move || Ok(e.telemetry_preview())).await
-}
-
-#[tauri::command]
 pub fn license_status(engine: E<'_>) -> IpcResult<LicenseStatus> {
     Ok(engine.license.status())
 }
@@ -178,6 +172,24 @@ pub fn open_path(app: AppHandle, path: String) -> IpcResult<()> {
     app.opener()
         .open_path(path, None::<&str>)
         .map_err(|e| IpcError::unknown("The system could not open it.").with_detail(e.to_string()))
+}
+
+#[tauri::command]
+pub async fn diagnostics_preview(engine: E<'_>) -> IpcResult<DiagnosticsPreview> {
+    let e = engine.inner().clone();
+    blocking(move || Ok(e.diagnostics_preview())).await
+}
+
+/// §10.2. `force` (the Settings button) checks even when update checks are off.
+#[tauri::command]
+pub async fn check_update(app: AppHandle, force: bool) -> IpcResult<Option<UpdateInfo>> {
+    crate::updater::check(&app, force).await
+}
+
+/// §10.2: only after the user agreed, never while a job runs; restarts the app.
+#[tauri::command]
+pub async fn install_update(app: AppHandle) -> IpcResult<()> {
+    crate::updater::install(&app).await
 }
 
 #[tauri::command]

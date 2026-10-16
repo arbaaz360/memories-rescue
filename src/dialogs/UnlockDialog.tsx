@@ -4,7 +4,7 @@ import { errorMessageId } from "../i18n/l10n";
 import { useStore } from "../state/context";
 import { Button, Dialog } from "../ui/components";
 import { IconCheck, IconExternal } from "../ui/icons";
-import { MOCK_VALID_KEY } from "../ipc/mock/engine";
+import { MOCK_VALID_KEY } from "../ipc/mock/key";
 
 /** Unlock dialog (§7.2, §9.2): price, what you get, Buy on Gumroad, key field, offline note. */
 export function UnlockDialog() {
@@ -28,8 +28,24 @@ export function UnlockDialog() {
 
   if (!license) return null;
   const licensed = license.tier === "licensed";
-  const errorText = error ? (i18n.has(errorMessageId(error.code)) ? t(errorMessageId(error.code)) : t("error-unknown")) : null;
-  const errorNext = error ? (i18n.has(errorMessageId(error.code)) ? i18n.attr(errorMessageId(error.code), "next") : "") : null;
+  // Q-06: over the activation limit is LICENSE_INVALID with detail `activation_limit:<n>`.
+  const overLimit = error?.code === "LICENSE_INVALID" && error.detail?.startsWith("activation_limit:");
+  const limit = overLimit ? Number(error?.detail?.split(":")[1]) || license?.activation_limit || 5 : 0;
+  const support = store.appInfo.value?.support_email ?? "support@novabyteworks.com";
+  const errorText = error
+    ? overLimit
+      ? t("unlock-limit-title", { limit })
+      : i18n.has(errorMessageId(error.code))
+        ? t(errorMessageId(error.code))
+        : t("error-unknown")
+    : null;
+  const errorNext = error
+    ? overLimit
+      ? t("unlock-limit-next", { email: support })
+      : i18n.has(errorMessageId(error.code))
+        ? i18n.attr(errorMessageId(error.code), "next")
+        : ""
+    : null;
 
   const submit = async (e?: Event) => {
     e?.preventDefault();

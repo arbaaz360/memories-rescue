@@ -30,7 +30,6 @@ pub fn defaults(paths: &Paths) -> Settings {
         zip_volume_bytes: None,
         update_checks: true,
         update_channel: UpdateChannel::Stable,
-        telemetry: false,
         language: "system".to_string(),
     }
 }
@@ -144,6 +143,7 @@ pub fn to_engine(o: &JobOptions, template: &str, unlocked: bool) -> mr_job::Opti
         skip_groups: o.excluded_clip_groups.clone(),
     };
     e.zip_output = o.zip_output;
+    e.test_hooks = super::test_hooks();
     if o.metadata_only {
         if e.overlay_mode.burns_in() {
             e.overlay_mode = mr_job::OverlayMode::SaveSeparate;
@@ -177,7 +177,7 @@ pub fn from_engine(e: &mr_job::Options) -> JobOptions {
         home_timezone: e.home_tz.clone().unwrap_or_default(),
         metadata_only: false,
         workers: e.workers.map(|w| w as u32),
-        excluded_clip_groups: Vec::new(),
+        excluded_clip_groups: e.clip_rejoin.skip_groups.clone(),
     }
 }
 
@@ -234,7 +234,6 @@ mod tests {
             zip_volume_bytes: None,
             update_checks: true,
             update_channel: UpdateChannel::Beta,
-            telemetry: false,
             language: "system".into(),
         };
         let o = options_from_settings(&s);

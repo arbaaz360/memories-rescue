@@ -1,0 +1,7 @@
+{
+  "version": "1.0.1",
+  "current_version": "0.0.0-test",
+  "date": "2026-11-28T10:00:00Z",
+  "notes": "Faster video captions and two fixes for Windows compatibility mode.",
+  "channel": "stable"
+}

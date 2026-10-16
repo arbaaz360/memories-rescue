@@ -5,6 +5,7 @@ import type { ConfidenceBreakdown, FolderNode, LocationBreakdown, PlanItem } fro
 import { ActionBar, Badge, Button, Callout, Checkbox, ErrorCallout, Loading, ScreenTitle, Stat } from "../ui/components";
 import { IconArrowBack, IconFolder, IconPin, IconPinOff, IconPhoto, IconVideo, IconExternal } from "../ui/icons";
 import { IssueCallout } from "./Summary";
+import { HevcNotice } from "../ui/HevcNotice";
 
 function Breakdown(props: {
   title: string;
@@ -211,6 +212,14 @@ export function Preview() {
           />
         </dl>
       </section>
+
+      <HevcNotice
+        notice={plan.hevc_notice}
+        onEnable={() => {
+          store.setOptions({ windows_compatibility: true });
+          void store.preview();
+        }}
+      />
 
       {plan.free_limit.applies && plan.free_limit.items_beyond > 0 ? (
         <Callout

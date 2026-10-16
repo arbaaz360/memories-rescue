@@ -39,6 +39,7 @@ class EarlyFinish implements Backend {
         can_unlock: false,
         can_add_part: false,
         options: (await this.inner.call("get_settings", {})) as never,
+        clips: [],
       };
       return report as Commands[K]["result"];
     }

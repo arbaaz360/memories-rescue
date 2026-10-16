@@ -19,7 +19,8 @@ describe("IPC contract document", () => {
   });
 
   it("lists every event in its event table", () => {
-    const events = [...doc.matchAll(/^\| `([a-z_]+)` \| `[A-Za-z]+Event/gm)].map((m) => m[1]);
+    const section = doc.slice(doc.indexOf("## Events"), doc.indexOf("## Job state machine"));
+    const events = [...section.matchAll(/^\| `([a-z_]+)` \|/gm)].map((m) => m[1]);
     expect([...events].sort()).toEqual([...EVENT_NAMES].sort());
   });
 
@@ -38,7 +39,8 @@ describe("IPC contract document", () => {
       get_settings: {},
       license_status: {},
       app_info: {},
-      telemetry_preview: {},
+      diagnostics_preview: {},
+      check_update: { force: true },
       export_diagnostics: {},
       volume_info: { path: "D:\\" },
       add_inputs: { paths: [] },

@@ -49,3 +49,9 @@ error-job-state-corrupt = Saved progress was damaged and is being rebuilt from t
     .next = Nothing to do: this happens automatically.
 error-unknown = Something went wrong
     .next = Try again. If it keeps happening, export diagnostics and email support.
+
+## Release build without a working engine
+
+startup-error-title = { -product } couldn't start
+startup-error-body = A part of the app that does the work did not respond. Nothing was changed on your computer.
+startup-error-support = Please reinstall { -product }. If that doesn't help, write to { $email }.

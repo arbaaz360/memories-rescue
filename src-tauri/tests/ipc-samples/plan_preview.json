@@ -2598,26 +2598,26 @@
   ],
   "clip_groups": [
     {
-      "group_id": "clip-2018-06-02-7C1E9A40",
+      "group_id": "2018-06-02_7C1E9A40",
       "item_ids": [
-        "7C1E9A40",
-        "7C1E9A41",
-        "7C1E9A42"
+        "2018-06-02_7C1E9A40",
+        "2018-06-02_7C1E9A41",
+        "2018-06-02_7C1E9A42"
       ],
       "total_seconds": 24,
-      "planned_path": "2018/06/2018-06-02_140311_7C1E9A40_joined.mp4",
+      "planned_path": "2018/06/2018-06-02_140311_7C1E9A40-joined.mp4",
       "start_time": "2018-06-02T14:03:11+01:00"
     },
     {
-      "group_id": "clip-2019-12-24-B3D0F218",
+      "group_id": "2019-12-24_B3D0F218",
       "item_ids": [
-        "B3D0F218",
-        "B3D0F219",
-        "B3D0F21A",
-        "B3D0F21B"
+        "2019-12-24_B3D0F218",
+        "2019-12-24_B3D0F219",
+        "2019-12-24_B3D0F21A",
+        "2019-12-24_B3D0F21B"
       ],
       "total_seconds": 37.6,
-      "planned_path": "2019/12/2019-12-24_194205_B3D0F218_joined.mp4",
+      "planned_path": "2019/12/2019-12-24_194205_B3D0F218-joined.mp4",
       "start_time": "2019-12-24T19:42:05-05:00"
     }
   ],
@@ -2657,5 +2657,6 @@
     "applies": true,
     "limit": 100,
     "items_beyond": 3450
-  }
+  },
+  "hevc_notice": null
 }

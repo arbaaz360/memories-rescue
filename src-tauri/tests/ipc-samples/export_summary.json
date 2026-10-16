@@ -83,5 +83,6 @@
       "part_number": null
     }
   ],
-  "blocked": false
+  "blocked": false,
+  "hevc_notice": null
 }

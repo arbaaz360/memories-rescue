@@ -1,6 +1,10 @@
 //! `analyze`, `plan`, `estimate_space`, `volume_info` and
 //! `export_preview_report`: the dry run (FR-07, FR-13, FR-28, FR-29) mapped
-//! from `mr_job::plan` onto the contract's shapes.
+//! from `mr_job::plan_for` onto the contract's shapes. Plans are made for the
+//! compositor jobs will use, so the preview's warnings match what a run does:
+//! captions burned in with the real compositor, `ENCODER_UNAVAILABLE` when
+//! this computer has no working H.264 encoder (videos keep their caption
+//! beside them), and the FR-51 HEVC notice as its own field.
 
 use std::collections::BTreeMap;
 use std::io::Write;
@@ -10,9 +14,9 @@ use mr_job::{MediaKind, Plan, PlannedItem};
 
 use crate::ipc::{
     ClipGroup, ConfidenceBreakdown, DateRange, ErrorCode, ExportCounts, ExportSummary, FolderNode,
-    FreeLimitInfo, IpcError, IpcResult, Issue, JobOptions, LocationBreakdown, LocationDecision,
-    MatchConfidence, MediaType, PartInfo, PartStatus, PlanItem, PlanPreview, PlanTotals,
-    ProfileCounts, SpaceEstimate, TimePrecision, VolumeInfo,
+    FreeLimitInfo, HevcNotice, IpcError, IpcResult, Issue, JobOptions, LocationBreakdown,
+    LocationDecision, MatchConfidence, MediaType, PartInfo, PartStatus, PlanItem, PlanPreview,
+    PlanTotals, ProfileCounts, SpaceEstimate, TimePrecision, VolumeInfo,
 };
 
 use super::{Engine, io_error, job_error, settings};
@@ -26,13 +30,33 @@ pub struct CachedPlan {
 
 const SAMPLES: usize = 22;
 
-/// No compositor is wired yet (mr-composite, PR #2): mr-job's pass-through
-/// saves overlays beside the files. Flip together with `Job::set_compositor`.
-pub const COMPOSITOR_INSTALLED: bool = false;
-
 impl Engine {
     fn plan_for(&self, inputs: &[PathBuf], options: &mr_job::Options) -> IpcResult<Plan> {
-        mr_job::plan(inputs, options).map_err(job_error)
+        mr_job::plan_for(inputs, options, self.compositor.as_ref()).map_err(job_error)
+    }
+
+    /// Why videos cannot be encoded on this computer, when the plan needs it
+    /// (a caption to burn into a video, a clip group to join, or Windows
+    /// compatibility with videos). The encoder check runs ffmpeg once and is
+    /// cached for the session.
+    fn video_encoder_problem(&self, plan: &Plan, o: &mr_job::Options) -> Option<String> {
+        let media = self.media.as_ref()?;
+        let videos = plan.items.iter().any(|i| i.kind == MediaKind::Video);
+        let needs = videos
+            && ((o.overlay_mode.burns_in()
+                && plan
+                    .items
+                    .iter()
+                    .any(|i| i.kind == MediaKind::Video && i.overlay.is_some()))
+                || plan.clip_groups.iter().any(|g| g.enabled)
+                || o.windows_compat);
+        if !needs {
+            return None;
+        }
+        media.encoder_plan().err().map(|e| {
+            tracing::warn!("no video encoder: {}", e.code);
+            e.detail
+        })
     }
 
     pub fn analyze(&self, input_ids: &[String]) -> IpcResult<ExportSummary> {
@@ -149,6 +173,7 @@ impl Engine {
             total_bytes,
             issues: issues_of(plan, false),
             blocked: legacy || plan.items.is_empty(),
+            hevc_notice: hevc_notice_of(plan),
         }
     }
 
@@ -160,10 +185,31 @@ impl Engine {
         let plan_id = uuid::Uuid::new_v4().to_string();
         let samples = pick_samples(&plan);
         let thumbs = self.write_thumbnails(&plan_id, &inputs, &samples);
-        // Captions are burned in only once a compositor is installed; until
-        // then they are saved beside the files and the preview says so.
-        let burn_in = opts.overlay_mode.burns_in() && COMPOSITOR_INSTALLED;
+        // Captions are burned in by the real compositor. Without one (no
+        // sidecar) they are saved beside the files and the preview says so;
+        // without a working video encoder only the videos' captions are.
+        let burn_in = opts.overlay_mode.burns_in() && self.burns_in();
+        let encoder_problem = self.video_encoder_problem(&plan, &opts);
         let t = &plan.totals;
+        let video_overlays = plan
+            .items
+            .iter()
+            .filter(|i| i.kind == MediaKind::Video && i.overlay.is_some())
+            .count() as u64;
+        let composited = match (burn_in, &encoder_problem) {
+            (false, _) => 0,
+            (true, Some(_)) => t.with_overlay as u64 - video_overlays,
+            (true, None) => t.with_overlay as u64,
+        };
+        let mut warnings = issues_of(&plan, true);
+        if let Some(detail) = &encoder_problem {
+            warnings.push(Issue {
+                code: ErrorCode::EncoderUnavailable,
+                message: detail.clone(),
+                count: Some(video_overlays).filter(|n| *n > 0),
+                part_number: None,
+            });
+        }
         let mut location = LocationBreakdown::default();
         for it in &plan.items {
             match it.location_decision.as_str() {
@@ -178,12 +224,11 @@ impl Engine {
                 items: t.items as u64,
                 photos: t.photos as u64,
                 videos: t.videos as u64,
-                overlays_to_composite: if burn_in { t.with_overlay as u64 } else { 0 },
-                originals_kept: if burn_in
-                    && opts.keep_originals
+                overlays_to_composite: composited,
+                originals_kept: if opts.keep_originals
                     && opts.overlay_mode == mr_job::OverlayMode::BurnInKeepOriginals
                 {
-                    t.with_overlay as u64
+                    composited
                 } else {
                     0
                 },
@@ -205,10 +250,9 @@ impl Engine {
             clip_groups: plan
                 .clip_groups
                 .iter()
-                .enumerate()
-                .map(|(n, g)| clip_group(n, &g.items, &plan))
+                .map(|g| clip_group(g, &plan))
                 .collect(),
-            warnings: issues_of(&plan, true),
+            warnings,
             space: space_of(&plan.space, &opts.dest),
             estimated_seconds: estimate_seconds(&plan, &opts),
             free_limit: FreeLimitInfo {
@@ -216,6 +260,7 @@ impl Engine {
                 limit: mr_job::FREE_TIER_ITEMS as u64,
                 items_beyond: t.skipped_free_limit as u64,
             },
+            hevc_notice: hevc_notice_of(&plan),
         };
         let cached = CachedPlan {
             inputs,
@@ -476,7 +521,8 @@ fn issues_of(plan: &Plan, for_preview: bool) -> Vec<Issue> {
     }
     for w in &plan.warnings {
         let (code, count, part) = match w.code.as_str() {
-            "PART_MISSING" | "FREE_LIMIT" => continue,
+            // FREE_LIMIT and HEVC_PLAYBACK have fields of their own.
+            "PART_MISSING" | "FREE_LIMIT" | "HEVC_PLAYBACK" => continue,
             "COMPOSITE_PENDING" if !for_preview => continue,
             // Overlays cannot be burned in yet: they are saved beside the files.
             "COMPOSITE_PENDING" => (
@@ -597,19 +643,35 @@ pub fn media_type(k: MediaKind) -> MediaType {
     }
 }
 
-fn clip_group(n: usize, keys: &[String], plan: &Plan) -> ClipGroup {
-    let items: Vec<&PlannedItem> = keys
-        .iter()
-        .filter_map(|k| plan.items.iter().find(|i| &i.key == k))
-        .collect();
-    let first = items.first();
+/// `group_id` is mr-job's `ClipGroup::id` (the first clip's item key):
+/// the window sends the unticked ones back as `excluded_clip_groups`, which
+/// become `ClipRejoin::skip_groups`, which mr-job matches against that id.
+fn clip_group(g: &mr_job::plan::ClipGroup, plan: &Plan) -> ClipGroup {
+    let first = plan.items.iter().find(|i| i.key == g.id);
     ClipGroup {
-        group_id: format!("clip-{n}-{}", first.map(|i| i.key.as_str()).unwrap_or("")),
-        item_ids: keys.to_vec(),
-        total_seconds: 0.0,
-        planned_path: first.map(|i| i.output_rel.clone()).unwrap_or_default(),
-        start_time: first.map(|i| i.local().to_rfc3339()).unwrap_or_default(),
+        group_id: g.id.clone(),
+        item_ids: g.items.clone(),
+        total_seconds: g.total_secs,
+        planned_path: g.output_rel.clone(),
+        start_time: first
+            .map(|i| i.local().to_rfc3339())
+            .or_else(|| g.start_utc.map(|t| t.to_rfc3339()))
+            .unwrap_or_default(),
     }
+}
+
+/// FR-51: mr-job's `HEVC_PLAYBACK` warning ("3 of 16 sampled videos are
+/// HEVC, ...") as the contract's notice.
+pub fn hevc_notice_of(plan: &Plan) -> Option<HevcNotice> {
+    let w = plan.warnings.iter().find(|w| w.code == "HEVC_PLAYBACK")?;
+    let mut numbers = w
+        .detail
+        .split(|c: char| !c.is_ascii_digit())
+        .filter(|n| !n.is_empty())
+        .filter_map(|n| n.parse::<u64>().ok());
+    let hevc = numbers.next()?;
+    let sampled = numbers.next().unwrap_or(hevc).max(hevc);
+    Some(HevcNotice { hevc, sampled })
 }
 
 /// Memories Rescue / YYYY / MM (+ originals) with counts and three names each, plus _report.

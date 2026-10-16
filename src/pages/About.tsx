@@ -64,6 +64,14 @@ export function AboutPage() {
                 <IconExternal size={18} />
                 {t("about-privacy")}
               </Button>
+              <Button onClick={() => void store.host.openUrl(info.terms_url)}>
+                <IconExternal size={18} />
+                {t("about-terms")}
+              </Button>
+              <Button onClick={() => void store.host.openUrl(info.faq_url)}>
+                <IconExternal size={18} />
+                {t("about-faq")}
+              </Button>
             </div>
           </section>
 

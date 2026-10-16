@@ -4,7 +4,9 @@
   "licenses_path": "C:\\Users\\you\\AppData\\Local\\Memories Rescue\\LICENSES",
   "third_party_notices_path": "C:\\Users\\you\\AppData\\Local\\Memories Rescue\\THIRD_PARTY_NOTICES.md",
   "ffmpeg_source_url": "https://novabyteworks.com/memories-rescue/ffmpeg-source",
-  "privacy_policy_url": "https://novabyteworks.com/memories-rescue/privacy",
+  "privacy_policy_url": "https://novabyteworks.com/privacy",
   "support_email": "support@novabyteworks.com",
-  "website_url": "https://novabyteworks.com"
+  "website_url": "https://novabyteworks.com",
+  "terms_url": "https://novabyteworks.com/memories-rescue/terms",
+  "faq_url": "https://novabyteworks.com/memories-rescue/faq"
 }

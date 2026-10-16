@@ -67,7 +67,8 @@ fn every_contract_shape_round_trips() {
     round_trip::<JobReport>("job_report");
     round_trip::<Vec<ResumableJob>>("resumable_jobs");
     round_trip::<Settings>("settings");
-    round_trip::<TelemetryPayload>("telemetry_payload");
+    round_trip::<DiagnosticsPreview>("diagnostics_preview");
+    round_trip::<UpdateInfo>("update_info");
     round_trip::<LicenseStatus>("license_status");
     round_trip::<AppInfo>("app_info");
     round_trip::<ProgressEvent>("progress_event");

@@ -3,7 +3,7 @@ import { errorMessageId } from "./i18n/l10n";
 import { StoreContext, useStore } from "./state/context";
 import { STEPS, type Screen } from "./state/flow";
 import type { AppStore } from "./state/store";
-import { Callout } from "./ui/components";
+import { Button, Callout } from "./ui/components";
 import { IconGear, IconHelp, IconKey, IconLock } from "./ui/icons";
 import { Welcome } from "./screens/Welcome";
 import { AddFiles } from "./screens/AddFiles";
@@ -13,6 +13,7 @@ import { Preview } from "./screens/Preview";
 import { Processing } from "./screens/Processing";
 import { Results } from "./screens/Results";
 import { UnlockDialog } from "./dialogs/UnlockDialog";
+import { DiagnosticsDialog } from "./dialogs/DiagnosticsDialog";
 import { SettingsPage } from "./pages/Settings";
 import { AboutPage } from "./pages/About";
 
@@ -96,13 +97,50 @@ function MockBadge() {
   );
 }
 
+/** §10.2: an update the feed offers; installs only on the user's word and never during a job. */
+function UpdateNotice() {
+  const store = useStore();
+  const t = useT();
+  const u = store.update.value;
+  if (!u) return null;
+  const running = store.jobRunning.value;
+  return (
+    <Callout
+      tone="info"
+      title={t("update-title", { version: u.version })}
+      onDismiss={() => store.dismissUpdate()}
+      dismissLabel={t("update-later")}
+      actions={
+        <>
+          <Button variant="primary" onClick={() => void store.installUpdate()} disabled={running} busy={store.updateBusy.value}>
+            {t("update-install")}
+          </Button>
+          <Button variant="ghost" onClick={() => store.dismissUpdate()}>
+            {t("update-later")}
+          </Button>
+        </>
+      }
+    >
+      <p>{running ? t("update-wait-for-job") : t("update-body", { current: u.current_version, channel: u.channel })}</p>
+      {u.notes ? (
+        <details>
+          <summary>{t("update-notes")}</summary>
+          <p>{u.notes}</p>
+        </details>
+      ) : null}
+      {store.updateError.value ? <p class="field-error">{t("update-failed")}</p> : null}
+    </Callout>
+  );
+}
+
 function Notices() {
   const store = useStore();
   const t = useT();
   const list = store.notices.value;
-  if (list.length === 0) return null;
+  if (list.length === 0 && !store.update.value) return null;
   return (
     <div class="notices">
+      <UpdateNotice />
       {list.map((n) => (
         <Callout
           key={n.code}
@@ -163,6 +201,7 @@ function Shell() {
         {page === "settings" ? <SettingsPage /> : page === "about" ? <AboutPage /> : <Current key={screen} />}
       </main>
       <UnlockDialog />
+      <DiagnosticsDialog />
       <div class="visually-hidden" aria-live="polite" aria-atomic="true">
         <span key={announcement.n}>{announcement.text}</span>
       </div>

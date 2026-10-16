@@ -76,18 +76,22 @@ surface as `PART_TRUNCATED` or `UNKNOWN` at this boundary).
 | `list_resumable_jobs` | – | `ResumableJob[]` | Jobs in app data that are not finished (`paused`, `running` at crash time, `free_limit_reached`). Newest first. Powers "Resume previous job" on S0. |
 | `get_settings` | – | `Settings` | |
 | `set_settings` | `settings: Settings` | `Settings` (as stored) | Whole object each time. |
-| `telemetry_preview` | – | `TelemetryPayload` | NFR-PRV-04: the exact payload an opted-in upload would send, for the Settings preview. |
+| `diagnostics_preview` | – | `DiagnosticsPreview` | FR-41, NFR-PRV-06: the files Export diagnostics would put in the ZIP (name, size, kind) and where it would go. The window shows this before anything is written. |
+| `check_update` | `force: boolean` | `UpdateInfo \| null` | §10.2: asks the update feed of the chosen channel (`latest.json` for stable, `latest-beta.json` for beta). Without `force` it answers `null` when update checks are off. Network errors are not errors here: `null`. |
+| `install_update` | – | `null` | §10.2: downloads, verifies the signature, installs and restarts. Only after the user agreed in the window, and refused with `UNKNOWN` (detail `job running`) while any job runs. |
 | `license_status` | – | `LicenseStatus` | Never touches the network. |
-| `activate` | `key` | `LicenseStatus` | §9: one online check with Gumroad (`increment_uses_count` only here). `LICENSE_INVALID` for a wrong or disabled key, `LICENSE_OFFLINE` when the check could not be made. The key goes to the OS keychain. |
+| `activate` | `key` | `LicenseStatus` | §9: one online check with Gumroad (`increment_uses_count` only here). `LICENSE_INVALID` for a wrong or disabled key, `LICENSE_OFFLINE` when the check could not be made. The key goes to the OS keychain. Q-06: a key already used on `activation_limit` computers is refused with `LICENSE_INVALID` and detail `activation_limit:<n>` (checked first without incrementing, so a refused attempt costs nothing). Deactivation is local only: Gumroad's decrement needs the seller's token. |
 | `deactivate` | – | `LicenseStatus` | Forgets the key on this device. |
 | `open_path` | `path` | `null` | Opens a file or folder with the OS (output folder, `report.html`, the licence files). The engine checks the path exists. |
-| `export_diagnostics` | – | `string` (ZIP path) | FR-41: logs plus job summary, no media and no JSON content. Written to the user's Desktop (or Downloads). |
-| `app_info` | – | `AppInfo` | Version, OS family, paths of the licence files and third-party notices, ffmpeg source URL, privacy policy URL, support email. |
+| `export_diagnostics` | – | `string` (ZIP path) | FR-41: the files `diagnostics_preview` listed: the rotating logs (home folder as `~`, no URLs or query strings), app facts, settings without the key, job summaries and journals. No media and no JSON content. Written to the user's Desktop (or Downloads). |
+| `app_info` | – | `AppInfo` | Version, OS family, paths of the licence files and third-party notices, and the outside addresses from `src/config/links.json` (privacy, terms, FAQ, ffmpeg source, website, support email). |
 | `sidecar_versions` | – | `SidecarVersions` | Exists today. Runs `ffmpeg -version` and `exiftool -ver`; also the window's smoke probe at startup. |
 
 Commands added beyond the original list, each because a screen needs it:
 `export_preview_report` (S4 button), `estimate_space` and `volume_info` (S3 live
-gauge), `telemetry_preview` (Settings), `app_info` (About).
+gauge), `app_info` (About), `diagnostics_preview` (Results), `check_update` and
+`install_update` (the update notice and Settings). There is no telemetry in
+v1.0 (Q-12): no command, no setting, nothing sent.
 
 ### Shapes
 
@@ -111,7 +115,8 @@ ExportSummary {
   date_range: { first: "YYYY-MM-DD" | null, last },
   total_bytes,
   issues: Issue[],
-  blocked: boolean                     // legacy-only or nothing to process
+  blocked: boolean,                    // legacy-only or nothing to process
+  hevc_notice: { hevc, sampled } | null   // FR-51: HEVC videos this computer cannot play, from a sample of up to 16
 }
 
 JobOptions {
@@ -139,7 +144,8 @@ PlanPreview {
   warnings: Issue[],
   space: SpaceEstimate,
   estimated_seconds,
-  free_limit: { applies, limit, items_beyond }
+  free_limit: { applies, limit, items_beyond },
+  hevc_notice: { hevc, sampled } | null   // null once windows_compatibility is on
 }
 
 PlanItem { item_id, media_type: "photo"|"video", source_name, planned_path,
@@ -154,7 +160,8 @@ JobReport {
   started_at, finished_at | null, items_total, bytes_done,
   counts: { done, metadata_partial, location_uncertain, missing_media, failed, skipped_free_limit },
   missing_parts: number[], failures: ItemOutcome[≤200], issues: Issue[],
-  can_retry, can_unlock, can_add_part, options: JobOptions
+  can_retry, can_unlock, can_add_part, options: JobOptions,
+  clips: ClipOutcome[]                 // { group_id, clip_count, total_seconds, status: pending|done|failed|skipped|declined, output_path | null, error_code | null }
 }
 
 ResumableJob { job_id, output_path, created_at, state, items_done, items_total, input_names }
@@ -164,13 +171,18 @@ Settings { destination,                // last used; first default = the user's 
            apply_uncertain_locations, windows_compatibility, workers | null,
            output_template,              // mr-job tokens {date} {time} {shortid} {id} {ext}, default "{date}_{time}_{shortid}.{ext}"
            zip_output, zip_volume_bytes | null,
-           update_checks, update_channel: "stable"|"beta", telemetry, language }
+           update_checks, update_channel: "stable"|"beta", language }
 
 LicenseStatus { tier: "free"|"licensed"|"grace", key_masked | null, verified_at | null,
-                last_check_at | null, grace_until | null, product_url, price_display | null, free_limit }
+                last_check_at | null, grace_until | null, product_url, price_display | null, free_limit,
+                activation_limit }     // Q-06, build configuration (MR_ACTIVATION_LIMIT, default 5)
 
 AppInfo { version, os_family, licenses_path, third_party_notices_path, ffmpeg_source_url,
-          privacy_policy_url, support_email, website_url }
+          privacy_policy_url, support_email, website_url, terms_url, faq_url }
+
+UpdateInfo { version, current_version, date | null, notes | null, channel: "stable"|"beta" }
+
+DiagnosticsPreview { destination, files: { name, bytes, kind: "logs"|"app"|"settings"|"jobs"|"journal" }[] }
 ```
 
 Thumbnails: `thumbnail_path` is an absolute path to an image the engine
@@ -199,7 +211,8 @@ per job id and applies it once the id is known.
 | `progress` | `ProgressEvent` | At least once per second while running (FR-32), and once after every state change. Coalesce; never more than ~10/s. |
 | `item` | `ItemEvent { job_id, item: ItemOutcome }` | Once per item when it reaches a final status. |
 | `job_state` | `JobStateEvent { job_id, state, error, at }` | On every transition. |
-| `warning` | `WarningEvent { job_id \| null, code, message, count }` | Non-fatal conditions worth a notice (overlay aspect mismatch, HEVC playback guidance FR-51, re-check of the licence failed, ...). |
+| `warning` | `WarningEvent { job_id \| null, code, message, count }` | Non-fatal conditions worth a notice (overlay aspect mismatch, re-check of the licence failed, ...). |
+| `update_available` | `UpdateInfo` | When the 24-hour check (or the one at launch) finds an update and update checks are on. |
 
 ```ts
 ProgressEvent {
@@ -300,4 +313,5 @@ When you change this file or `src/ipc/types.ts`:
 - [ ] every event payload field is in both places
 - [ ] the mock (`src/ipc/mock/engine.ts`) still type-checks (`npm run build`) and its tests pass (`npm test`)
 - [ ] the Rust types in `src-tauri/src/ipc.rs` are updated and `cargo clippy -D warnings` is green
+- [ ] `src/config/links.json` holds every outside address (Rust reads it with `include_str!`)
 - [ ] `WRITE_IPC_SAMPLES=1 npm test` rewrote `src-tauri/tests/ipc-samples/`, and `cargo test -p memories-rescue --test ipc_samples` passes (the Rust types round-trip what the mock produces)

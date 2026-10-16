@@ -27,7 +27,7 @@ describe("selectBackend", () => {
       },
       createMock: () => mock,
     });
-    expect(s.backend.kind).toBe("mock");
+    expect(s.backend?.kind).toBe("mock");
     expect(s.reason).toBe("no_tauri");
     expect(created).toBe(false);
   });
@@ -38,7 +38,7 @@ describe("selectBackend", () => {
       createTauri: () => fakeTauri({ app_info: async () => ({ version: "1" }) }),
       createMock: () => mock,
     });
-    expect(s.backend.kind).toBe("tauri");
+    expect(s.backend?.kind).toBe("tauri");
     expect(s.reason).toBe("engine");
   });
 
@@ -48,7 +48,7 @@ describe("selectBackend", () => {
       createTauri: () => fakeTauri({ sidecar_versions: async () => ({ ffmpeg: "x", exiftool: "y" }) }),
       createMock: () => mock,
     });
-    expect(s.backend.kind).toBe("mock");
+    expect(s.backend?.kind).toBe("mock");
     expect(s.reason).toBe("engine_missing");
     expect(s.detail).toContain("app_info not found");
   });
@@ -66,8 +66,49 @@ describe("selectBackend", () => {
       createMock: () => mock,
       timeoutMs: 20,
     });
-    expect(hanging.backend.kind).toBe("mock");
+    expect(hanging.backend?.kind).toBe("mock");
     expect(hanging.detail).toContain("timed out");
+  });
+});
+
+describe("release builds never fall back to the mock", () => {
+  it("gives no backend outside Tauri", async () => {
+    const s = await selectBackend({ isTauri: () => false, createTauri: () => fakeTauri({}), createMock: null });
+    expect(s.backend).toBeNull();
+    expect(s.reason).toBe("no_tauri");
+  });
+
+  it("gives no backend when the engine does not answer, so the window shows the error screen", async () => {
+    const missing = await selectBackend({ isTauri: () => true, createTauri: () => fakeTauri({}), createMock: null });
+    expect(missing.backend).toBeNull();
+    expect(missing.reason).toBe("engine_missing");
+    const hanging = await selectBackend({
+      isTauri: () => true,
+      createTauri: () => fakeTauri({ app_info: () => new Promise(() => undefined) }),
+      createMock: null,
+      timeoutMs: 20,
+    });
+    expect(hanging.backend).toBeNull();
+    expect(hanging.reason).toBe("engine_error");
+  });
+
+  it("still uses the engine when it answers", async () => {
+    const s = await selectBackend({ isTauri: () => true, createTauri: () => fakeTauri({ app_info: async () => ({}) }), createMock: null });
+    expect(s.backend?.kind).toBe("tauri");
+  });
+
+  it("loads the mock lazily in development", async () => {
+    let loaded = 0;
+    const s = await selectBackend({
+      isTauri: () => false,
+      createTauri: () => fakeTauri({}),
+      createMock: async () => {
+        loaded += 1;
+        return mock;
+      },
+    });
+    expect(loaded).toBe(1);
+    expect(s.backend?.kind).toBe("mock");
   });
 });
 
