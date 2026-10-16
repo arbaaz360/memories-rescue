@@ -190,7 +190,28 @@ app can ever accept an update again**; keep a copy outside this machine.
 | Notices regenerated | locally after dependency changes | `python tools/release/notices.py` |
 | Workflow syntax | CI `workflow lint` job | actionlint |
 | Signatures and notarization | release build jobs after `tauri build` | `python tools/release/check.py --bundles --bundle-dir <dir>`; expected outputs in the script's help |
-| Installed app answers with the engine, not the mock | manual, both platforms | install, launch, About screen shows the engine version; on Windows `tools/release/verify_window.ps1` reads the window |
+| Installed app answers with the engine, not the mock | manual, both platforms | see "Installed-app smoke test" below |
+
+## Installed-app smoke test (Windows)
+
+Run from PowerShell, not Git Bash: NSIS switches such as `/S` must reach the
+installer unchanged, and `Start-Process -Wait` is what makes the silent
+installer and uninstaller block until they are done.
+
+```powershell
+$setup = Get-Item "targeteleaseundle
+sis\Memories Rescue_*_x64-setup.exe"
+Start-Process -FilePath $setup.FullName -ArgumentList "/S" -Wait          # per-user install, no UAC
+$inst = Join-Path $env:LOCALAPPDATA "Memories Rescue"
+Get-ChildItem $inst                                                      # memories-rescue.exe, ffmpeg.exe, COPYING.LGPLv2.1, SOURCE_OFFER.txt, THIRD_PARTY_NOTICES.md
+$env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = "--remote-debugging-port=9517" # any free port; no other instance running
+Start-Process -FilePath (Join-Path $inst "memories-rescue.exe")
+node toolselease\probe_engine.mjs 9517 welcome.png                   # "RESULT: engine answers"
+powershell -File toolseleaseerify_window.ps1 -OutPng about.png -Press About -Expect "Version,NovaByteWorks,Third-party notices" -Reject "Mock engine"
+Stop-Process -Name memories-rescue -Force
+Start-Process -FilePath (Join-Path $inst "uninstall.exe") -ArgumentList "/S" -Wait
+Test-Path $inst                                                          # False
+```
 
 ## Known gaps
 
