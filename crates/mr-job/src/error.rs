@@ -18,6 +18,9 @@ pub enum JobError {
     /// The output folder already belongs to a job: resume it instead.
     #[error("the output folder is already used by job {job_id}; resume it instead")]
     OutputInUse { job_id: String },
+    /// Another process or thread is running this job right now.
+    #[error("job {job_id} is already running")]
+    Busy { job_id: String },
     #[error("{path}: {source}")]
     Io {
         path: PathBuf,
