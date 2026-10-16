@@ -19,7 +19,7 @@ use std::process::ExitCode;
 use clap::{Parser, Subcommand};
 use mr_core::discover::{Discovery, Export, discover};
 use mr_core::fields::{DatePrecision, MediaType};
-use mr_core::index::{ExportSummary, MergedIndex, build_index, load_json, summarize};
+use mr_core::index::{ExportSummary, MergedIndex, Profile, build_index, load_json, summarize};
 use mr_core::matcher::{
     Item, MatchOptions, MatchReport, OrderAgreement, OrderVerdict, match_export, order_agreement,
 };
@@ -333,6 +333,10 @@ fn print_index_text(d: &Discovery, runs: &[Run<'_>], limit: usize) {
             s.profile_counts.ordinal,
             s.profile_counts.metadata_only
         );
+        // FR-13 AC2; the legacy message is printed with the issues.
+        if let Some(note) = s.profile_message().filter(|_| s.profile != Profile::Legacy) {
+            println!("  Note: {note}");
+        }
         println!(
             "  JSON entries {}; main files {} ({} photos, {} videos); overlays {}; unrecognised {}; refused {}; duplicates {}",
             s.json_entries,
@@ -470,6 +474,7 @@ fn export_json(d: &Discovery, run: &Run<'_>) -> Value {
         "summary": {
             "profile": s.profile.as_str(),
             "paths": {"exact": s.profile_counts.exact, "ordinal": s.profile_counts.ordinal, "metadata_only": s.profile_counts.metadata_only},
+            "profile_message": s.profile_message(),
             "parts": s.parts,
             "missing_parts": s.missing_parts,
             "truncated_parts": s.truncated_parts,

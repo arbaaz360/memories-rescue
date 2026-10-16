@@ -223,7 +223,7 @@ pub fn plain_message(code: &str) -> &'static str {
         "MATCH_PARTIAL" => "Exact time unknown; the date comes from the file name.",
         "LOCATION_UNCERTAIN" => "Location not applied because the match was uncertain.",
         "LEGACY_LINKS_ONLY" => {
-            "This export contains links instead of media; please request a new export."
+            "This export contains links instead of media; please request a new export (accounts.snapchat.com, My Data)."
         }
         "FREE_LIMIT" => "You've rescued 100 memories for free. Unlock to finish the rest.",
         "INPUT_UNAVAILABLE" => "The export file could not be read; reconnect the drive it is on.",

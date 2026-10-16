@@ -222,6 +222,28 @@ impl ProfileCounts {
     pub fn total(&self) -> usize {
         self.exact + self.ordinal + self.metadata_only
     }
+
+    /// The entries per matching path once media presence is known (SRS v0.3
+    /// section 3.3). With media bundled, a URL without usable `sid`/`mid` is
+    /// not a legacy link: the entry takes the ordinal path, which is what the
+    /// matcher does with it. Without media, every entry is metadata-only.
+    pub fn paths(self, media_present: bool) -> ProfileCounts {
+        if media_present {
+            ProfileCounts {
+                exact: self.exact,
+                ordinal: self.ordinal + self.metadata_only,
+                metadata_only: 0,
+            }
+        } else if self.exact + self.metadata_only > 0 {
+            ProfileCounts {
+                exact: 0,
+                ordinal: 0,
+                metadata_only: self.total(),
+            }
+        } else {
+            self
+        }
+    }
 }
 
 /// `memories_history.json`, streamed and parsed.
@@ -290,7 +312,9 @@ pub enum Profile {
     P2026b,
     /// Signed links, no bundled media.
     Legacy,
-    /// Entries of more than one profile, or legacy-style links next to media.
+    /// Entries of more than one profile: with media bundled, some with
+    /// `sid`/`mid` (exact) and some without (ordinal); without media, links
+    /// next to entries that have none.
     Mixed,
     /// No JSON, or an empty one.
     Unknown,
@@ -328,10 +352,44 @@ pub fn classify(counts: ProfileCounts, media_present: bool) -> Profile {
             Profile::Legacy
         };
     }
-    match (exact > 0, ordinal > 0, metadata_only > 0) {
-        (true, false, false) => Profile::P2026a,
-        (false, true, false) => Profile::P2026b,
+    // Media bundled: a URL without usable parameters is on the ordinal path.
+    match (exact > 0, ordinal + metadata_only > 0) {
+        (true, false) => Profile::P2026a,
+        (false, true) => Profile::P2026b,
         _ => Profile::Mixed,
+    }
+}
+
+/// How to request a new export, from Snap's support article [R1] (FR-13 AC1,
+/// FR-49). Snap's address is text, not a link (NFR-PRV-02).
+pub const REQUEST_EXPORT_STEPS: &str = "1. Go to accounts.snapchat.com and open My Data.\n\
+2. Tick Export your Memories and Export JSON Files.\n\
+3. Choose All Time as the date range, then submit the request.\n\
+4. Snapchat emails you when the export is ready; this can take up to 7 days. Download every part soon after: the links may stop working after about 3 days.";
+
+/// The FR-13 AC1 message for a links-only export, with the steps.
+pub fn legacy_message() -> String {
+    format!(
+        "This export contains links rather than media. These links expire and Memories Rescue v1 does not download them. Please request a new export:\n{REQUEST_EXPORT_STEPS}"
+    )
+}
+
+/// The FR-13 AC2 note for exports whose exact times rest on ZIP order.
+pub const ORDINAL_NOTE: &str = "Exact times for memories without a link in the export's data depend on the order of files inside the ZIP files. Keep the original ZIP files: from an extracted folder, most of these memories get their date only.";
+
+impl ExportSummary {
+    /// The FR-13 message that goes with the profile, if any: the legacy text
+    /// with the steps to request a new export, or, when some exact times rest
+    /// on ZIP order, that they do and that an extracted folder would give
+    /// day precision. Folder input itself is a `MATCH_PARTIAL` issue.
+    pub fn profile_message(&self) -> Option<String> {
+        match self.profile {
+            Profile::Legacy => Some(legacy_message()),
+            Profile::P2026b | Profile::Mixed if self.profile_counts.ordinal > 0 && self.ordered => {
+                Some(ORDINAL_NOTE.to_string())
+            }
+            _ => None,
+        }
     }
 }
 
@@ -366,17 +424,10 @@ pub fn summarize(
     json: Option<&JsonLoad>,
 ) -> ExportSummary {
     let mut issues = export.issues.clone();
-    let mut profile_counts = json.map(|j| j.profile_counts).unwrap_or_default();
+    let raw_counts = json.map(|j| j.profile_counts).unwrap_or_default();
     let media_present = !index.mains.is_empty();
-    let profile = classify(profile_counts, media_present);
-    if profile == Profile::Legacy {
-        // Links only: every entry is metadata-only whatever its URL carries.
-        profile_counts = ProfileCounts {
-            exact: 0,
-            ordinal: 0,
-            metadata_only: profile_counts.total(),
-        };
-    }
+    let profile = classify(raw_counts, media_present);
+    let profile_counts = raw_counts.paths(media_present);
     match json {
         None => issues.push(Issue::new(
             Code::JsonMissing,
@@ -401,10 +452,7 @@ pub fn summarize(
         }
     }
     if profile == Profile::Legacy {
-        issues.push(Issue::new(
-            Code::LegacyLinksOnly,
-            "This export contains links rather than media. These links expire and Memories Rescue v1 does not download them. Please request a new export.",
-        ));
+        issues.push(Issue::new(Code::LegacyLinksOnly, legacy_message()));
     }
     if !index.ordered && index.mains.len() > 1 {
         issues.push(Issue::new(
@@ -526,8 +574,20 @@ mod tests {
             Profile::P2026b,
             "media simply absent"
         );
-        assert_eq!(classify(c(0, 0, 50), true), Profile::Mixed, "F-03 shape");
+        assert_eq!(
+            classify(c(0, 0, 50), true),
+            Profile::P2026b,
+            "URLs without sid/mid next to media take the ordinal path (SRS v0.3)"
+        );
         assert_eq!(classify(c(10, 40, 0), true), Profile::Mixed);
-        assert_eq!(classify(c(10, 0, 5), true), Profile::Mixed);
+        assert_eq!(classify(c(10, 0, 5), true), Profile::Mixed, "F-03 shape");
+        assert_eq!(classify(c(10, 5, 0), false), Profile::Mixed);
+        assert_eq!(
+            c(10, 5, 3).paths(true),
+            c(10, 8, 0),
+            "tokenless URLs are ordinal with media"
+        );
+        assert_eq!(c(10, 0, 3).paths(false), c(0, 0, 13), "links only");
+        assert_eq!(c(0, 7, 0).paths(false), c(0, 7, 0), "media simply absent");
     }
 }
