@@ -565,6 +565,72 @@ impl Job {
         })
     }
 
+    /// FR-41 "Export diagnostics": the job summary for the support ZIP, as
+    /// JSON with every path redacted (`~` for the home directory) and no
+    /// JSON content, captions, locations or file names of items: counts,
+    /// codes, options, parts (sizes and numbers), ZIP volumes, and how often
+    /// each error code occurred. The app adds it next to the log files.
+    pub fn diagnostics(&self) -> Result<serde_json::Value> {
+        use mr_core::redact;
+        let o = &self.row.options;
+        let items = self.db.items()?;
+        let mut codes: BTreeMap<String, usize> = BTreeMap::new();
+        for i in &items {
+            if let Some(c) = &i.last_error_code {
+                *codes.entry(c.clone()).or_default() += 1;
+            }
+        }
+        let parts: Vec<serde_json::Value> = self
+            .db
+            .parts()?
+            .iter()
+            .map(|p| {
+                serde_json::json!({
+                    "number": p.number,
+                    "primary": p.primary,
+                    "zip": p.zip,
+                    "truncated": p.truncated,
+                    "size": p.fingerprint.size,
+                })
+            })
+            .collect();
+        Ok(serde_json::json!({
+            "job": self.id,
+            "app_version": self.row.app_version,
+            "created_utc": self.row.created_utc,
+            "status": self.row.status,
+            "profile": self.row.format_profile,
+            "output": redact::path(&self.root).to_string(),
+            "inputs": self.row.inputs.iter().map(|p| redact::path(p).to_string()).collect::<Vec<_>>(),
+            "parts": parts,
+            "missing_parts": self.row.missing_parts,
+            "warnings": self.row.warnings.iter().map(|w| w.code.clone()).collect::<Vec<_>>(),
+            "counts": self.db.counts()?,
+            "error_codes": codes,
+            "rebuilt": self.rebuilt.is_some(),
+            "compositor": self.compositor.name(),
+            "tz_data": self.row.tz_data_version,
+            "home_zone": self.row.home_zone,
+            "options": {
+                "overlay_mode": o.overlay_mode.as_str(),
+                "keep_originals": o.keep_originals,
+                "workers": o.workers,
+                "output_template": o.output_template,
+                "unlocked": o.unlocked,
+                "apply_uncertain_locations": o.apply_uncertain_locations,
+                "windows_compat": o.windows_compat,
+                "clip_rejoin": o.clip_rejoin.enabled,
+                "zip_output": o.zip_output,
+                "zip_volume_bytes": o.zip_volume_bytes,
+            },
+            "zip_volumes": self.zip_volumes()?.iter().map(|v| serde_json::json!({
+                "seq": v.seq, "files": v.files, "size": v.size, "state": v.state,
+                "error_code": v.error_code, "oversize": v.oversize,
+            })).collect::<Vec<_>>(),
+            "peak_rss_bytes": crate::platform::peak_rss_bytes(),
+        }))
+    }
+
     /// Inputs that changed since they were recorded (FR-33 AC2).
     pub fn check_inputs(&self) -> Result<Vec<InputChange>> {
         Ok(fingerprint::changes(
@@ -1356,9 +1422,11 @@ impl Job {
                     }
                     if since_check >= recheck_every {
                         since_check = 0;
+                        // The fake drive shrinks by what this run has written (H-03).
                         let free = hooks
                             .fake_free_bytes
                             .filter(|_| hooks_on)
+                            .map(|f| f.saturating_sub(bytes_done))
                             .or_else(|| available_space(&self.root));
                         if let Some(free) = free
                             && free < MIN_FREE_WHILE_RUNNING

@@ -175,6 +175,24 @@ fn fr41_engine_events_are_emitted_and_redacted() {
             assert!(!lower.contains(q), "query string in {text}");
         }
     }
+    // FR-41 diagnostics: counts and codes, paths redacted, no item names.
+    let diag = job.diagnostics().unwrap();
+    let text = diag.to_string();
+    assert_eq!(diag["job"], job.id());
+    assert_eq!(diag["error_codes"]["TEST_INJECTED"], 2, "{text}");
+    assert!(diag["counts"]["done"].as_u64().unwrap() > 0);
+    if let Some(h) = mr_core::redact::home() {
+        let h = h.to_string_lossy().to_lowercase().replace('\\', "\\\\");
+        assert!(
+            !text.to_lowercase().contains(&h),
+            "home directory in diagnostics: {text}"
+        );
+    }
+    for id in &ids {
+        assert!(!text.contains(id.as_str()), "item id in diagnostics");
+    }
+    assert!(!text.contains("example.invalid"), "no JSON content");
+
     // Where the output folder is under the home directory (the temp folder
     // is, on Windows), its path is logged with `~`.
     let created = events.iter().find(|c| c.message == "job created").unwrap();

@@ -301,6 +301,12 @@ itself.
 | `mr_job::job` | info | `item warning` | `item`, `code` (`overlay_aspect_mismatch`, `h264_compat`, ...), `detail` |
 | `mr_job::process` | debug | `output name taken by another file; using a suffix` | `name`, `suffix` |
 
+For "Export diagnostics", `job.diagnostics()` returns the job summary as
+JSON: status, profile, counts, error codes and how often each occurred, part
+numbers and sizes, warnings, options, ZIP volumes, peak memory. Paths are
+redacted; no item names, captions, locations or JSON content. Put it in the
+ZIP next to the log files.
+
 `crates/mr-job/tests/logging.rs` runs a job under a capturing subscriber and
 checks that these events arrive and that none carries the home directory, a
 URL or a query string (`MR_LOG_DUMP=1` prints them).
