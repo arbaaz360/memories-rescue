@@ -46,7 +46,7 @@ ExifTool (Perl Artistic License or GPL) is used as a test oracle during developm
 only and is not part of the released application (see
 `docs/decisions/Q-02-metadata-writer.md`).
 
-## Rust crates (556)
+## Rust crates (571)
 
 Crates that can be compiled into the application on any supported platform.
 
@@ -119,6 +119,7 @@ Crates that can be compiled into the application on any supported platform.
 | const-oid | 0.10.2 | Apache-2.0 OR MIT | <https://github.com/RustCrypto/formats> |
 | cookie | 0.18.2 | MIT OR Apache-2.0 | <https://github.com/SergioBenitez/cookie-rs> |
 | core-foundation | 0.10.1 | MIT OR Apache-2.0 | <https://github.com/servo/core-foundation-rs> |
+| core-foundation | 0.9.4 | MIT OR Apache-2.0 | <https://github.com/servo/core-foundation-rs> |
 | core-foundation-sys | 0.8.7 | MIT OR Apache-2.0 | <https://github.com/servo/core-foundation-rs> |
 | core-graphics | 0.25.0 | MIT OR Apache-2.0 | <https://github.com/servo/core-foundation-rs> |
 | core-graphics-types | 0.2.0 | MIT OR Apache-2.0 | <https://github.com/servo/core-foundation-rs> |
@@ -271,6 +272,7 @@ Crates that can be compiled into the application on any supported platform.
 | keyboard-types | 0.8.3 | MIT OR Apache-2.0 | <https://github.com/rust-windowing/keyboard-types> |
 | keyring | 4.2.0 | MIT OR Apache-2.0 | <https://github.com/open-source-cooperative/keyring-rs> |
 | keyring-core | 1.0.1 | MIT OR Apache-2.0 | <https://github.com/open-source-cooperative/keyring-core.git> |
+| lazy_static | 1.5.1 | MIT OR Apache-2.0 | <https://github.com/rust-lang-nursery/lazy-static.rs> |
 | libc | 0.2.190 | MIT OR Apache-2.0 | <https://github.com/rust-lang/libc> |
 | libdbus-sys | 0.2.7 | Apache-2.0/MIT | <https://github.com/diwic/dbus-rs> |
 | libredox | 0.1.25 | MIT | <https://gitlab.redox-os.org/redox-os/libredox.git> |
@@ -285,6 +287,7 @@ Crates that can be compiled into the application on any supported platform.
 | memchr | 2.8.3 | Unlicense OR MIT | <https://github.com/BurntSushi/memchr> |
 | memoffset | 0.9.1 | MIT | <https://github.com/Gilnaa/memoffset> |
 | mime | 0.3.17 | MIT OR Apache-2.0 | <https://github.com/hyperium/mime> |
+| minisign-verify | 0.3.0 | MIT | <https://github.com/jedisct1/rust-minisign-verify> |
 | miniz_oxide | 0.8.9 | MIT OR Zlib OR Apache-2.0 | <https://github.com/Frommi/miniz_oxide/tree/master/miniz_oxide> |
 | miniz_oxide | 0.9.1 | MIT OR Zlib OR Apache-2.0 | <https://github.com/Frommi/miniz_oxide/tree/master/miniz_oxide> |
 | mio | 1.2.4 | MIT | <https://github.com/tokio-rs/mio> |
@@ -320,6 +323,7 @@ Crates that can be compiled into the application on any supported platform.
 | objc2-encode | 4.1.0 | MIT | <https://github.com/madsmtm/objc2> |
 | objc2-exception-helper | 0.1.1 | Zlib OR Apache-2.0 OR MIT | <https://github.com/madsmtm/objc2> |
 | objc2-foundation | 0.3.2 | MIT | <https://github.com/madsmtm/objc2> |
+| objc2-osa-kit | 0.3.2 | Zlib OR Apache-2.0 OR MIT | <https://github.com/madsmtm/objc2> |
 | objc2-quartz-core | 0.3.2 | Zlib OR Apache-2.0 OR MIT | <https://github.com/madsmtm/objc2> |
 | objc2-ui-kit | 0.3.2 | Zlib OR Apache-2.0 OR MIT | <https://github.com/madsmtm/objc2> |
 | objc2-user-notifications | 0.3.2 | Zlib OR Apache-2.0 OR MIT | <https://github.com/madsmtm/objc2> |
@@ -333,6 +337,7 @@ Crates that can be compiled into the application on any supported platform.
 | option-ext | 0.2.0 | MPL-2.0 | <https://github.com/soc/option-ext.git> |
 | ordered-stream | 0.2.0 | MIT OR Apache-2.0 | <https://github.com/danieldg/ordered-stream> |
 | os_pipe | 1.2.3 | MIT | <https://github.com/oconnor663/os_pipe.rs> |
+| osakit | 0.3.1 | MIT OR Apache-2.0 | <https://github.com/mdevils/rust-osakit> |
 | pango | 0.18.3 | MIT | <https://github.com/gtk-rs/gtk-rs-core> |
 | pango-sys | 0.18.0 | MIT | <https://github.com/gtk-rs/gtk-rs-core> |
 | parking | 2.2.1 | Apache-2.0 OR MIT | <https://github.com/smol-rs/parking> |
@@ -418,6 +423,7 @@ Crates that can be compiled into the application on any supported platform.
 | servo_arc | 0.4.3 | MIT OR Apache-2.0 | <https://github.com/servo/stylo> |
 | sha2 | 0.10.9 | MIT OR Apache-2.0 | <https://github.com/RustCrypto/hashes> |
 | sha2 | 0.11.1 | MIT OR Apache-2.0 | <https://github.com/RustCrypto/hashes> |
+| sharded-slab | 0.1.7 | MIT | <https://github.com/hawkw/sharded-slab> |
 | shared_child | 1.1.2 | MIT | <https://github.com/oconnor663/shared_child.rs> |
 | shlex | 2.0.1 | MIT OR Apache-2.0 | <https://github.com/comex/rust-shlex> |
 | signal-hook-registry | 1.4.8 | MIT OR Apache-2.0 | <https://github.com/vorner/signal-hook> |
@@ -442,9 +448,12 @@ Crates that can be compiled into the application on any supported platform.
 | syn | 3.0.9 | MIT OR Apache-2.0 | <https://github.com/dtolnay/syn> |
 | sync_wrapper | 1.0.2 | Apache-2.0 | <https://github.com/Actyx/sync_wrapper> |
 | synstructure | 0.14.0 | MIT | <https://github.com/mystor/synstructure> |
+| system-configuration | 0.7.0 | MIT OR Apache-2.0 | <https://github.com/mullvad/system-configuration-rs> |
+| system-configuration-sys | 0.6.0 | MIT OR Apache-2.0 | <https://github.com/mullvad/system-configuration-rs> |
 | system-deps | 6.2.2 | MIT OR Apache-2.0 | <https://github.com/gdesmott/system-deps> |
 | tao | 0.37.1 | Apache-2.0 | <https://github.com/tauri-apps/tao> |
 | tao-macros | 0.1.4 | MIT OR Apache-2.0 | <https://github.com/tauri-apps/tao> |
+| tar | 0.4.46 | MIT OR Apache-2.0 | <https://github.com/composefs/tar-rs> |
 | target-lexicon | 0.12.16 | Apache-2.0 WITH LLVM-exception | <https://github.com/bytecodealliance/target-lexicon> |
 | tauri | 2.12.4 | Apache-2.0 OR MIT | <https://github.com/tauri-apps/tauri> |
 | tauri-build | 2.7.3 | Apache-2.0 OR MIT | <https://github.com/tauri-apps/tauri> |
@@ -456,6 +465,7 @@ Crates that can be compiled into the application on any supported platform.
 | tauri-plugin-notification | 2.7.0 | Apache-2.0 OR MIT | <https://github.com/tauri-apps/plugins-workspace> |
 | tauri-plugin-opener | 2.7.2 | Apache-2.0 OR MIT | <https://github.com/tauri-apps/plugins-workspace> |
 | tauri-plugin-shell | 2.5.0 | Apache-2.0 OR MIT | <https://github.com/tauri-apps/plugins-workspace> |
+| tauri-plugin-updater | 2.14.0 | Apache-2.0 OR MIT | <https://github.com/tauri-apps/plugins-workspace> |
 | tauri-runtime | 2.12.2 | Apache-2.0 OR MIT | <https://github.com/tauri-apps/tauri> |
 | tauri-runtime-wry | 2.12.2 | Apache-2.0 OR MIT | <https://github.com/tauri-apps/tauri> |
 | tauri-utils | 2.10.2 | Apache-2.0 OR MIT | <https://github.com/tauri-apps/tauri> |
@@ -467,6 +477,7 @@ Crates that can be compiled into the application on any supported platform.
 | thiserror | 2.0.21 | MIT OR Apache-2.0 | <https://github.com/dtolnay/thiserror> |
 | thiserror-impl | 1.0.69 | MIT OR Apache-2.0 | <https://github.com/dtolnay/thiserror> |
 | thiserror-impl | 2.0.21 | MIT OR Apache-2.0 | <https://github.com/dtolnay/thiserror> |
+| thread_local | 1.1.10 | MIT OR Apache-2.0 | <https://github.com/Amanieu/thread_local-rs> |
 | time | 0.3.55 | MIT OR Apache-2.0 | <https://github.com/time-rs/time> |
 | time-core | 0.1.9 | MIT OR Apache-2.0 | <https://github.com/time-rs/time> |
 | time-macros | 0.2.32 | MIT OR Apache-2.0 | <https://github.com/time-rs/time> |
@@ -491,6 +502,8 @@ Crates that can be compiled into the application on any supported platform.
 | tracing | 0.1.44 | MIT | <https://github.com/tokio-rs/tracing> |
 | tracing-attributes | 0.1.31 | MIT | <https://github.com/tokio-rs/tracing> |
 | tracing-core | 0.1.36 | MIT | <https://github.com/tokio-rs/tracing> |
+| tracing-log | 0.2.0 | MIT | <https://github.com/tokio-rs/tracing> |
+| tracing-subscriber | 0.3.23 | MIT | <https://github.com/tokio-rs/tracing> |
 | try-lock | 0.2.5 | MIT | <https://github.com/seanmonstar/try-lock> |
 | typed-path | 0.12.3 | MIT OR Apache-2.0 | <https://github.com/chipsenkbeil/typed-path> |
 | typeid | 1.0.3 | MIT OR Apache-2.0 | <https://github.com/dtolnay/typeid> |
@@ -542,6 +555,7 @@ Crates that can be compiled into the application on any supported platform.
 | windows-link | 0.2.1 | MIT OR Apache-2.0 | <https://github.com/microsoft/windows-rs> |
 | windows-native-keyring-store | 1.1.0 | MIT OR Apache-2.0 | <https://github.com/open-source-cooperative/windows-native-keyring-store.git> |
 | windows-numerics | 0.3.1 | MIT OR Apache-2.0 | <https://github.com/microsoft/windows-rs> |
+| windows-registry | 0.6.1 | MIT OR Apache-2.0 | <https://github.com/microsoft/windows-rs> |
 | windows-result | 0.4.1 | MIT OR Apache-2.0 | <https://github.com/microsoft/windows-rs> |
 | windows-strings | 0.5.1 | MIT OR Apache-2.0 | <https://github.com/microsoft/windows-rs> |
 | windows-sys | 0.45.0 | MIT OR Apache-2.0 | <https://github.com/microsoft/windows-rs> |
@@ -584,6 +598,7 @@ Crates that can be compiled into the application on any supported platform.
 | wry | 0.57.0 | Apache-2.0 OR MIT | <https://github.com/tauri-apps/wry> |
 | x11 | 2.21.0 | MIT | <https://github.com/AltF02/x11-rs.git> |
 | x11-dl | 2.21.0 | MIT | <https://github.com/AltF02/x11-rs.git> |
+| xattr | 1.6.1 | MIT OR Apache-2.0 | <https://github.com/Stebalien/xattr> |
 | yoke | 0.8.3 | Unicode-3.0 | <https://github.com/unicode-org/icu4x> |
 | yoke-derive | 0.8.4 | Unicode-3.0 | <https://github.com/unicode-org/icu4x> |
 | zbus | 5.19.0 | MIT | <https://github.com/z-galaxy/zbus/> |
@@ -961,6 +976,13 @@ Copyright (c) 2017 Sergio Benitez
 Copyright (c) 2014 Alex Crichton  
 
 **core-foundation 0.10.1**  
+copyright notice that is included in or attached to the work  
+copyright license to reproduce, prepare Derivative Works of,  
+(c) You must retain, in the Source form of any Derivative Works  
+Copyright [yyyy] [name of copyright owner]  
+Copyright (c) 2012-2013 Mozilla Foundation  
+
+**core-foundation 0.9.4**  
 copyright notice that is included in or attached to the work  
 copyright license to reproduce, prepare Derivative Works of,  
 (c) You must retain, in the Source form of any Derivative Works  
@@ -1737,6 +1759,12 @@ copyright license to reproduce, prepare Derivative Works of,
 Copyright [2017] [keyring developers]  
 Copyright (c) 2016 keyring Developers  
 
+**lazy_static 1.5.1**  
+copyright notice that is included in or attached to the work  
+copyright license to reproduce, prepare Derivative Works of,  
+(c) You must retain, in the Source form of any Derivative Works  
+Copyright [yyyy] [name of copyright owner]  
+
 **libc 0.2.190**  
 copyright notice that is included in or attached to the work  
 copyright license to reproduce, prepare Derivative Works of,  
@@ -1806,6 +1834,11 @@ copyright license to reproduce, prepare Derivative Works of,
 (c) You must retain, in the Source form of any Derivative Works  
 Copyright [yyyy] [name of copyright owner]  
 Copyright (c) 2014 Sean McArthur  
+
+**minisign-verify 0.3.0**  
+Copyright (c) 2019-2025 Frank Denis  
+Copyright (c) 2006-2009 Graydon Hoare  
+Copyright (c) 2009-2013 Mozilla Foundation  
 
 **miniz_oxide 0.8.9**  
 Copyright 2013-2014 RAD Game Tools and Valve Software  
@@ -1979,6 +2012,12 @@ copyright notice that is included in or attached to the work
 copyright license to reproduce, prepare Derivative Works of,  
 (c) You must retain, in the Source form of any Derivative Works  
 Copyright [yyyy] [name of copyright owner]  
+
+**osakit 0.3.1**  
+copyright notice that is included in or attached to the work  
+copyright license to reproduce, prepare Derivative Works of,  
+(c) You must retain, in the Source form of any Derivative Works  
+Copyright (c) 2024 Marat Dulin  
 
 **parking 2.2.1**  
 copyright notice that is included in or attached to the work  
@@ -2424,6 +2463,9 @@ Copyright (c) 2016 Artyom Pavlov
 Copyright (c) 2009-2013 Mozilla Foundation  
 Copyright (c) 2006-2009 Graydon Hoare  
 
+**sharded-slab 0.1.7**  
+Copyright (c) 2019 Eliza Weisman  
+
 **shlex 2.0.1**  
 Copyright 2015 Nicholas Allegra (comex).  
 Copyright (c) 2015 Nicholas Allegra (comex).  
@@ -2544,6 +2586,20 @@ copyright license to reproduce, prepare Derivative Works of,
 **synstructure 0.14.0**  
 Copyright 2016 Nika Layzell  
 
+**system-configuration 0.7.0**  
+copyright notice that is included in or attached to the work  
+copyright license to reproduce, prepare Derivative Works of,  
+(c) You must retain, in the Source form of any Derivative Works  
+Copyright [yyyy] [name of copyright owner]  
+Copyright (c) 2024 Mullvad VPN AB  
+
+**system-configuration-sys 0.6.0**  
+copyright notice that is included in or attached to the work  
+copyright license to reproduce, prepare Derivative Works of,  
+(c) You must retain, in the Source form of any Derivative Works  
+Copyright [yyyy] [name of copyright owner]  
+Copyright (c) 2024 Mullvad VPN AB  
+
 **system-deps 6.2.2**  
 copyright notice that is included in or attached to the work  
 copyright license to reproduce, prepare Derivative Works of,  
@@ -2562,6 +2618,13 @@ copyright license to reproduce, prepare Derivative Works of,
 (c) You must retain, in the Source form of any Derivative Works  
 Copyright [yyyy] [name of copyright owner]  
 Copyright (c) 2022 - Present Tauri Apps Contributors  
+
+**tar 0.4.46**  
+copyright notice that is included in or attached to the work  
+copyright license to reproduce, prepare Derivative Works of,  
+(c) You must retain, in the Source form of any Derivative Works  
+Copyright [yyyy] [name of copyright owner]  
+Copyright (c) The tar-rs Project Contributors  
 
 **target-lexicon 0.12.16**  
 copyright notice that is included in or attached to the work  
@@ -2618,6 +2681,12 @@ copyright license to reproduce, prepare Derivative Works of,
 Copyright (c) 2017 - Present Tauri Apps Contributors  
 
 **tauri-plugin-shell 2.5.0**  
+copyright notice that is included in or attached to the work  
+copyright license to reproduce, prepare Derivative Works of,  
+(c) You must retain, in the Source form of any Derivative Works  
+Copyright (c) 2017 - Present Tauri Apps Contributors  
+
+**tauri-plugin-updater 2.14.0**  
 copyright notice that is included in or attached to the work  
 copyright license to reproduce, prepare Derivative Works of,  
 (c) You must retain, in the Source form of any Derivative Works  
@@ -2684,6 +2753,13 @@ copyright license to reproduce, prepare Derivative Works of,
 copyright notice that is included in or attached to the work  
 copyright license to reproduce, prepare Derivative Works of,  
 (c) You must retain, in the Source form of any Derivative Works  
+
+**thread_local 1.1.10**  
+copyright notice that is included in or attached to the work  
+copyright license to reproduce, prepare Derivative Works of,  
+(c) You must retain, in the Source form of any Derivative Works  
+Copyright [yyyy] [name of copyright owner]  
+Copyright (c) 2016 The Rust Project Developers  
 
 **time 0.3.55**  
 copyright notice that is included in or attached to the work  
@@ -2805,6 +2881,12 @@ Copyright (c) 2019 Tokio Contributors
 Copyright (c) 2019 Tokio Contributors  
 
 **tracing-core 0.1.36**  
+Copyright (c) 2019 Tokio Contributors  
+
+**tracing-log 0.2.0**  
+Copyright (c) 2019 Tokio Contributors  
+
+**tracing-subscriber 0.3.23**  
 Copyright (c) 2019 Tokio Contributors  
 
 **try-lock 0.2.5**  
@@ -3078,6 +3160,12 @@ copyright license to reproduce, prepare Derivative Works of,
 (c) You must retain, in the Source form of any Derivative Works  
 Copyright (c) Microsoft Corporation.  
 
+**windows-registry 0.6.1**  
+copyright notice that is included in or attached to the work  
+copyright license to reproduce, prepare Derivative Works of,  
+(c) You must retain, in the Source form of any Derivative Works  
+Copyright (c) Microsoft Corporation.  
+
 **windows-result 0.4.1**  
 copyright notice that is included in or attached to the work  
 copyright license to reproduce, prepare Derivative Works of,  
@@ -3302,6 +3390,13 @@ copyright license to reproduce, prepare Derivative Works of,
 Copyright [yyyy] [name of copyright owner]  
 Copyright (c) 2020-2023 Ngo Iok Ui & Tauri Programme within The Commons Conservancy  
 
+**xattr 1.6.1**  
+copyright notice that is included in or attached to the work  
+copyright license to reproduce, prepare Derivative Works of,  
+(c) You must retain, in the Source form of any Derivative Works  
+Copyright [yyyy] [name of copyright owner]  
+Copyright (c) 2015 Steven Allen  
+
 **yoke 0.8.3**  
 COPYRIGHT AND PERMISSION NOTICE  
 Copyright © 2020-2024 Unicode, Inc.  
@@ -3444,7 +3539,7 @@ OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 ### Apache-2.0
 
-Used by 390 component(s): @fluent/bundle 0.19.1, @tauri-apps/api 2.12.4, @tauri-apps/plugin-dialog 2.8.3, @tauri-apps/plugin-notification 2.7.0, @tauri-apps/plugin-opener 2.7.2, adler2 2.0.1, aes 0.9.3, android_system_properties 0.1.6, anyhow 1.0.104, apple-native-keyring-store 1.0.2, async-broadcast 0.7.2, async-channel 2.5.0, async-executor 1.14.0, async-io 2.6.0, async-lock 3.4.2, async-process 2.5.0, async-recursion 1.2.0, async-signal 0.2.14, async-task 4.7.1, async-trait 0.1.92, atomic-waker 1.1.2, autocfg 1.5.1, base64 0.21.7, base64 0.22.1, base64 0.23.1, bit-set 0.8.0, bit-vec 0.8.0, bitflags 1.3.2, bitflags 2.13.2, block-buffer 0.10.4, block-buffer 0.12.1, block-padding 0.4.2, blocking 1.7.0, bumpalo 3.20.3, bytemuck 1.25.2, camino 1.2.6, cargo-platform 0.1.9, cargo_toml 1.0.1, cbc 0.2.1, cc 1.8.0, cesu8 1.1.0, cfg-expr 0.15.8, cfg-if 1.0.5, chrono 0.4.45, chrono-tz 0.10.4, cipher 0.5.2, cmov 0.5.4, concurrent-queue 2.5.0, const-oid 0.10.2, cookie 0.18.2, core-foundation 0.10.1, core-foundation-sys 0.8.7, core-graphics 0.25.0, core-graphics-types 0.2.0, core_detect 1.0.0, cpubits 0.1.1, cpufeatures 0.2.17, cpufeatures 0.3.1, crc 3.4.0, crc-catalog 2.5.0, crc32fast 1.5.2, crossbeam-channel 0.5.17, crossbeam-utils 0.8.23, crypto-common 0.1.7, crypto-common 0.2.2, ctor 1.0.13, ctutils 0.4.3, dbus 0.9.12, deranged 0.5.9, digest 0.10.7, digest 0.11.3, dirs 7.0.0, dirs-sys 0.5.0, dispatch2 0.3.1, displaydoc 0.2.7, dpi 0.1.2, dtoa 1.0.11, dunce 1.0.5, dyn-clone 1.0.20, embed_plist 1.2.2, encoding_rs 0.8.42, enumflags2 0.7.12, enumflags2_derive 0.7.12, equivalent 1.0.3, erased-serde 0.4.10, errno 0.3.14, event-listener 5.4.2, event-listener-strategy 0.5.4, fallible-iterator 0.3.0, fallible-streaming-iterator 0.1.9, fastrand 2.5.0, fdeflate 0.3.7, field-offset 0.3.6, filetime 0.2.29, filetime_creation 0.2.0, find-msvc-tools 0.1.14, flate2 1.1.10, fnv 1.0.7, foreign-types 0.3.2, foreign-types 0.5.0, foreign-types-macros 0.2.4, foreign-types-shared 0.1.1, foreign-types-shared 0.3.1, form_urlencoded 1.2.2, fs4 1.1.0, futures-channel 0.3.34, futures-core 0.3.34, futures-executor 0.3.34, futures-io 0.3.34, futures-lite 2.6.1, futures-macro 0.3.34, futures-sink 0.3.34, futures-task 0.3.34, futures-util 0.3.34, getrandom 0.3.4, getrandom 0.4.3, glob 0.3.4, hashbrown 0.12.3, hashbrown 0.16.1, hashbrown 0.17.1, hashlink 0.12.2, heck 0.4.1, heck 0.5.0, hermit-abi 0.5.3, hex 0.4.3, hkdf 0.13.0, hmac 0.13.0, html5ever 0.39.0, http 1.5.0, httparse 1.10.1, hybrid-array 0.4.15, hyper-tls 0.6.0, iana-time-zone 0.1.65, iana-time-zone-haiku 0.1.2, ident_case 1.0.1, idna 1.1.0, idna_adapter 1.2.2, image 0.25.10, indexmap 1.9.3, indexmap 2.14.2, inout 0.2.3, ipnet 2.12.2, itoa 1.0.18, jni 0.21.1, jni-sys 0.3.1, jni-sys 0.4.1, jni-sys-macros 0.4.1, js-sys 0.3.106, json-patch 4.2.0, jsonptr 0.7.1, keyboard-types 0.8.3, keyring 4.2.0, keyring-core 1.0.1, libc 0.2.190, libdbus-sys 0.2.7, linux-raw-sys 0.12.1, little_exif 0.6.23, lock_api 0.4.14, log 0.4.34, mac-notification-sys 0.6.15, markup5ever 0.39.0, mime 0.3.17, miniz_oxide 0.8.9, miniz_oxide 0.9.1, moxcms 0.8.1, muda 0.20.0, multiversion_no_op 1.0.0, native-tls 0.2.18, ndk 0.9.0, ndk-context 0.1.1, ndk-sys 0.6.0+11769913, notify-rust 4.18.2, num 0.4.3, num-bigint 0.4.8, num-complex 0.4.6, num-conv 0.2.2, num-integer 0.1.47, num-iter 0.1.46, num-rational 0.4.2, num-traits 0.2.19, num_enum 0.7.6, num_enum_derive 0.7.6, objc2-app-kit 0.3.2, objc2-cloud-kit 0.3.2, objc2-core-data 0.3.2, objc2-core-foundation 0.3.2, objc2-core-graphics 0.3.2, objc2-core-image 0.3.2, objc2-core-location 0.3.2, objc2-core-text 0.3.2, objc2-exception-helper 0.1.1, objc2-quartz-core 0.3.2, objc2-ui-kit 0.3.2, objc2-user-notifications 0.3.2, objc2-web-kit 0.3.2, once_cell 1.21.4, openssl 0.10.81, openssl-macros 0.1.1, openssl-probe 0.2.1, ordered-stream 0.2.0, parking 2.2.1, parking_lot 0.12.5, parking_lot_core 0.9.12, paste 1.0.15, percent-encoding 2.3.2, pin-project-lite 0.2.17, piper 0.2.5, pkg-config 0.3.34, png 0.17.16, png 0.18.1, polling 3.11.0, powerfmt 0.2.1, ppv-lite86 0.2.21, proc-macro-crate 1.3.1, proc-macro-crate 2.0.2, proc-macro-crate 3.5.0, proc-macro-error 1.0.4, proc-macro-error-attr 1.0.4, proc-macro2 1.0.107, pxfm 0.1.30, quote 1.0.47, r-efi 5.3.0, r-efi 6.0.0, rand 0.9.5, rand_chacha 0.9.0, rand_core 0.9.5, raw-window-handle 0.6.2, regex 1.13.1, regex-automata 0.4.18, regex-syntax 0.8.11, reqwest 0.13.5, rustc-hash 2.1.3, rustc_version 0.4.1, rustix 1.1.5, rustls-pki-types 1.15.1, rustversion 1.0.23, ryu 1.0.23, scopeguard 1.2.0, secret-service 5.2.0, security-framework 3.7.0, security-framework-sys 2.17.0, semver 1.0.28, serde 1.0.229, serde-untagged 0.1.9, serde_core 1.0.229, serde_derive 1.0.229, serde_derive_internals 0.29.1, serde_json 1.0.154, serde_repr 0.1.21, serde_spanned 0.6.9, serde_spanned 1.1.2, serde_urlencoded 0.7.1, serde_with 3.24.0, serde_with_macros 3.24.0, serialize-to-javascript 0.1.2, serialize-to-javascript-impl 0.1.2, servo_arc 0.4.3, sha2 0.10.9, sha2 0.11.1, shlex 2.0.1, signal-hook-registry 1.4.8, simdutf8 0.1.5, siphasher 1.0.4, smallvec 1.16.3, socket2 0.6.5, softbuffer 0.4.8, stable_deref_trait 1.2.1, static_vcruntime 3.0.0, string_cache 0.9.0, string_cache_codegen 0.6.1, swift-rs 1.0.9, syn 1.0.109, syn 2.0.119, syn 3.0.9, sync_wrapper 1.0.2, system-deps 6.2.2, tao 0.37.1, tao-macros 0.1.4, target-lexicon 0.12.16, tauri 2.12.4, tauri-build 2.7.3, tauri-codegen 2.7.3, tauri-macros 2.7.3, tauri-plugin 2.7.2, tauri-plugin-dialog 2.8.3, tauri-plugin-fs 2.7.1, tauri-plugin-notification 2.7.0, tauri-plugin-opener 2.7.2, tauri-plugin-shell 2.5.0, tauri-runtime 2.12.2, tauri-runtime-wry 2.12.2, tauri-utils 2.10.2, tauri-winrt-notification 0.8.1, tempfile 3.27.0, tendril 0.5.1, thiserror 1.0.69, thiserror 2.0.21, thiserror-impl 1.0.69, thiserror-impl 2.0.21, time 0.3.55, time-core 0.1.9, time-macros 0.2.32, tinyvec 1.13.3, toml 0.8.2, toml 1.1.8+spec-1.1.0, toml_datetime 0.6.3, toml_datetime 1.1.2+spec-1.1.0, toml_edit 0.19.15, toml_edit 0.20.2, toml_edit 0.25.17+spec-1.1.0, toml_parser 1.1.5+spec-1.1.0, toml_writer 1.1.3+spec-1.1.0, typed-path 0.12.3, typeid 1.0.3, typenum 1.20.1, unicode-ident 1.0.27, unicode-normalization 0.1.25, unicode-segmentation 1.13.3, url 2.5.8, utf8_iter 1.0.4, uuid 1.28.0, vcpkg 0.2.15, version_check 0.9.5, wasi 0.11.1+wasi-snapshot-preview1, wasip2 1.0.4+wasi-0.2.12, wasm-bindgen 0.2.129, wasm-bindgen-futures 0.4.79, wasm-bindgen-macro 0.2.129, wasm-bindgen-macro-support 0.2.129, wasm-bindgen-shared 0.2.129, wasm-streams 0.5.0, web-sys 0.3.106, web-time 1.1.0, web_atoms 0.2.6, winapi 0.3.9, winapi-i686-pc-windows-gnu 0.4.0, winapi-x86_64-pc-windows-gnu 0.4.0, window-vibrancy 0.8.1, windows 0.62.2, windows-collections 0.3.2, windows-core 0.62.2, windows-future 0.3.2, windows-implement 0.60.2, windows-interface 0.59.3, windows-link 0.2.1, windows-native-keyring-store 1.1.0, windows-numerics 0.3.1, windows-result 0.4.1, windows-strings 0.5.1, windows-sys 0.45.0, windows-sys 0.52.0, windows-sys 0.60.2, windows-sys 0.61.2, windows-targets 0.42.2, windows-targets 0.52.6, windows-targets 0.53.5, windows-threading 0.2.1, windows-version 0.1.7, windows_aarch64_gnullvm 0.42.2, windows_aarch64_gnullvm 0.52.6, windows_aarch64_gnullvm 0.53.1, windows_aarch64_msvc 0.42.2, windows_aarch64_msvc 0.52.6, windows_aarch64_msvc 0.53.1, windows_i686_gnu 0.42.2, windows_i686_gnu 0.52.6, windows_i686_gnu 0.53.1, windows_i686_gnullvm 0.52.6, windows_i686_gnullvm 0.53.1, windows_i686_msvc 0.42.2, windows_i686_msvc 0.52.6, windows_i686_msvc 0.53.1, windows_x86_64_gnu 0.42.2, windows_x86_64_gnu 0.52.6, windows_x86_64_gnu 0.53.1, windows_x86_64_gnullvm 0.42.2, windows_x86_64_gnullvm 0.52.6, windows_x86_64_gnullvm 0.53.1, windows_x86_64_msvc 0.42.2, windows_x86_64_msvc 0.52.6, windows_x86_64_msvc 0.53.1, wit-bindgen 0.57.1, wry 0.57.0, zbus-secret-service-keyring-store 1.0.1, zerocopy 0.8.63, zerocopy-derive 0.8.63, zeroize 1.9.1, zopfli 0.8.4, zune-core 0.5.3, zune-jpeg 0.5.15.
+Used by 401 component(s): @fluent/bundle 0.19.1, @tauri-apps/api 2.12.4, @tauri-apps/plugin-dialog 2.8.3, @tauri-apps/plugin-notification 2.7.0, @tauri-apps/plugin-opener 2.7.2, adler2 2.0.1, aes 0.9.3, android_system_properties 0.1.6, anyhow 1.0.104, apple-native-keyring-store 1.0.2, async-broadcast 0.7.2, async-channel 2.5.0, async-executor 1.14.0, async-io 2.6.0, async-lock 3.4.2, async-process 2.5.0, async-recursion 1.2.0, async-signal 0.2.14, async-task 4.7.1, async-trait 0.1.92, atomic-waker 1.1.2, autocfg 1.5.1, base64 0.21.7, base64 0.22.1, base64 0.23.1, bit-set 0.8.0, bit-vec 0.8.0, bitflags 1.3.2, bitflags 2.13.2, block-buffer 0.10.4, block-buffer 0.12.1, block-padding 0.4.2, blocking 1.7.0, bumpalo 3.20.3, bytemuck 1.25.2, camino 1.2.6, cargo-platform 0.1.9, cargo_toml 1.0.1, cbc 0.2.1, cc 1.8.0, cesu8 1.1.0, cfg-expr 0.15.8, cfg-if 1.0.5, chrono 0.4.45, chrono-tz 0.10.4, cipher 0.5.2, cmov 0.5.4, concurrent-queue 2.5.0, const-oid 0.10.2, cookie 0.18.2, core-foundation 0.10.1, core-foundation 0.9.4, core-foundation-sys 0.8.7, core-graphics 0.25.0, core-graphics-types 0.2.0, core_detect 1.0.0, cpubits 0.1.1, cpufeatures 0.2.17, cpufeatures 0.3.1, crc 3.4.0, crc-catalog 2.5.0, crc32fast 1.5.2, crossbeam-channel 0.5.17, crossbeam-utils 0.8.23, crypto-common 0.1.7, crypto-common 0.2.2, ctor 1.0.13, ctutils 0.4.3, dbus 0.9.12, deranged 0.5.9, digest 0.10.7, digest 0.11.3, dirs 7.0.0, dirs-sys 0.5.0, dispatch2 0.3.1, displaydoc 0.2.7, dpi 0.1.2, dtoa 1.0.11, dunce 1.0.5, dyn-clone 1.0.20, embed_plist 1.2.2, encoding_rs 0.8.42, enumflags2 0.7.12, enumflags2_derive 0.7.12, equivalent 1.0.3, erased-serde 0.4.10, errno 0.3.14, event-listener 5.4.2, event-listener-strategy 0.5.4, fallible-iterator 0.3.0, fallible-streaming-iterator 0.1.9, fastrand 2.5.0, fdeflate 0.3.7, field-offset 0.3.6, filetime 0.2.29, filetime_creation 0.2.0, find-msvc-tools 0.1.14, flate2 1.1.10, fnv 1.0.7, foreign-types 0.3.2, foreign-types 0.5.0, foreign-types-macros 0.2.4, foreign-types-shared 0.1.1, foreign-types-shared 0.3.1, form_urlencoded 1.2.2, fs4 1.1.0, futures-channel 0.3.34, futures-core 0.3.34, futures-executor 0.3.34, futures-io 0.3.34, futures-lite 2.6.1, futures-macro 0.3.34, futures-sink 0.3.34, futures-task 0.3.34, futures-util 0.3.34, getrandom 0.3.4, getrandom 0.4.3, glob 0.3.4, hashbrown 0.12.3, hashbrown 0.16.1, hashbrown 0.17.1, hashlink 0.12.2, heck 0.4.1, heck 0.5.0, hermit-abi 0.5.3, hex 0.4.3, hkdf 0.13.0, hmac 0.13.0, html5ever 0.39.0, http 1.5.0, httparse 1.10.1, hybrid-array 0.4.15, hyper-tls 0.6.0, iana-time-zone 0.1.65, iana-time-zone-haiku 0.1.2, ident_case 1.0.1, idna 1.1.0, idna_adapter 1.2.2, image 0.25.10, indexmap 1.9.3, indexmap 2.14.2, inout 0.2.3, ipnet 2.12.2, itoa 1.0.18, jni 0.21.1, jni-sys 0.3.1, jni-sys 0.4.1, jni-sys-macros 0.4.1, js-sys 0.3.106, json-patch 4.2.0, jsonptr 0.7.1, keyboard-types 0.8.3, keyring 4.2.0, keyring-core 1.0.1, lazy_static 1.5.1, libc 0.2.190, libdbus-sys 0.2.7, linux-raw-sys 0.12.1, little_exif 0.6.23, lock_api 0.4.14, log 0.4.34, mac-notification-sys 0.6.15, markup5ever 0.39.0, mime 0.3.17, miniz_oxide 0.8.9, miniz_oxide 0.9.1, moxcms 0.8.1, muda 0.20.0, multiversion_no_op 1.0.0, native-tls 0.2.18, ndk 0.9.0, ndk-context 0.1.1, ndk-sys 0.6.0+11769913, notify-rust 4.18.2, num 0.4.3, num-bigint 0.4.8, num-complex 0.4.6, num-conv 0.2.2, num-integer 0.1.47, num-iter 0.1.46, num-rational 0.4.2, num-traits 0.2.19, num_enum 0.7.6, num_enum_derive 0.7.6, objc2-app-kit 0.3.2, objc2-cloud-kit 0.3.2, objc2-core-data 0.3.2, objc2-core-foundation 0.3.2, objc2-core-graphics 0.3.2, objc2-core-image 0.3.2, objc2-core-location 0.3.2, objc2-core-text 0.3.2, objc2-exception-helper 0.1.1, objc2-osa-kit 0.3.2, objc2-quartz-core 0.3.2, objc2-ui-kit 0.3.2, objc2-user-notifications 0.3.2, objc2-web-kit 0.3.2, once_cell 1.21.4, openssl 0.10.81, openssl-macros 0.1.1, openssl-probe 0.2.1, ordered-stream 0.2.0, osakit 0.3.1, parking 2.2.1, parking_lot 0.12.5, parking_lot_core 0.9.12, paste 1.0.15, percent-encoding 2.3.2, pin-project-lite 0.2.17, piper 0.2.5, pkg-config 0.3.34, png 0.17.16, png 0.18.1, polling 3.11.0, powerfmt 0.2.1, ppv-lite86 0.2.21, proc-macro-crate 1.3.1, proc-macro-crate 2.0.2, proc-macro-crate 3.5.0, proc-macro-error 1.0.4, proc-macro-error-attr 1.0.4, proc-macro2 1.0.107, pxfm 0.1.30, quote 1.0.47, r-efi 5.3.0, r-efi 6.0.0, rand 0.9.5, rand_chacha 0.9.0, rand_core 0.9.5, raw-window-handle 0.6.2, regex 1.13.1, regex-automata 0.4.18, regex-syntax 0.8.11, reqwest 0.13.5, rustc-hash 2.1.3, rustc_version 0.4.1, rustix 1.1.5, rustls-pki-types 1.15.1, rustversion 1.0.23, ryu 1.0.23, scopeguard 1.2.0, secret-service 5.2.0, security-framework 3.7.0, security-framework-sys 2.17.0, semver 1.0.28, serde 1.0.229, serde-untagged 0.1.9, serde_core 1.0.229, serde_derive 1.0.229, serde_derive_internals 0.29.1, serde_json 1.0.154, serde_repr 0.1.21, serde_spanned 0.6.9, serde_spanned 1.1.2, serde_urlencoded 0.7.1, serde_with 3.24.0, serde_with_macros 3.24.0, serialize-to-javascript 0.1.2, serialize-to-javascript-impl 0.1.2, servo_arc 0.4.3, sha2 0.10.9, sha2 0.11.1, shlex 2.0.1, signal-hook-registry 1.4.8, simdutf8 0.1.5, siphasher 1.0.4, smallvec 1.16.3, socket2 0.6.5, softbuffer 0.4.8, stable_deref_trait 1.2.1, static_vcruntime 3.0.0, string_cache 0.9.0, string_cache_codegen 0.6.1, swift-rs 1.0.9, syn 1.0.109, syn 2.0.119, syn 3.0.9, sync_wrapper 1.0.2, system-configuration 0.7.0, system-configuration-sys 0.6.0, system-deps 6.2.2, tao 0.37.1, tao-macros 0.1.4, tar 0.4.46, target-lexicon 0.12.16, tauri 2.12.4, tauri-build 2.7.3, tauri-codegen 2.7.3, tauri-macros 2.7.3, tauri-plugin 2.7.2, tauri-plugin-dialog 2.8.3, tauri-plugin-fs 2.7.1, tauri-plugin-notification 2.7.0, tauri-plugin-opener 2.7.2, tauri-plugin-shell 2.5.0, tauri-plugin-updater 2.14.0, tauri-runtime 2.12.2, tauri-runtime-wry 2.12.2, tauri-utils 2.10.2, tauri-winrt-notification 0.8.1, tempfile 3.27.0, tendril 0.5.1, thiserror 1.0.69, thiserror 2.0.21, thiserror-impl 1.0.69, thiserror-impl 2.0.21, thread_local 1.1.10, time 0.3.55, time-core 0.1.9, time-macros 0.2.32, tinyvec 1.13.3, toml 0.8.2, toml 1.1.8+spec-1.1.0, toml_datetime 0.6.3, toml_datetime 1.1.2+spec-1.1.0, toml_edit 0.19.15, toml_edit 0.20.2, toml_edit 0.25.17+spec-1.1.0, toml_parser 1.1.5+spec-1.1.0, toml_writer 1.1.3+spec-1.1.0, typed-path 0.12.3, typeid 1.0.3, typenum 1.20.1, unicode-ident 1.0.27, unicode-normalization 0.1.25, unicode-segmentation 1.13.3, url 2.5.8, utf8_iter 1.0.4, uuid 1.28.0, vcpkg 0.2.15, version_check 0.9.5, wasi 0.11.1+wasi-snapshot-preview1, wasip2 1.0.4+wasi-0.2.12, wasm-bindgen 0.2.129, wasm-bindgen-futures 0.4.79, wasm-bindgen-macro 0.2.129, wasm-bindgen-macro-support 0.2.129, wasm-bindgen-shared 0.2.129, wasm-streams 0.5.0, web-sys 0.3.106, web-time 1.1.0, web_atoms 0.2.6, winapi 0.3.9, winapi-i686-pc-windows-gnu 0.4.0, winapi-x86_64-pc-windows-gnu 0.4.0, window-vibrancy 0.8.1, windows 0.62.2, windows-collections 0.3.2, windows-core 0.62.2, windows-future 0.3.2, windows-implement 0.60.2, windows-interface 0.59.3, windows-link 0.2.1, windows-native-keyring-store 1.1.0, windows-numerics 0.3.1, windows-registry 0.6.1, windows-result 0.4.1, windows-strings 0.5.1, windows-sys 0.45.0, windows-sys 0.52.0, windows-sys 0.60.2, windows-sys 0.61.2, windows-targets 0.42.2, windows-targets 0.52.6, windows-targets 0.53.5, windows-threading 0.2.1, windows-version 0.1.7, windows_aarch64_gnullvm 0.42.2, windows_aarch64_gnullvm 0.52.6, windows_aarch64_gnullvm 0.53.1, windows_aarch64_msvc 0.42.2, windows_aarch64_msvc 0.52.6, windows_aarch64_msvc 0.53.1, windows_i686_gnu 0.42.2, windows_i686_gnu 0.52.6, windows_i686_gnu 0.53.1, windows_i686_gnullvm 0.52.6, windows_i686_gnullvm 0.53.1, windows_i686_msvc 0.42.2, windows_i686_msvc 0.52.6, windows_i686_msvc 0.53.1, windows_x86_64_gnu 0.42.2, windows_x86_64_gnu 0.52.6, windows_x86_64_gnu 0.53.1, windows_x86_64_gnullvm 0.42.2, windows_x86_64_gnullvm 0.52.6, windows_x86_64_gnullvm 0.53.1, windows_x86_64_msvc 0.42.2, windows_x86_64_msvc 0.52.6, windows_x86_64_msvc 0.53.1, wit-bindgen 0.57.1, wry 0.57.0, xattr 1.6.1, zbus-secret-service-keyring-store 1.0.1, zerocopy 0.8.63, zerocopy-derive 0.8.63, zeroize 1.9.1, zopfli 0.8.4, zune-core 0.5.3, zune-jpeg 0.5.15.
 
 ```text
 Copyright 2016 Nicolas Silva
@@ -4210,7 +4305,7 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT
 
-Used by 525 component(s): @preact/signals 2.11.3, @preact/signals-core 1.14.4, @tauri-apps/api 2.12.4, @tauri-apps/plugin-dialog 2.8.3, @tauri-apps/plugin-notification 2.7.0, @tauri-apps/plugin-opener 2.7.2, adler2 2.0.1, aes 0.9.3, aho-corasick 1.1.5, android_system_properties 0.1.6, anyhow 1.0.104, apple-native-keyring-store 1.0.2, async-broadcast 0.7.2, async-channel 2.5.0, async-executor 1.14.0, async-io 2.6.0, async-lock 3.4.2, async-process 2.5.0, async-recursion 1.2.0, async-signal 0.2.14, async-task 4.7.1, async-trait 0.1.92, atk 0.18.2, atk-sys 0.18.2, atomic-waker 1.1.2, autocfg 1.5.1, base64 0.21.7, base64 0.22.1, base64 0.23.1, bit-set 0.8.0, bit-vec 0.8.0, bitflags 1.3.2, bitflags 2.13.2, block-buffer 0.10.4, block-buffer 0.12.1, block-padding 0.4.2, block2 0.6.2, blocking 1.7.0, brotli 8.0.4, brotli 9.0.0, brotli-decompressor 5.0.3, brotli-decompressor 6.0.1, bumpalo 3.20.3, bytemuck 1.25.2, byteorder 1.5.0, byteorder-lite 0.1.0, bytes 1.12.1, cairo-rs 0.18.5, cairo-sys-rs 0.18.2, camino 1.2.6, cargo-platform 0.1.9, cargo_metadata 0.19.2, cargo_toml 1.0.1, cbc 0.2.1, cc 1.8.0, cesu8 1.1.0, cfb 0.14.0, cfg-expr 0.15.8, cfg-if 1.0.5, cfg_aliases 0.2.2, chrono 0.4.45, chrono-tz 0.10.4, cipher 0.5.2, cmov 0.5.4, combine 4.6.9, concurrent-queue 2.5.0, const-oid 0.10.2, cookie 0.18.2, core-foundation 0.10.1, core-foundation-sys 0.8.7, core-graphics 0.25.0, core-graphics-types 0.2.0, core_detect 1.0.0, cpubits 0.1.1, cpufeatures 0.2.17, cpufeatures 0.3.1, crc 3.4.0, crc-catalog 2.5.0, crc32fast 1.5.2, crossbeam-channel 0.5.17, crossbeam-utils 0.8.23, crypto-common 0.1.7, crypto-common 0.2.2, ctor 1.0.13, ctutils 0.4.3, darling 0.24.1, darling_core 0.24.1, darling_macro 0.24.1, dbus 0.9.12, deranged 0.5.9, derive_more 2.1.1, derive_more-impl 2.1.1, digest 0.10.7, digest 0.11.3, dirs 7.0.0, dirs-sys 0.5.0, dispatch2 0.3.1, displaydoc 0.2.7, dlopen2 0.8.2, dlopen2_derive 0.4.3, dom_query 0.28.0, dpi 0.1.2, dtoa 1.0.11, dyn-clone 1.0.20, embed-resource 3.0.12, embed_plist 1.2.2, encoding_rs 0.8.42, endi 1.1.1, enumflags2 0.7.12, enumflags2_derive 0.7.12, equivalent 1.0.3, erased-serde 0.4.10, errno 0.3.14, event-listener 5.4.2, event-listener-strategy 0.5.4, fallible-iterator 0.3.0, fallible-streaming-iterator 0.1.9, fastrand 2.5.0, fdeflate 0.3.7, field-offset 0.3.6, filetime 0.2.29, filetime_creation 0.2.0, find-msvc-tools 0.1.14, flate2 1.1.10, fnv 1.0.7, foreign-types 0.3.2, foreign-types 0.5.0, foreign-types-macros 0.2.4, foreign-types-shared 0.1.1, foreign-types-shared 0.3.1, form_urlencoded 1.2.2, fs4 1.1.0, futures-channel 0.3.34, futures-core 0.3.34, futures-executor 0.3.34, futures-io 0.3.34, futures-lite 2.6.1, futures-macro 0.3.34, futures-sink 0.3.34, futures-task 0.3.34, futures-util 0.3.34, gdk 0.18.2, gdk-pixbuf 0.18.5, gdk-pixbuf-sys 0.18.0, gdk-sys 0.18.2, gdkwayland-sys 0.18.2, gdkx11 0.18.2, gdkx11-sys 0.18.2, generic-array 0.14.7, geometry-rs 0.5.1, getrandom 0.3.4, getrandom 0.4.3, gio 0.18.4, gio-sys 0.18.1, glib 0.18.5, glib-macros 0.18.5, glib-sys 0.18.1, glob 0.3.4, gobject-sys 0.18.0, gtk 0.18.2, gtk-sys 0.18.2, gtk3-macros 0.18.2, hashbrown 0.12.3, hashbrown 0.16.1, hashbrown 0.17.1, hashlink 0.12.2, heck 0.4.1, heck 0.5.0, hermit-abi 0.5.3, hex 0.4.3, hkdf 0.13.0, hmac 0.13.0, html5ever 0.39.0, http 1.5.0, http-body 1.1.0, http-body-util 0.1.5, http-range 0.1.5, httparse 1.10.1, hybrid-array 0.4.15, hyper 1.12.0, hyper-tls 0.6.0, hyper-util 0.1.21, iana-time-zone 0.1.65, iana-time-zone-haiku 0.1.2, ico 0.5.0, ident_case 1.0.1, idna 1.1.0, idna_adapter 1.2.2, image 0.25.10, indexmap 1.9.3, indexmap 2.14.2, infer 0.22.0, inout 0.2.3, ipnet 2.12.2, is-docker 0.2.0, is-wsl 0.4.0, itoa 1.0.18, javascriptcore-rs 1.1.2, javascriptcore-rs-sys 1.1.1, jni 0.21.1, jni-sys 0.3.1, jni-sys 0.4.1, jni-sys-macros 0.4.1, js-sys 0.3.106, json-patch 4.2.0, jsonptr 0.7.1, keyboard-types 0.8.3, keyring 4.2.0, keyring-core 1.0.1, libc 0.2.190, libdbus-sys 0.2.7, libredox 0.1.25, libsqlite3-sys 0.38.2, linux-raw-sys 0.12.1, little_exif 0.6.23, lock_api 0.4.14, log 0.4.34, mac-notification-sys 0.6.15, markup5ever 0.39.0, memchr 2.8.3, memoffset 0.9.1, mime 0.3.17, miniz_oxide 0.8.9, miniz_oxide 0.9.1, mio 1.2.4, muda 0.20.0, multiversion_no_op 1.0.0, native-tls 0.2.18, ndk 0.9.0, ndk-context 0.1.1, ndk-sys 0.6.0+11769913, new_debug_unreachable 1.0.6, nix 0.31.3, notify-rust 4.18.2, num 0.4.3, num-bigint 0.4.8, num-complex 0.4.6, num-conv 0.2.2, num-integer 0.1.47, num-iter 0.1.46, num-rational 0.4.2, num-traits 0.2.19, num_enum 0.7.6, num_enum_derive 0.7.6, objc2 0.6.5, objc2-app-kit 0.3.2, objc2-cloud-kit 0.3.2, objc2-core-data 0.3.2, objc2-core-foundation 0.3.2, objc2-core-graphics 0.3.2, objc2-core-image 0.3.2, objc2-core-location 0.3.2, objc2-core-text 0.3.2, objc2-encode 4.1.0, objc2-exception-helper 0.1.1, objc2-foundation 0.3.2, objc2-quartz-core 0.3.2, objc2-ui-kit 0.3.2, objc2-user-notifications 0.3.2, objc2-web-kit 0.3.2, once_cell 1.21.4, open 5.4.4, openssl-macros 0.1.1, openssl-probe 0.2.1, openssl-sys 0.9.117, ordered-stream 0.2.0, os_pipe 1.2.3, pango 0.18.3, pango-sys 0.18.0, parking 2.2.1, parking_lot 0.12.5, parking_lot_core 0.9.12, paste 1.0.15, percent-encoding 2.3.2, phf 0.12.1, phf 0.13.1, phf_codegen 0.13.1, phf_generator 0.13.1, phf_macros 0.13.1, phf_shared 0.12.1, phf_shared 0.13.1, pin-project-lite 0.2.17, piper 0.2.5, pkg-config 0.3.34, plist 1.10.1, png 0.17.16, png 0.18.1, polling 3.11.0, powerfmt 0.2.1, ppv-lite86 0.2.21, pqueue 0.1.0, preact 11.0.1, precomputed-hash 0.1.1, proc-macro-crate 1.3.1, proc-macro-crate 2.0.2, proc-macro-crate 3.5.0, proc-macro-error 1.0.4, proc-macro-error-attr 1.0.4, proc-macro2 1.0.107, quick-xml 0.37.5, quick-xml 0.42.0, quote 1.0.47, r-efi 5.3.0, r-efi 6.0.0, rand 0.9.5, rand_chacha 0.9.0, rand_core 0.9.5, raw-window-handle 0.6.2, redox_syscall 0.5.18, redox_users 0.5.3, regex 1.13.1, regex-automata 0.4.18, regex-syntax 0.8.11, reqwest 0.13.5, rfd 0.16.0, rsqlite-vfs 0.1.1, rtree_rs 0.1.4, rusqlite 0.40.2, rustc-hash 2.1.3, rustc_version 0.4.1, rustix 1.1.5, rustls-pki-types 1.15.1, rustversion 1.0.23, same-file 1.0.6, schannel 0.1.29, schemars 0.8.22, schemars_derive 0.8.22, scopeguard 1.2.0, secret-service 5.2.0, security-framework 3.7.0, security-framework-sys 2.17.0, semver 1.0.28, serde 1.0.229, serde-untagged 0.1.9, serde_core 1.0.229, serde_derive 1.0.229, serde_derive_internals 0.29.1, serde_json 1.0.154, serde_repr 0.1.21, serde_spanned 0.6.9, serde_spanned 1.1.2, serde_urlencoded 0.7.1, serde_with 3.24.0, serde_with_macros 3.24.0, serialize-to-javascript 0.1.2, serialize-to-javascript-impl 0.1.2, servo_arc 0.4.3, sha2 0.10.9, sha2 0.11.1, shared_child 1.1.2, shlex 2.0.1, signal-hook-registry 1.4.8, simd-adler32 0.3.10, simdutf8 0.1.5, siphasher 1.0.4, slab 0.4.12, smallvec 1.16.3, socket2 0.6.5, softbuffer 0.4.8, soup3 0.5.0, soup3-sys 0.5.0, sqlite-wasm-rs 0.5.5, stable_deref_trait 1.2.1, static_vcruntime 3.0.0, string_cache 0.9.0, string_cache_codegen 0.6.1, strsim 0.11.1, swift-rs 1.0.9, syn 1.0.109, syn 2.0.119, syn 3.0.9, synstructure 0.14.0, system-deps 6.2.2, tao-macros 0.1.4, tauri 2.12.4, tauri-build 2.7.3, tauri-codegen 2.7.3, tauri-macros 2.7.3, tauri-plugin 2.7.2, tauri-plugin-dialog 2.8.3, tauri-plugin-fs 2.7.1, tauri-plugin-notification 2.7.0, tauri-plugin-opener 2.7.2, tauri-plugin-shell 2.5.0, tauri-runtime 2.12.2, tauri-runtime-wry 2.12.2, tauri-utils 2.10.2, tauri-winres 0.3.6, tauri-winrt-notification 0.8.1, tempfile 3.27.0, tendril 0.5.1, thiserror 1.0.69, thiserror 2.0.21, thiserror-impl 1.0.69, thiserror-impl 2.0.21, time 0.3.55, time-core 0.1.9, time-macros 0.2.32, tinyvec 1.13.3, tokio 1.53.3, tokio-native-tls 0.3.1, tokio-util 0.7.20, toml 0.8.2, toml 1.1.8+spec-1.1.0, toml_datetime 0.6.3, toml_datetime 1.1.2+spec-1.1.0, toml_edit 0.19.15, toml_edit 0.20.2, toml_edit 0.25.17+spec-1.1.0, toml_parser 1.1.5+spec-1.1.0, toml_writer 1.1.3+spec-1.1.0, tower 0.5.3, tower-http 0.6.11, tower-layer 0.3.3, tower-service 0.3.3, tracing 0.1.44, tracing-attributes 0.1.31, tracing-core 0.1.36, try-lock 0.2.5, typed-path 0.12.3, typeid 1.0.3, typenum 1.20.1, tzf-dist 0.0.2026-e, tzf-rs 2.1.3, uds_windows 1.2.1, unicode-ident 1.0.27, unicode-normalization 0.1.25, unicode-segmentation 1.13.3, url 2.5.8, urlpattern 0.6.0, utf8_iter 1.0.4, uuid 1.28.0, vcpkg 0.2.15, version-compare 0.2.1, version_check 0.9.5, vswhom 0.1.0, vswhom-sys 0.1.3, walkdir 2.5.0, want 0.3.2, wasi 0.11.1+wasi-snapshot-preview1, wasip2 1.0.4+wasi-0.2.12, wasm-bindgen 0.2.129, wasm-bindgen-futures 0.4.79, wasm-bindgen-macro 0.2.129, wasm-bindgen-macro-support 0.2.129, wasm-bindgen-shared 0.2.129, wasm-streams 0.5.0, web-sys 0.3.106, web-time 1.1.0, web_atoms 0.2.6, webkit2gtk 2.0.2, webkit2gtk-sys 2.0.2, webview2-com 0.39.1, webview2-com-macros 0.8.1, webview2-com-sys 0.39.1, winapi 0.3.9, winapi-i686-pc-windows-gnu 0.4.0, winapi-util 0.1.11, winapi-x86_64-pc-windows-gnu 0.4.0, window-vibrancy 0.8.1, windows 0.62.2, windows-collections 0.3.2, windows-core 0.62.2, windows-future 0.3.2, windows-implement 0.60.2, windows-interface 0.59.3, windows-link 0.2.1, windows-native-keyring-store 1.1.0, windows-numerics 0.3.1, windows-result 0.4.1, windows-strings 0.5.1, windows-sys 0.45.0, windows-sys 0.52.0, windows-sys 0.60.2, windows-sys 0.61.2, windows-targets 0.42.2, windows-targets 0.52.6, windows-targets 0.53.5, windows-threading 0.2.1, windows-version 0.1.7, windows_aarch64_gnullvm 0.42.2, windows_aarch64_gnullvm 0.52.6, windows_aarch64_gnullvm 0.53.1, windows_aarch64_msvc 0.42.2, windows_aarch64_msvc 0.52.6, windows_aarch64_msvc 0.53.1, windows_i686_gnu 0.42.2, windows_i686_gnu 0.52.6, windows_i686_gnu 0.53.1, windows_i686_gnullvm 0.52.6, windows_i686_gnullvm 0.53.1, windows_i686_msvc 0.42.2, windows_i686_msvc 0.52.6, windows_i686_msvc 0.53.1, windows_x86_64_gnu 0.42.2, windows_x86_64_gnu 0.52.6, windows_x86_64_gnu 0.53.1, windows_x86_64_gnullvm 0.42.2, windows_x86_64_gnullvm 0.52.6, windows_x86_64_gnullvm 0.53.1, windows_x86_64_msvc 0.42.2, windows_x86_64_msvc 0.52.6, windows_x86_64_msvc 0.53.1, winnow 0.5.40, winnow 1.0.4, winreg 0.56.0, wit-bindgen 0.57.1, wry 0.57.0, x11 2.21.0, x11-dl 2.21.0, zbus 5.19.0, zbus-secret-service-keyring-store 1.0.1, zbus_macros 5.19.0, zbus_names 4.3.4, zcheapstr 1.1.0, zerocopy 0.8.63, zerocopy-derive 0.8.63, zeroize 1.9.1, zip 9.0.3, zmij 1.0.23, zune-core 0.5.3, zune-jpeg 0.5.15, zvariant 5.15.0, zvariant_derive 5.15.0, zvariant_utils 4.2.0.
+Used by 540 component(s): @preact/signals 2.11.3, @preact/signals-core 1.14.4, @tauri-apps/api 2.12.4, @tauri-apps/plugin-dialog 2.8.3, @tauri-apps/plugin-notification 2.7.0, @tauri-apps/plugin-opener 2.7.2, adler2 2.0.1, aes 0.9.3, aho-corasick 1.1.5, android_system_properties 0.1.6, anyhow 1.0.104, apple-native-keyring-store 1.0.2, async-broadcast 0.7.2, async-channel 2.5.0, async-executor 1.14.0, async-io 2.6.0, async-lock 3.4.2, async-process 2.5.0, async-recursion 1.2.0, async-signal 0.2.14, async-task 4.7.1, async-trait 0.1.92, atk 0.18.2, atk-sys 0.18.2, atomic-waker 1.1.2, autocfg 1.5.1, base64 0.21.7, base64 0.22.1, base64 0.23.1, bit-set 0.8.0, bit-vec 0.8.0, bitflags 1.3.2, bitflags 2.13.2, block-buffer 0.10.4, block-buffer 0.12.1, block-padding 0.4.2, block2 0.6.2, blocking 1.7.0, brotli 8.0.4, brotli 9.0.0, brotli-decompressor 5.0.3, brotli-decompressor 6.0.1, bumpalo 3.20.3, bytemuck 1.25.2, byteorder 1.5.0, byteorder-lite 0.1.0, bytes 1.12.1, cairo-rs 0.18.5, cairo-sys-rs 0.18.2, camino 1.2.6, cargo-platform 0.1.9, cargo_metadata 0.19.2, cargo_toml 1.0.1, cbc 0.2.1, cc 1.8.0, cesu8 1.1.0, cfb 0.14.0, cfg-expr 0.15.8, cfg-if 1.0.5, cfg_aliases 0.2.2, chrono 0.4.45, chrono-tz 0.10.4, cipher 0.5.2, cmov 0.5.4, combine 4.6.9, concurrent-queue 2.5.0, const-oid 0.10.2, cookie 0.18.2, core-foundation 0.10.1, core-foundation 0.9.4, core-foundation-sys 0.8.7, core-graphics 0.25.0, core-graphics-types 0.2.0, core_detect 1.0.0, cpubits 0.1.1, cpufeatures 0.2.17, cpufeatures 0.3.1, crc 3.4.0, crc-catalog 2.5.0, crc32fast 1.5.2, crossbeam-channel 0.5.17, crossbeam-utils 0.8.23, crypto-common 0.1.7, crypto-common 0.2.2, ctor 1.0.13, ctutils 0.4.3, darling 0.24.1, darling_core 0.24.1, darling_macro 0.24.1, dbus 0.9.12, deranged 0.5.9, derive_more 2.1.1, derive_more-impl 2.1.1, digest 0.10.7, digest 0.11.3, dirs 7.0.0, dirs-sys 0.5.0, dispatch2 0.3.1, displaydoc 0.2.7, dlopen2 0.8.2, dlopen2_derive 0.4.3, dom_query 0.28.0, dpi 0.1.2, dtoa 1.0.11, dyn-clone 1.0.20, embed-resource 3.0.12, embed_plist 1.2.2, encoding_rs 0.8.42, endi 1.1.1, enumflags2 0.7.12, enumflags2_derive 0.7.12, equivalent 1.0.3, erased-serde 0.4.10, errno 0.3.14, event-listener 5.4.2, event-listener-strategy 0.5.4, fallible-iterator 0.3.0, fallible-streaming-iterator 0.1.9, fastrand 2.5.0, fdeflate 0.3.7, field-offset 0.3.6, filetime 0.2.29, filetime_creation 0.2.0, find-msvc-tools 0.1.14, flate2 1.1.10, fnv 1.0.7, foreign-types 0.3.2, foreign-types 0.5.0, foreign-types-macros 0.2.4, foreign-types-shared 0.1.1, foreign-types-shared 0.3.1, form_urlencoded 1.2.2, fs4 1.1.0, futures-channel 0.3.34, futures-core 0.3.34, futures-executor 0.3.34, futures-io 0.3.34, futures-lite 2.6.1, futures-macro 0.3.34, futures-sink 0.3.34, futures-task 0.3.34, futures-util 0.3.34, gdk 0.18.2, gdk-pixbuf 0.18.5, gdk-pixbuf-sys 0.18.0, gdk-sys 0.18.2, gdkwayland-sys 0.18.2, gdkx11 0.18.2, gdkx11-sys 0.18.2, generic-array 0.14.7, geometry-rs 0.5.1, getrandom 0.3.4, getrandom 0.4.3, gio 0.18.4, gio-sys 0.18.1, glib 0.18.5, glib-macros 0.18.5, glib-sys 0.18.1, glob 0.3.4, gobject-sys 0.18.0, gtk 0.18.2, gtk-sys 0.18.2, gtk3-macros 0.18.2, hashbrown 0.12.3, hashbrown 0.16.1, hashbrown 0.17.1, hashlink 0.12.2, heck 0.4.1, heck 0.5.0, hermit-abi 0.5.3, hex 0.4.3, hkdf 0.13.0, hmac 0.13.0, html5ever 0.39.0, http 1.5.0, http-body 1.1.0, http-body-util 0.1.5, http-range 0.1.5, httparse 1.10.1, hybrid-array 0.4.15, hyper 1.12.0, hyper-tls 0.6.0, hyper-util 0.1.21, iana-time-zone 0.1.65, iana-time-zone-haiku 0.1.2, ico 0.5.0, ident_case 1.0.1, idna 1.1.0, idna_adapter 1.2.2, image 0.25.10, indexmap 1.9.3, indexmap 2.14.2, infer 0.22.0, inout 0.2.3, ipnet 2.12.2, is-docker 0.2.0, is-wsl 0.4.0, itoa 1.0.18, javascriptcore-rs 1.1.2, javascriptcore-rs-sys 1.1.1, jni 0.21.1, jni-sys 0.3.1, jni-sys 0.4.1, jni-sys-macros 0.4.1, js-sys 0.3.106, json-patch 4.2.0, jsonptr 0.7.1, keyboard-types 0.8.3, keyring 4.2.0, keyring-core 1.0.1, lazy_static 1.5.1, libc 0.2.190, libdbus-sys 0.2.7, libredox 0.1.25, libsqlite3-sys 0.38.2, linux-raw-sys 0.12.1, little_exif 0.6.23, lock_api 0.4.14, log 0.4.34, mac-notification-sys 0.6.15, markup5ever 0.39.0, memchr 2.8.3, memoffset 0.9.1, mime 0.3.17, minisign-verify 0.3.0, miniz_oxide 0.8.9, miniz_oxide 0.9.1, mio 1.2.4, muda 0.20.0, multiversion_no_op 1.0.0, native-tls 0.2.18, ndk 0.9.0, ndk-context 0.1.1, ndk-sys 0.6.0+11769913, new_debug_unreachable 1.0.6, nix 0.31.3, notify-rust 4.18.2, num 0.4.3, num-bigint 0.4.8, num-complex 0.4.6, num-conv 0.2.2, num-integer 0.1.47, num-iter 0.1.46, num-rational 0.4.2, num-traits 0.2.19, num_enum 0.7.6, num_enum_derive 0.7.6, objc2 0.6.5, objc2-app-kit 0.3.2, objc2-cloud-kit 0.3.2, objc2-core-data 0.3.2, objc2-core-foundation 0.3.2, objc2-core-graphics 0.3.2, objc2-core-image 0.3.2, objc2-core-location 0.3.2, objc2-core-text 0.3.2, objc2-encode 4.1.0, objc2-exception-helper 0.1.1, objc2-foundation 0.3.2, objc2-osa-kit 0.3.2, objc2-quartz-core 0.3.2, objc2-ui-kit 0.3.2, objc2-user-notifications 0.3.2, objc2-web-kit 0.3.2, once_cell 1.21.4, open 5.4.4, openssl-macros 0.1.1, openssl-probe 0.2.1, openssl-sys 0.9.117, ordered-stream 0.2.0, os_pipe 1.2.3, osakit 0.3.1, pango 0.18.3, pango-sys 0.18.0, parking 2.2.1, parking_lot 0.12.5, parking_lot_core 0.9.12, paste 1.0.15, percent-encoding 2.3.2, phf 0.12.1, phf 0.13.1, phf_codegen 0.13.1, phf_generator 0.13.1, phf_macros 0.13.1, phf_shared 0.12.1, phf_shared 0.13.1, pin-project-lite 0.2.17, piper 0.2.5, pkg-config 0.3.34, plist 1.10.1, png 0.17.16, png 0.18.1, polling 3.11.0, powerfmt 0.2.1, ppv-lite86 0.2.21, pqueue 0.1.0, preact 11.0.1, precomputed-hash 0.1.1, proc-macro-crate 1.3.1, proc-macro-crate 2.0.2, proc-macro-crate 3.5.0, proc-macro-error 1.0.4, proc-macro-error-attr 1.0.4, proc-macro2 1.0.107, quick-xml 0.37.5, quick-xml 0.42.0, quote 1.0.47, r-efi 5.3.0, r-efi 6.0.0, rand 0.9.5, rand_chacha 0.9.0, rand_core 0.9.5, raw-window-handle 0.6.2, redox_syscall 0.5.18, redox_users 0.5.3, regex 1.13.1, regex-automata 0.4.18, regex-syntax 0.8.11, reqwest 0.13.5, rfd 0.16.0, rsqlite-vfs 0.1.1, rtree_rs 0.1.4, rusqlite 0.40.2, rustc-hash 2.1.3, rustc_version 0.4.1, rustix 1.1.5, rustls-pki-types 1.15.1, rustversion 1.0.23, same-file 1.0.6, schannel 0.1.29, schemars 0.8.22, schemars_derive 0.8.22, scopeguard 1.2.0, secret-service 5.2.0, security-framework 3.7.0, security-framework-sys 2.17.0, semver 1.0.28, serde 1.0.229, serde-untagged 0.1.9, serde_core 1.0.229, serde_derive 1.0.229, serde_derive_internals 0.29.1, serde_json 1.0.154, serde_repr 0.1.21, serde_spanned 0.6.9, serde_spanned 1.1.2, serde_urlencoded 0.7.1, serde_with 3.24.0, serde_with_macros 3.24.0, serialize-to-javascript 0.1.2, serialize-to-javascript-impl 0.1.2, servo_arc 0.4.3, sha2 0.10.9, sha2 0.11.1, sharded-slab 0.1.7, shared_child 1.1.2, shlex 2.0.1, signal-hook-registry 1.4.8, simd-adler32 0.3.10, simdutf8 0.1.5, siphasher 1.0.4, slab 0.4.12, smallvec 1.16.3, socket2 0.6.5, softbuffer 0.4.8, soup3 0.5.0, soup3-sys 0.5.0, sqlite-wasm-rs 0.5.5, stable_deref_trait 1.2.1, static_vcruntime 3.0.0, string_cache 0.9.0, string_cache_codegen 0.6.1, strsim 0.11.1, swift-rs 1.0.9, syn 1.0.109, syn 2.0.119, syn 3.0.9, synstructure 0.14.0, system-configuration 0.7.0, system-configuration-sys 0.6.0, system-deps 6.2.2, tao-macros 0.1.4, tar 0.4.46, tauri 2.12.4, tauri-build 2.7.3, tauri-codegen 2.7.3, tauri-macros 2.7.3, tauri-plugin 2.7.2, tauri-plugin-dialog 2.8.3, tauri-plugin-fs 2.7.1, tauri-plugin-notification 2.7.0, tauri-plugin-opener 2.7.2, tauri-plugin-shell 2.5.0, tauri-plugin-updater 2.14.0, tauri-runtime 2.12.2, tauri-runtime-wry 2.12.2, tauri-utils 2.10.2, tauri-winres 0.3.6, tauri-winrt-notification 0.8.1, tempfile 3.27.0, tendril 0.5.1, thiserror 1.0.69, thiserror 2.0.21, thiserror-impl 1.0.69, thiserror-impl 2.0.21, thread_local 1.1.10, time 0.3.55, time-core 0.1.9, time-macros 0.2.32, tinyvec 1.13.3, tokio 1.53.3, tokio-native-tls 0.3.1, tokio-util 0.7.20, toml 0.8.2, toml 1.1.8+spec-1.1.0, toml_datetime 0.6.3, toml_datetime 1.1.2+spec-1.1.0, toml_edit 0.19.15, toml_edit 0.20.2, toml_edit 0.25.17+spec-1.1.0, toml_parser 1.1.5+spec-1.1.0, toml_writer 1.1.3+spec-1.1.0, tower 0.5.3, tower-http 0.6.11, tower-layer 0.3.3, tower-service 0.3.3, tracing 0.1.44, tracing-attributes 0.1.31, tracing-core 0.1.36, tracing-log 0.2.0, tracing-subscriber 0.3.23, try-lock 0.2.5, typed-path 0.12.3, typeid 1.0.3, typenum 1.20.1, tzf-dist 0.0.2026-e, tzf-rs 2.1.3, uds_windows 1.2.1, unicode-ident 1.0.27, unicode-normalization 0.1.25, unicode-segmentation 1.13.3, url 2.5.8, urlpattern 0.6.0, utf8_iter 1.0.4, uuid 1.28.0, vcpkg 0.2.15, version-compare 0.2.1, version_check 0.9.5, vswhom 0.1.0, vswhom-sys 0.1.3, walkdir 2.5.0, want 0.3.2, wasi 0.11.1+wasi-snapshot-preview1, wasip2 1.0.4+wasi-0.2.12, wasm-bindgen 0.2.129, wasm-bindgen-futures 0.4.79, wasm-bindgen-macro 0.2.129, wasm-bindgen-macro-support 0.2.129, wasm-bindgen-shared 0.2.129, wasm-streams 0.5.0, web-sys 0.3.106, web-time 1.1.0, web_atoms 0.2.6, webkit2gtk 2.0.2, webkit2gtk-sys 2.0.2, webview2-com 0.39.1, webview2-com-macros 0.8.1, webview2-com-sys 0.39.1, winapi 0.3.9, winapi-i686-pc-windows-gnu 0.4.0, winapi-util 0.1.11, winapi-x86_64-pc-windows-gnu 0.4.0, window-vibrancy 0.8.1, windows 0.62.2, windows-collections 0.3.2, windows-core 0.62.2, windows-future 0.3.2, windows-implement 0.60.2, windows-interface 0.59.3, windows-link 0.2.1, windows-native-keyring-store 1.1.0, windows-numerics 0.3.1, windows-registry 0.6.1, windows-result 0.4.1, windows-strings 0.5.1, windows-sys 0.45.0, windows-sys 0.52.0, windows-sys 0.60.2, windows-sys 0.61.2, windows-targets 0.42.2, windows-targets 0.52.6, windows-targets 0.53.5, windows-threading 0.2.1, windows-version 0.1.7, windows_aarch64_gnullvm 0.42.2, windows_aarch64_gnullvm 0.52.6, windows_aarch64_gnullvm 0.53.1, windows_aarch64_msvc 0.42.2, windows_aarch64_msvc 0.52.6, windows_aarch64_msvc 0.53.1, windows_i686_gnu 0.42.2, windows_i686_gnu 0.52.6, windows_i686_gnu 0.53.1, windows_i686_gnullvm 0.52.6, windows_i686_gnullvm 0.53.1, windows_i686_msvc 0.42.2, windows_i686_msvc 0.52.6, windows_i686_msvc 0.53.1, windows_x86_64_gnu 0.42.2, windows_x86_64_gnu 0.52.6, windows_x86_64_gnu 0.53.1, windows_x86_64_gnullvm 0.42.2, windows_x86_64_gnullvm 0.52.6, windows_x86_64_gnullvm 0.53.1, windows_x86_64_msvc 0.42.2, windows_x86_64_msvc 0.52.6, windows_x86_64_msvc 0.53.1, winnow 0.5.40, winnow 1.0.4, winreg 0.56.0, wit-bindgen 0.57.1, wry 0.57.0, x11 2.21.0, x11-dl 2.21.0, xattr 1.6.1, zbus 5.19.0, zbus-secret-service-keyring-store 1.0.1, zbus_macros 5.19.0, zbus_names 4.3.4, zcheapstr 1.1.0, zerocopy 0.8.63, zerocopy-derive 0.8.63, zeroize 1.9.1, zip 9.0.3, zmij 1.0.23, zune-core 0.5.3, zune-jpeg 0.5.15, zvariant 5.15.0, zvariant_derive 5.15.0, zvariant_utils 4.2.0.
 
 ```text
 Permission is hereby granted, free of charge, to any
@@ -4853,7 +4948,7 @@ For more information, please refer to <https://unlicense.org/>
 
 ### Zlib
 
-Used by 24 component(s): bytemuck 1.25.2, dispatch2 0.3.1, foldhash 0.2.0, miniz_oxide 0.8.9, miniz_oxide 0.9.1, objc2-app-kit 0.3.2, objc2-cloud-kit 0.3.2, objc2-core-data 0.3.2, objc2-core-foundation 0.3.2, objc2-core-graphics 0.3.2, objc2-core-image 0.3.2, objc2-core-location 0.3.2, objc2-core-text 0.3.2, objc2-exception-helper 0.1.1, objc2-quartz-core 0.3.2, objc2-ui-kit 0.3.2, objc2-user-notifications 0.3.2, objc2-web-kit 0.3.2, raw-window-handle 0.6.2, static_vcruntime 3.0.0, tinyvec 1.13.3, zlib-rs 0.6.8, zune-core 0.5.3, zune-jpeg 0.5.15.
+Used by 25 component(s): bytemuck 1.25.2, dispatch2 0.3.1, foldhash 0.2.0, miniz_oxide 0.8.9, miniz_oxide 0.9.1, objc2-app-kit 0.3.2, objc2-cloud-kit 0.3.2, objc2-core-data 0.3.2, objc2-core-foundation 0.3.2, objc2-core-graphics 0.3.2, objc2-core-image 0.3.2, objc2-core-location 0.3.2, objc2-core-text 0.3.2, objc2-exception-helper 0.1.1, objc2-osa-kit 0.3.2, objc2-quartz-core 0.3.2, objc2-ui-kit 0.3.2, objc2-user-notifications 0.3.2, objc2-web-kit 0.3.2, raw-window-handle 0.6.2, static_vcruntime 3.0.0, tinyvec 1.13.3, zlib-rs 0.6.8, zune-core 0.5.3, zune-jpeg 0.5.15.
 
 ```text
 Copyright (c) 2020 Osspial

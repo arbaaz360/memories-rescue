@@ -731,7 +731,10 @@ fn settings_persist_and_diagnostics_hold_no_export_content() {
     }
     let info = env.engine.app_info();
     assert_eq!(info.support_email, "support@novabyteworks.com");
-    assert_eq!(info.privacy_policy_url, "https://novabyteworks.com/privacy");
+    assert_eq!(
+        info.privacy_policy_url,
+        "https://novabyteworks.com/privacy-memories-rescue"
+    );
     assert!(info.terms_url.starts_with("https://novabyteworks.com/"));
     assert!(info.faq_url.starts_with("https://novabyteworks.com/"));
     assert!(!env.engine.any_job_running());

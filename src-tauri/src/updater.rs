@@ -2,9 +2,11 @@
 //! window has no updater permission and calls `check_update` and
 //! `install_update` like any other command.
 //!
-//! * The feed is `latest.json` (stable) or `latest-beta.json` (beta) on the
-//!   releases repository's latest release (`src/config/links.json`), signed
-//!   with the minisign key whose public half is in `tauri.conf.json`.
+//! * The feed is `latest.json` on the releases repository's latest release
+//!   (stable) or `latest-beta.json` on its fixed `channel-beta` release
+//!   (beta; GitHub's "latest" never points at a prerelease), both in
+//!   `src/config/links.json`, signed with the minisign key whose public half
+//!   is in `tauri.conf.json`.
 //! * A check runs at launch and then every 24 hours while update checks are
 //!   on (Settings); a found update is announced with `update_available`.
 //!   Network and feed errors are logged and change nothing.
@@ -194,8 +196,11 @@ mod tests {
     #[test]
     fn channels_map_to_their_feeds() {
         assert!(feed_url(UpdateChannel::Stable).ends_with("/releases/latest/download/latest.json"));
+        // GitHub's /releases/latest/ never resolves to a prerelease, so the
+        // beta manifest lives on the fixed `channel-beta` release instead.
         assert!(
-            feed_url(UpdateChannel::Beta).ends_with("/releases/latest/download/latest-beta.json")
+            feed_url(UpdateChannel::Beta)
+                .ends_with("/releases/download/channel-beta/latest-beta.json")
         );
         assert!(
             feed_url(UpdateChannel::Stable)
