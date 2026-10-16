@@ -24,7 +24,7 @@ pub mod video;
 pub use ffmpeg::{EncoderPlan, EncoderSet, Ffmpeg, Platform, VideoEncoder, select_encoder};
 pub use hevc::{HevcPlayback, hevc_playback, hevc_playback_available};
 pub use photo::{PhotoFormat, PhotoOptions, PhotoOutcome, composite_photo};
-pub use probe::{AudioTrack, Container, ImageInfo, MediaInfo, VideoTrack, probe};
+pub use probe::{AudioTrack, Container, ImageInfo, MediaInfo, VideoTrack, probe, probe_reader};
 pub use rejoin::{
     ClipDescriptor, ClipGroup, NotJoined, RejoinOptions, Segment, YearRange, can_follow,
     detect_clip_groups,

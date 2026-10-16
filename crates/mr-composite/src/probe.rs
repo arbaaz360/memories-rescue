@@ -336,8 +336,93 @@ fn probe_mp4<R: Read + Seek>(r: &mut R, len: u64) -> Result<MediaInfo, Error> {
     r.seek(SeekFrom::Start(moov.start + moov.header_len))?;
     let mut payload = vec![0u8; payload_len];
     r.read_exact(&mut payload)?;
+    Ok(info_from_moov(&payload, container, brand, len))
+}
 
-    let (movie_timescale, movie_duration) = child(&payload, b"mvhd")
+/// Probe an MP4/MOV from a forward-only stream, such as an entry being read
+/// out of a ZIP, without extracting it. `len` is the file's full size (for
+/// the bitrate). Reading stops as soon as `moov` has been read; boxes before
+/// it are skipped by reading. When `moov` sits after `mdat` the whole `mdat`
+/// is read past, so `limit` caps how many bytes may be consumed before
+/// `moov` starts: past it the probe gives up with `Unsupported`.
+pub fn probe_reader<R: Read>(mut r: R, len: u64, limit: u64) -> Result<MediaInfo, Error> {
+    let mut pos = 0u64;
+    let mut brand = None;
+    let mut container = Container::Mp4;
+    loop {
+        let mut hdr = [0u8; 8];
+        if let Err(e) = r.read_exact(&mut hdr) {
+            return match e.kind() {
+                std::io::ErrorKind::UnexpectedEof => Err(Error::Unsupported(
+                    "no moov box (not a finished MP4/MOV)".into(),
+                )),
+                _ => Err(e.into()),
+            };
+        }
+        let size32 = u32::from_be_bytes([hdr[0], hdr[1], hdr[2], hdr[3]]) as u64;
+        let typ = [hdr[4], hdr[5], hdr[6], hdr[7]];
+        if pos == 0 && !is_box_type(&typ) {
+            return Err(Error::Unsupported("not an ISO BMFF stream".into()));
+        }
+        let (size, header_len) = match size32 {
+            0 => (len.saturating_sub(pos), 8),
+            1 => {
+                let mut big = [0u8; 8];
+                r.read_exact(&mut big)?;
+                (u64::from_be_bytes(big), 16)
+            }
+            s => (s, 8),
+        };
+        if size < header_len {
+            return Err(Error::Unsupported("malformed box header".into()));
+        }
+        let payload_len = size - header_len;
+        match &typ {
+            b"moov" => {
+                if payload_len > 256 << 20 {
+                    return Err(Error::Unsupported("moov larger than 256 MiB".into()));
+                }
+                let mut payload = vec![0u8; payload_len as usize];
+                r.read_exact(&mut payload)?;
+                return Ok(info_from_moov(&payload, container, brand, len));
+            }
+            b"ftyp" if payload_len >= 4 => {
+                let mut ftyp = vec![0u8; payload_len.min(4096) as usize];
+                r.read_exact(&mut ftyp)?;
+                std::io::copy(
+                    &mut (&mut r).take(payload_len - ftyp.len() as u64),
+                    &mut std::io::sink(),
+                )?;
+                let major = [ftyp[0], ftyp[1], ftyp[2], ftyp[3]];
+                if &major == b"qt  " {
+                    container = Container::Mov;
+                }
+                brand = Some(fourcc(&major));
+            }
+            _ => {
+                if pos + size > limit {
+                    return Err(Error::Unsupported(format!(
+                        "moov not within the first {} MiB",
+                        limit >> 20
+                    )));
+                }
+                let skipped = std::io::copy(&mut (&mut r).take(payload_len), &mut std::io::sink())?;
+                if skipped < payload_len {
+                    return Err(Error::Unsupported("no moov box (truncated)".into()));
+                }
+            }
+        }
+        pos += size;
+    }
+}
+
+fn info_from_moov(
+    payload: &[u8],
+    container: Container,
+    brand: Option<String>,
+    len: u64,
+) -> MediaInfo {
+    let (movie_timescale, movie_duration) = child(payload, b"mvhd")
         .and_then(parse_mvhd)
         .unwrap_or((1000, 0));
     let duration_secs = if movie_timescale > 0 {
@@ -348,7 +433,7 @@ fn probe_mp4<R: Read + Seek>(r: &mut R, len: u64) -> Result<MediaInfo, Error> {
 
     let mut video = None;
     let mut audio = None;
-    for trak in children(&payload).into_iter().filter(|c| &c.typ == b"trak") {
+    for trak in children(payload).into_iter().filter(|c| &c.typ == b"trak") {
         let t = &payload[trak.payload];
         match parse_trak(t, movie_timescale) {
             Some(Track::Video(v)) if video.is_none() => video = Some(v),
@@ -357,7 +442,7 @@ fn probe_mp4<R: Read + Seek>(r: &mut R, len: u64) -> Result<MediaInfo, Error> {
         }
     }
     let bitrate_kbps = (duration_secs > 0.0).then(|| kbps(len, duration_secs));
-    Ok(MediaInfo {
+    MediaInfo {
         container,
         brand,
         file_size: len,
@@ -366,7 +451,7 @@ fn probe_mp4<R: Read + Seek>(r: &mut R, len: u64) -> Result<MediaInfo, Error> {
         video,
         audio,
         image: None,
-    })
+    }
 }
 
 fn kbps(bytes: u64, secs: f64) -> u32 {
@@ -1030,6 +1115,25 @@ mod tests {
         assert_eq!(sps_bit_depth(&nal), Some(10));
         let base = [0x67, 66, 0, 31, 0x80];
         assert_eq!(sps_bit_depth(&base), Some(8));
+    }
+
+    #[test]
+    fn streaming_probe_equals_file_probe_and_honours_the_limit() {
+        let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../mr-meta/tests/data");
+        for name in ["tiny-moov-first.mp4", "tiny-moov-last.mp4"] {
+            let path = data.join(name);
+            let len = std::fs::metadata(&path).unwrap().len();
+            let streamed = probe_reader(File::open(&path).unwrap(), len, u64::MAX).unwrap();
+            assert_eq!(streamed, probe(&path).unwrap(), "{name}");
+        }
+        // moov after mdat: a limit below the mdat end refuses instead of reading it all.
+        let last = data.join("tiny-moov-last.mp4");
+        let len = std::fs::metadata(&last).unwrap().len();
+        let err = probe_reader(File::open(&last).unwrap(), len, 64).unwrap_err();
+        assert!(err.to_string().contains("moov not within"), "{err}");
+        // Not an MP4 at all (a JPEG header).
+        let jpeg: &[u8] = &[0xFF, 0xD8, 0xFF, 0xE0, 0, 16, b'J', b'F', b'I', b'F'];
+        assert!(probe_reader(jpeg, 10, u64::MAX).is_err());
     }
 
     #[test]
