@@ -2268,7 +2268,6 @@ name = "mr-job"
 version = "0.1.0"
 dependencies = [
  "chrono",
- "chrono-tz",
  "crossbeam-channel",
  "filetime_creation",
  "fs4",
