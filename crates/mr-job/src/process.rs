@@ -233,6 +233,21 @@ pub struct Worker<'a> {
     settings: &'a WorkSettings,
 }
 
+/// A file this item wrote earlier: its path and, when recorded, its hash.
+/// Only a file that still has the recorded bytes counts as ours; one the
+/// user has edited since is theirs and is never overwritten or removed.
+#[derive(Debug, Clone)]
+struct Owned {
+    rel: String,
+    sha: Option<String>,
+}
+
+impl Owned {
+    fn matches(&self, rel: &str, existing_sha: &str) -> bool {
+        self.rel.eq_ignore_ascii_case(rel) && self.sha.as_deref().is_none_or(|s| s == existing_sha)
+    }
+}
+
 enum Placement {
     /// Nothing there: write.
     Write,
@@ -381,7 +396,7 @@ impl<'a> Worker<'a> {
         }
     }
 
-    fn decide(&self, rel: &str, sha: &str, own: &[String]) -> Result<Placement, Failure> {
+    fn decide(&self, rel: &str, sha: &str, own: &[Owned]) -> Result<Placement, Failure> {
         let target = layout::to_fs(&self.root, rel);
         if !target.exists() {
             return Ok(Placement::Write);
@@ -390,7 +405,7 @@ impl<'a> Worker<'a> {
             sha256_file(&target).map_err(|e| dest_error(e, self.settings, "existing output"))?;
         if existing == sha {
             Ok(Placement::AlreadyThere)
-        } else if own.iter().any(|o| o.eq_ignore_ascii_case(rel)) {
+        } else if own.iter().any(|o| o.matches(rel, &existing)) {
             Ok(Placement::Replace)
         } else {
             Err(item("NAME_TAKEN", rel.to_string()))
@@ -398,7 +413,7 @@ impl<'a> Worker<'a> {
     }
 
     /// The first name from `rel`, `rel_2`, ... that this file may take.
-    fn choose(&self, rel: &str, sha: &str, own: &[String]) -> Result<(String, Placement), Failure> {
+    fn choose(&self, rel: &str, sha: &str, own: &[Owned]) -> Result<(String, Placement), Failure> {
         let (folder, name) = layout::split_rel(rel);
         for n in 1..10_000 {
             let candidate = if n == 1 {
@@ -530,7 +545,16 @@ impl<'a> Worker<'a> {
         self.seal(&tagged, &cap)?;
         let sha = sha256_file(&tagged).map_err(|e| dest_error(e, s, "hash"))?;
 
-        let own = row.recorded_outputs();
+        let own: Vec<Owned> = row
+            .recorded_outputs()
+            .into_iter()
+            .map(|rel| Owned {
+                sha: (row.output_path.as_deref() == Some(rel.as_str()))
+                    .then(|| row.output_sha256.clone())
+                    .flatten(),
+                rel,
+            })
+            .collect();
         let (main_rel, main_place) = self.choose(&p.output_rel, &sha, &own)?;
 
         // Sidecars: the overlay beside the file, or originals/ after a burn-in.
@@ -589,8 +613,19 @@ impl<'a> Worker<'a> {
         .map(|r| r.to_lowercase())
         .collect();
         for old in &row.previous_outputs {
-            if !keep.contains(&old.to_lowercase()) {
-                let _ = fs::remove_file(layout::to_fs(&self.root, old));
+            if keep.contains(&old.to_lowercase()) {
+                continue;
+            }
+            let path = layout::to_fs(&self.root, old);
+            let ours = match own.iter().find(|o| o.rel.eq_ignore_ascii_case(old)) {
+                Some(o) => match &o.sha {
+                    Some(recorded) => sha256_file(&path).is_ok_and(|now| &now == recorded),
+                    None => true,
+                },
+                None => false,
+            };
+            if ours {
+                let _ = fs::remove_file(path);
             }
         }
 

@@ -1380,3 +1380,44 @@ fn composite_pending_items_are_composited_once_a_compositor_is_available() {
     );
     assert!(after.keys().all(|k| !k.contains("_2.")), "no duplicates");
 }
+
+#[test]
+fn an_output_the_user_edited_is_never_overwritten_or_removed() {
+    let e = env("edited");
+    let mut job = Job::create(
+        &e.state,
+        &zips_in(&fixture_dir("small-2026b")),
+        options(&e.dest),
+    )
+    .unwrap();
+    run(&mut job);
+    let victim = job
+        .items()
+        .unwrap()
+        .into_iter()
+        .find(|i| i.composite_pending)
+        .expect("an item with an overlay");
+    let rel = victim.output_path.clone().unwrap();
+    let path = job.output_root().join(&rel);
+    let mut bytes = fs::read(&path).unwrap();
+    bytes.extend_from_slice(b"edited by the user");
+    fs::write(&path, &bytes).unwrap();
+    // Write the pending items again (with a compositor): the edited file must survive.
+    job.set_compositor(Arc::new(CopyCompositor));
+    job.requeue_composite_pending().unwrap();
+    let (outcome, _) = run(&mut job);
+    assert!(matches!(outcome, mr_job::Outcome::Completed(_)));
+    assert_eq!(fs::read(&path).unwrap(), bytes, "the user's edit is kept");
+    let row = job
+        .items()
+        .unwrap()
+        .into_iter()
+        .find(|i| i.plan.key == victim.plan.key)
+        .unwrap();
+    let new_rel = row.output_path.unwrap();
+    assert_ne!(new_rel, rel, "the new output went next to it");
+    assert!(new_rel.contains("_2."), "{new_rel}");
+    // Untouched outputs were replaced in place, not duplicated.
+    let files = files_under(job.output_root());
+    assert_eq!(files.keys().filter(|k| k.contains("_2.")).count(), 1);
+}
