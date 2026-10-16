@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import concurrent.futures
 import datetime as dt
+import hashlib
 import os
 import subprocess
 from dataclasses import dataclass, field
@@ -337,7 +338,11 @@ def _media_names(m: Media) -> tuple[str, str | None]:
     return f"{base}-main.{m.ext}", (f"{base}-overlay.png" if m.overlay else None)
 
 
-def _assemble(ctx: Context, name: str, srs_id: str, tools: Tools | None, media: list[Media], rng, extra: dict) -> dict:
+def _assemble(ctx: Context, name: str, srs_id: str, tools: Tools | None, media: list[Media], rng, extra: dict, profile: str = "2026b") -> dict:
+    """Write the export ZIP and truth.json. `2026a` puts a synthetic
+    `Download Link` with `sid`/`mid` equal to each filename ID on every entry,
+    so the engine matches exactly and keeps exact times whatever the
+    locations (section 3.6 step 4 only touches ordinal matches)."""
     out = ctx.out_dir / name
     ordered = sorted(media, key=lambda m: (m.when, m.id), reverse=True)
     zipb = ZipBuilder()
@@ -345,12 +350,17 @@ def _assemble(ctx: Context, name: str, srs_id: str, tools: Tools | None, media: 
     items = []
     for i, m in enumerate(ordered):
         main_name, ov_name = _media_names(m)
+        if profile == "2026a":
+            sig = hashlib.sha1(f"{m.id}{ctx.seed}".encode()).hexdigest()
+            link = f"https://app.example.invalid/dmd/memories?uid=fixture&sid={m.id}&mid={m.id}&ts=1&sig={sig}"
+        else:
+            link = ""
         entries.append(
             {
                 "Date": export_date(m.when),
                 "Media Type": "Image" if m.kind == "photo" else "Video",
                 "Location": location_field(*m.location) if m.location else NO_LOCATION_FIELD,
-                "Download Link": "",
+                "Download Link": link,
                 "Media Download Url": "N/A",
             }
         )
@@ -382,7 +392,7 @@ def _assemble(ctx: Context, name: str, srs_id: str, tools: Tools | None, media: 
         "schema": TRUTH_SCHEMA,
         "fixture": name,
         "srs_id": srs_id,
-        "format": "2026b",
+        "format": profile,
         "generator": _generator_block(ctx, tools),
         "parts": [{"file": zip_path.name, "role": "primary", "entries": order}],
         "json": {"bom": False, "crlf": False, "indent": 2, "top_level_keys_before": [], "top_level_keys_after": []},
@@ -393,8 +403,8 @@ def _assemble(ctx: Context, name: str, srs_id: str, tools: Tools | None, media: 
             "videos": len(items) - photos,
             "overlays": sum(1 for m in media if m.overlay),
             "with_location": sum(1 for m in media if m.location),
-            "with_url": 0,
-            "with_tokens": 0,
+            "with_url": len(items) if profile == "2026a" else 0,
+            "with_tokens": len(items) if profile == "2026a" else 0,
             "media_files": len(items) + sum(1 for m in media if m.overlay),
             "main_files": len(items),
             "main_files_skipped": 0,
@@ -677,7 +687,9 @@ def build_clips(ctx: Context) -> dict:
             "new_year": grp("K_new_year", 2),
         },
     }
-    truth = _assemble(ctx, name, srs_id, tools, media, rng, extra)
+    # 2026a: exact matching, so the H group's clips 1.1 km apart keep their
+    # exact times in the engine and section 4.5 alone decides.
+    truth = _assemble(ctx, name, srs_id, tools, media, rng, extra, profile="2026a")
     ctx.log(f"{name}: {len(specs)} clips, {len(default_groups)} groups by default, {len(all_years_groups)} with all years")
     return truth
 
