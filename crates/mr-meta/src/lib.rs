@@ -3,6 +3,7 @@
 //! * [`fields`]: the capture record and every string form the containers want.
 //! * [`exiftool`]: exiftool as a long-lived `-stay_open` sidecar (C-05).
 //! * [`native_jpeg`]: pure-Rust EXIF writing on `little_exif`.
+//! * [`native_png`]: the same photo field set in a PNG `eXIf` chunk.
 //! * [`native_mp4`]: pure-Rust `moov` patcher for times, `mdta` Keys and `©xyz`.
 //! * [`ffmpeg_remux`]: ffmpeg stream-copy remux with `-metadata`, measured for comparison.
 //!
@@ -14,6 +15,7 @@ pub mod ffmpeg_remux;
 pub mod fields;
 pub mod native_jpeg;
 pub mod native_mp4;
+pub mod native_png;
 
 use std::path::{Path, PathBuf};
 
