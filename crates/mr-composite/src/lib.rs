@@ -123,6 +123,24 @@ pub struct VideoOutcome {
     pub args: Vec<String>,
 }
 
+/// What [`Compositor::composite_any`] did.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(tag = "kind", content = "outcome", rename_all = "lowercase")]
+pub enum Composite {
+    Photo(PhotoOutcome),
+    Video(VideoOutcome),
+}
+
+impl Composite {
+    /// Report-worthy warnings, e.g. `overlay_aspect_mismatch`.
+    pub fn warnings(&self) -> &[Warning] {
+        match self {
+            Composite::Photo(p) => &p.warnings,
+            Composite::Video(v) => &v.warnings,
+        }
+    }
+}
+
 /// The ffmpeg-backed operations, bound to one ffmpeg executable.
 ///
 /// Cheap to share by reference across worker threads: the encoder listing
@@ -131,6 +149,7 @@ pub struct VideoOutcome {
 pub struct Compositor {
     ffmpeg: Ffmpeg,
     options: VideoOptions,
+    photo: PhotoOptions,
     plan: OnceLock<Result<EncoderPlan, (bool, String)>>,
 }
 
@@ -144,8 +163,15 @@ impl Compositor {
         Self {
             ffmpeg: Ffmpeg::new(ffmpeg),
             options,
+            photo: PhotoOptions::default(),
             plan: OnceLock::new(),
         }
+    }
+
+    /// Photo settings for [`Compositor::composite_any`].
+    pub fn with_photo_options(mut self, photo: PhotoOptions) -> Self {
+        self.photo = photo;
+        self
     }
 
     pub fn ffmpeg(&self) -> &Ffmpeg {
@@ -175,6 +201,24 @@ impl Compositor {
             Ok(p) => Ok(*p),
             Err((true, m)) => Err(Error::EncoderUnavailable(m.clone())),
             Err((false, m)) => Err(Error::FfmpegMissing(m.clone())),
+        }
+    }
+
+    /// One burn-in, photo or video decided by the file's content: the shape
+    /// of the job engine's seam (`mr_job::Compositor::composite`). Photos go
+    /// through [`composite_photo`] and need no ffmpeg; videos through
+    /// [`Compositor::composite_video`].
+    pub fn composite_any(
+        &self,
+        main: &Path,
+        overlay: &Path,
+        out: &Path,
+    ) -> Result<Composite, Error> {
+        if probe(main)?.is_video() {
+            self.composite_video(main, overlay, out)
+                .map(Composite::Video)
+        } else {
+            composite_photo(main, overlay, out, &self.photo).map(Composite::Photo)
         }
     }
 

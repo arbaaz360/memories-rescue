@@ -71,6 +71,41 @@ for group in detect_clip_groups(&descriptors, &RejoinOptions::default()) {
 }
 ```
 
+### Plugging into the engine's seam
+
+`mr_job::Compositor` (`crates/mr-job/src/compositor.rs`) asks for one
+burn-in per item with a `CompositeRequest { kind, main, overlay, out, ext,
+windows_compat, item_key }`. `Compositor::composite_any` has that shape: it
+probes `main` and sends photos to `composite_photo` and videos to
+`composite_video`. The adapter, as `tests/engine.rs` runs it against the
+real engine on F-07 (12 items composited, upright, metadata written by the
+engine, originals kept):
+
+```rust
+struct MediaCompositor(mr_composite::Compositor);
+
+impl mr_job::Compositor for MediaCompositor {
+    fn composite(&self, req: &CompositeRequest<'_>) -> Result<CompositeOutcome, CompositeError> {
+        self.0
+            .composite_any(req.main, req.overlay, req.out)
+            .map(|_| CompositeOutcome::Composited)
+            .map_err(|e| CompositeError { code: e.code().into(), detail: e.to_string() })
+    }
+    fn name(&self) -> &str { "mr-composite" }
+}
+
+job.set_compositor(Arc::new(MediaCompositor(Compositor::new(sidecar_ffmpeg))));
+```
+
+Two things the seam does not carry yet, for the engine side to decide:
+
+* `CompositeOutcome` has no warnings, so `overlay_aspect_mismatch` (§4.4)
+  reaches the log but not the report; `Composite::warnings()` has them.
+* The engine calls the seam only for items with an overlay to burn in.
+  The Windows compatibility mode for HEVC items **without** an overlay
+  needs a call to `Compositor::transcode_h264` when `windows_compat` is on
+  and `probe(main)?.video` has codec `hvc1`/`hev1`.
+
 Every operation writes to `.<name>.mr-partial(.<ext>)` next to the output
 and renames it into place on success, so a crash never leaves a
 half-written file under the final name; on failure the partial file is
@@ -140,6 +175,7 @@ writer must not copy the source's Orientation tag**.
 |---|---|
 | `encoders()` | `ffmpeg -hide_banner -encoders`, parsed (`EncoderSet`), run once and cached |
 | `encoder_plan()` | the §4.4 order filtered by the listing, each candidate smoke-tested once; `EncoderPlan { primary, software }` or `ENCODER_UNAVAILABLE` |
+| `composite_any(main, overlay, out)` | the engine's seam: photo or video by content; returns `Composite::Photo(PhotoOutcome)` or `Composite::Video(VideoOutcome)`; photo settings from `with_photo_options` |
 | `composite_video(main, overlay, out)` | FR-24 |
 | `transcode_h264(main, out)` | the Windows compatibility mode: H.264, rotation baked in, no overlay |
 | `rejoin(segments, out)` | FR-27 join of two or more segments in order |
@@ -451,6 +487,7 @@ shares code with the crate.
 | `tests/video.rs` | FR-24 AC1, AC2, encoder plan, compatibility transcode | skip |
 | `tests/clips.rs` | FR-27 detection, AC1, AC2, per-segment overlays, rotated copy join, refusal | skip |
 | `tests/codecs.rs` | F-09 probe vs truth and oracle, transcode and composite of every case, FR-51 check | probe and composite skip; the HEVC check runs |
+| `tests/engine.rs` | mr-job's engine on the F-07 export with the real compositor through `mr_job::Compositor` (FR-23, FR-24, FR-25 end to end) | skip |
 
 Locally the tests use `third_party/ffmpeg/ffmpeg(.exe)` when staged
 (`python tools/sidecars.py fetch`), else an ffmpeg on `PATH`.
