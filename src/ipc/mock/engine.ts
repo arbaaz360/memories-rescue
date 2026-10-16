@@ -57,7 +57,7 @@ import {
   rng,
   type FakeItem,
 } from "./scenario";
-import { mockThumbPath } from "./thumbs";
+import { mockThumbPath, mockThumbnailUrl } from "./thumbs";
 import { MOCK_KEY_PATTERN } from "./key";
 import links from "../../config/links.json";
 
@@ -312,6 +312,8 @@ export class MockBackend implements Backend {
   private resumable: ResumableJob[] = [];
   /** Last path passed to open_path, for tests. */
   lastOpened: string | null = null;
+  /** Last address open_link resolved, for tests. */
+  lastLink: string | null = null;
 
   constructor(config: MockConfig = {}) {
     this.config = {
@@ -469,6 +471,12 @@ export class MockBackend implements Backend {
     open_path: ({ path }) => {
       this.lastOpened = path;
       console.info(`[mock] open_path ${path}`);
+      return null;
+    },
+    open_link: ({ link }) => {
+      const url = link === "purchase" ? this.license.product_url : link === "support" ? `mailto:${links.support_email}` : links[link];
+      this.lastLink = url;
+      if (typeof window !== "undefined" && typeof window.open === "function") window.open(url, "_blank", "noopener,noreferrer");
       return null;
     },
     export_diagnostics: () => this.diagnosticsPath(),
@@ -752,7 +760,7 @@ export class MockBackend implements Backend {
           match_confidence: it.confidence,
           location_decision: showLocation ? it.location : it.location === "uncertain" ? "uncertain" : "none",
           has_overlay: it.has_overlay,
-          thumbnail_path: mockThumbPath(i, it.media_type),
+          thumbnail: mockThumbnailUrl(mockThumbPath(i, it.media_type)),
         };
       });
 

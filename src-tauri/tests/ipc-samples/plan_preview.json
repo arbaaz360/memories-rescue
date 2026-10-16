@@ -2271,7 +2271,7 @@
       "match_confidence": "ordinal",
       "location_decision": "applied",
       "has_overlay": false,
-      "thumbnail_path": "mock-thumb:0:video"
+      "thumbnail": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2096%2080%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%220%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22hsl(0%2070%25%2072%25)%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22hsl(30%2075%25%2086%25)%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%2296%22%20height%3D%2280%22%20fill%3D%22url(%23g)%22%2F%3E%3Ccircle%20cx%3D%2218%22%20cy%3D%2222%22%20r%3D%229%22%20fill%3D%22hsl(45%2095%25%2085%25)%22%2F%3E%3Cpath%20d%3D%22M0%2058%20Q24%2040%2048%2054%20T96%2050%20V80%20H0%20Z%22%20fill%3D%22hsl(140%2035%25%2038%25)%22%2F%3E%3Cpath%20d%3D%22M0%2068%20Q30%2056%2060%2066%20T96%2064%20V80%20H0%20Z%22%20fill%3D%22hsl(160%2040%25%2028%25)%22%2F%3E%3Ccircle%20cx%3D%2248%22%20cy%3D%2240%22%20r%3D%2213%22%20fill%3D%22rgb(0%200%200%20%2F%200.55)%22%2F%3E%3Cpath%20d%3D%22M44%2033%20L56%2040%20L44%2047%20Z%22%20fill%3D%22%23fff%22%2F%3E%3C%2Fsvg%3E"
     },
     {
       "item_id": "4540215F",
@@ -2285,7 +2285,7 @@
       "match_confidence": "none",
       "location_decision": "none",
       "has_overlay": false,
-      "thumbnail_path": "mock-thumb:14:photo"
+      "thumbnail": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2096%2080%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%220%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22hsl(298%2070%25%2072%25)%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22hsl(328%2075%25%2086%25)%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%2296%22%20height%3D%2280%22%20fill%3D%22url(%23g)%22%2F%3E%3Ccircle%20cx%3D%2220%22%20cy%3D%2222%22%20r%3D%229%22%20fill%3D%22hsl(45%2095%25%2085%25)%22%2F%3E%3Cpath%20d%3D%22M0%2058%20Q24%2040%2048%2054%20T96%2050%20V80%20H0%20Z%22%20fill%3D%22hsl(78%2035%25%2038%25)%22%2F%3E%3Cpath%20d%3D%22M0%2068%20Q30%2056%2060%2066%20T96%2064%20V80%20H0%20Z%22%20fill%3D%22hsl(98%2040%25%2028%25)%22%2F%3E%3C%2Fsvg%3E"
     },
     {
       "item_id": "D109B2A6",
@@ -2299,7 +2299,7 @@
       "match_confidence": "ordinal",
       "location_decision": "uncertain",
       "has_overlay": false,
-      "thumbnail_path": "mock-thumb:133:photo"
+      "thumbnail": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2096%2080%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%220%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22hsl(131%2070%25%2072%25)%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22hsl(161%2075%25%2086%25)%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%2296%22%20height%3D%2280%22%20fill%3D%22url(%23g)%22%2F%3E%3Ccircle%20cx%3D%2267%22%20cy%3D%2222%22%20r%3D%229%22%20fill%3D%22hsl(45%2095%25%2085%25)%22%2F%3E%3Cpath%20d%3D%22M0%2058%20Q24%2040%2048%2054%20T96%2050%20V80%20H0%20Z%22%20fill%3D%22hsl(271%2035%25%2038%25)%22%2F%3E%3Cpath%20d%3D%22M0%2068%20Q30%2056%2060%2066%20T96%2064%20V80%20H0%20Z%22%20fill%3D%22hsl(291%2040%25%2028%25)%22%2F%3E%3C%2Fsvg%3E"
     },
     {
       "item_id": "10D6CF8A",
@@ -2313,7 +2313,7 @@
       "match_confidence": "ordinal",
       "location_decision": "applied",
       "has_overlay": false,
-      "thumbnail_path": "mock-thumb:169:photo"
+      "thumbnail": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2096%2080%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%220%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22hsl(23%2070%25%2072%25)%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22hsl(53%2075%25%2086%25)%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%2296%22%20height%3D%2280%22%20fill%3D%22url(%23g)%22%2F%3E%3Ccircle%20cx%3D%2255%22%20cy%3D%2222%22%20r%3D%229%22%20fill%3D%22hsl(45%2095%25%2085%25)%22%2F%3E%3Cpath%20d%3D%22M0%2058%20Q24%2040%2048%2054%20T96%2050%20V80%20H0%20Z%22%20fill%3D%22hsl(163%2035%25%2038%25)%22%2F%3E%3Cpath%20d%3D%22M0%2068%20Q30%2056%2060%2066%20T96%2064%20V80%20H0%20Z%22%20fill%3D%22hsl(183%2040%25%2028%25)%22%2F%3E%3C%2Fsvg%3E"
     },
     {
       "item_id": "83762563",
@@ -2327,7 +2327,7 @@
       "match_confidence": "exact",
       "location_decision": "applied",
       "has_overlay": false,
-      "thumbnail_path": "mock-thumb:338:photo"
+      "thumbnail": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2096%2080%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%220%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22hsl(46%2070%25%2072%25)%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22hsl(76%2075%25%2086%25)%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%2296%22%20height%3D%2280%22%20fill%3D%22url(%23g)%22%2F%3E%3Ccircle%20cx%3D%2232%22%20cy%3D%2222%22%20r%3D%229%22%20fill%3D%22hsl(45%2095%25%2085%25)%22%2F%3E%3Cpath%20d%3D%22M0%2058%20Q24%2040%2048%2054%20T96%2050%20V80%20H0%20Z%22%20fill%3D%22hsl(186%2035%25%2038%25)%22%2F%3E%3Cpath%20d%3D%22M0%2068%20Q30%2056%2060%2066%20T96%2064%20V80%20H0%20Z%22%20fill%3D%22hsl(206%2040%25%2028%25)%22%2F%3E%3C%2Fsvg%3E"
     },
     {
       "item_id": "F6157B3C",
@@ -2341,7 +2341,7 @@
       "match_confidence": "ordinal",
       "location_decision": "applied",
       "has_overlay": false,
-      "thumbnail_path": "mock-thumb:507:video"
+      "thumbnail": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2096%2080%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%220%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22hsl(69%2070%25%2072%25)%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22hsl(99%2075%25%2086%25)%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%2296%22%20height%3D%2280%22%20fill%3D%22url(%23g)%22%2F%3E%3Ccircle%20cx%3D%2269%22%20cy%3D%2222%22%20r%3D%229%22%20fill%3D%22hsl(45%2095%25%2085%25)%22%2F%3E%3Cpath%20d%3D%22M0%2058%20Q24%2040%2048%2054%20T96%2050%20V80%20H0%20Z%22%20fill%3D%22hsl(209%2035%25%2038%25)%22%2F%3E%3Cpath%20d%3D%22M0%2068%20Q30%2056%2060%2066%20T96%2064%20V80%20H0%20Z%22%20fill%3D%22hsl(229%2040%25%2028%25)%22%2F%3E%3Ccircle%20cx%3D%2248%22%20cy%3D%2240%22%20r%3D%2213%22%20fill%3D%22rgb(0%200%200%20%2F%200.55)%22%2F%3E%3Cpath%20d%3D%22M44%2033%20L56%2040%20L44%2047%20Z%22%20fill%3D%22%23fff%22%2F%3E%3C%2Fsvg%3E"
     },
     {
       "item_id": "68B4D115",
@@ -2355,7 +2355,7 @@
       "match_confidence": "ordinal",
       "location_decision": "applied",
       "has_overlay": false,
-      "thumbnail_path": "mock-thumb:676:video"
+      "thumbnail": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2096%2080%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%220%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22hsl(92%2070%25%2072%25)%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22hsl(122%2075%25%2086%25)%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%2296%22%20height%3D%2280%22%20fill%3D%22url(%23g)%22%2F%3E%3Ccircle%20cx%3D%2246%22%20cy%3D%2222%22%20r%3D%229%22%20fill%3D%22hsl(45%2095%25%2085%25)%22%2F%3E%3Cpath%20d%3D%22M0%2058%20Q24%2040%2048%2054%20T96%2050%20V80%20H0%20Z%22%20fill%3D%22hsl(232%2035%25%2038%25)%22%2F%3E%3Cpath%20d%3D%22M0%2068%20Q30%2056%2060%2066%20T96%2064%20V80%20H0%20Z%22%20fill%3D%22hsl(252%2040%25%2028%25)%22%2F%3E%3Ccircle%20cx%3D%2248%22%20cy%3D%2240%22%20r%3D%2213%22%20fill%3D%22rgb(0%200%200%20%2F%200.55)%22%2F%3E%3Cpath%20d%3D%22M44%2033%20L56%2040%20L44%2047%20Z%22%20fill%3D%22%23fff%22%2F%3E%3C%2Fsvg%3E"
     },
     {
       "item_id": "DB5426EE",
@@ -2369,7 +2369,7 @@
       "match_confidence": "ordinal",
       "location_decision": "applied",
       "has_overlay": true,
-      "thumbnail_path": "mock-thumb:845:photo"
+      "thumbnail": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2096%2080%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%220%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22hsl(115%2070%25%2072%25)%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22hsl(145%2075%25%2086%25)%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%2296%22%20height%3D%2280%22%20fill%3D%22url(%23g)%22%2F%3E%3Ccircle%20cx%3D%2223%22%20cy%3D%2222%22%20r%3D%229%22%20fill%3D%22hsl(45%2095%25%2085%25)%22%2F%3E%3Cpath%20d%3D%22M0%2058%20Q24%2040%2048%2054%20T96%2050%20V80%20H0%20Z%22%20fill%3D%22hsl(255%2035%25%2038%25)%22%2F%3E%3Cpath%20d%3D%22M0%2068%20Q30%2056%2060%2066%20T96%2064%20V80%20H0%20Z%22%20fill%3D%22hsl(275%2040%25%2028%25)%22%2F%3E%3C%2Fsvg%3E"
     },
     {
       "item_id": "4DF37CC7",
@@ -2383,7 +2383,7 @@
       "match_confidence": "exact",
       "location_decision": "applied",
       "has_overlay": true,
-      "thumbnail_path": "mock-thumb:1014:photo"
+      "thumbnail": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2096%2080%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%220%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22hsl(138%2070%25%2072%25)%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22hsl(168%2075%25%2086%25)%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%2296%22%20height%3D%2280%22%20fill%3D%22url(%23g)%22%2F%3E%3Ccircle%20cx%3D%2260%22%20cy%3D%2222%22%20r%3D%229%22%20fill%3D%22hsl(45%2095%25%2085%25)%22%2F%3E%3Cpath%20d%3D%22M0%2058%20Q24%2040%2048%2054%20T96%2050%20V80%20H0%20Z%22%20fill%3D%22hsl(278%2035%25%2038%25)%22%2F%3E%3Cpath%20d%3D%22M0%2068%20Q30%2056%2060%2066%20T96%2064%20V80%20H0%20Z%22%20fill%3D%22hsl(298%2040%25%2028%25)%22%2F%3E%3C%2Fsvg%3E"
     },
     {
       "item_id": "C092D2A0",
@@ -2397,7 +2397,7 @@
       "match_confidence": "ordinal",
       "location_decision": "none",
       "has_overlay": false,
-      "thumbnail_path": "mock-thumb:1183:photo"
+      "thumbnail": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2096%2080%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%220%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22hsl(161%2070%25%2072%25)%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22hsl(191%2075%25%2086%25)%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%2296%22%20height%3D%2280%22%20fill%3D%22url(%23g)%22%2F%3E%3Ccircle%20cx%3D%2237%22%20cy%3D%2222%22%20r%3D%229%22%20fill%3D%22hsl(45%2095%25%2085%25)%22%2F%3E%3Cpath%20d%3D%22M0%2058%20Q24%2040%2048%2054%20T96%2050%20V80%20H0%20Z%22%20fill%3D%22hsl(301%2035%25%2038%25)%22%2F%3E%3Cpath%20d%3D%22M0%2068%20Q30%2056%2060%2066%20T96%2064%20V80%20H0%20Z%22%20fill%3D%22hsl(321%2040%25%2028%25)%22%2F%3E%3C%2Fsvg%3E"
     },
     {
       "item_id": "33322879",
@@ -2411,7 +2411,7 @@
       "match_confidence": "exact",
       "location_decision": "applied",
       "has_overlay": false,
-      "thumbnail_path": "mock-thumb:1352:photo"
+      "thumbnail": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2096%2080%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%220%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22hsl(184%2070%25%2072%25)%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22hsl(214%2075%25%2086%25)%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%2296%22%20height%3D%2280%22%20fill%3D%22url(%23g)%22%2F%3E%3Ccircle%20cx%3D%2274%22%20cy%3D%2222%22%20r%3D%229%22%20fill%3D%22hsl(45%2095%25%2085%25)%22%2F%3E%3Cpath%20d%3D%22M0%2058%20Q24%2040%2048%2054%20T96%2050%20V80%20H0%20Z%22%20fill%3D%22hsl(324%2035%25%2038%25)%22%2F%3E%3Cpath%20d%3D%22M0%2068%20Q30%2056%2060%2066%20T96%2064%20V80%20H0%20Z%22%20fill%3D%22hsl(344%2040%25%2028%25)%22%2F%3E%3C%2Fsvg%3E"
     },
     {
       "item_id": "A5D17E52",
@@ -2425,7 +2425,7 @@
       "match_confidence": "exact",
       "location_decision": "applied",
       "has_overlay": true,
-      "thumbnail_path": "mock-thumb:1521:photo"
+      "thumbnail": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2096%2080%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%220%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22hsl(207%2070%25%2072%25)%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22hsl(237%2075%25%2086%25)%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%2296%22%20height%3D%2280%22%20fill%3D%22url(%23g)%22%2F%3E%3Ccircle%20cx%3D%2251%22%20cy%3D%2222%22%20r%3D%229%22%20fill%3D%22hsl(45%2095%25%2085%25)%22%2F%3E%3Cpath%20d%3D%22M0%2058%20Q24%2040%2048%2054%20T96%2050%20V80%20H0%20Z%22%20fill%3D%22hsl(347%2035%25%2038%25)%22%2F%3E%3Cpath%20d%3D%22M0%2068%20Q30%2056%2060%2066%20T96%2064%20V80%20H0%20Z%22%20fill%3D%22hsl(7%2040%25%2028%25)%22%2F%3E%3C%2Fsvg%3E"
     },
     {
       "item_id": "1870D42B",
@@ -2439,7 +2439,7 @@
       "match_confidence": "ordinal",
       "location_decision": "applied",
       "has_overlay": false,
-      "thumbnail_path": "mock-thumb:1690:photo"
+      "thumbnail": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2096%2080%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%220%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22hsl(230%2070%25%2072%25)%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22hsl(260%2075%25%2086%25)%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%2296%22%20height%3D%2280%22%20fill%3D%22url(%23g)%22%2F%3E%3Ccircle%20cx%3D%2228%22%20cy%3D%2222%22%20r%3D%229%22%20fill%3D%22hsl(45%2095%25%2085%25)%22%2F%3E%3Cpath%20d%3D%22M0%2058%20Q24%2040%2048%2054%20T96%2050%20V80%20H0%20Z%22%20fill%3D%22hsl(10%2035%25%2038%25)%22%2F%3E%3Cpath%20d%3D%22M0%2068%20Q30%2056%2060%2066%20T96%2064%20V80%20H0%20Z%22%20fill%3D%22hsl(30%2040%25%2028%25)%22%2F%3E%3C%2Fsvg%3E"
     },
     {
       "item_id": "8B102A04",
@@ -2453,7 +2453,7 @@
       "match_confidence": "ordinal",
       "location_decision": "none",
       "has_overlay": false,
-      "thumbnail_path": "mock-thumb:1859:photo"
+      "thumbnail": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2096%2080%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%220%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22hsl(253%2070%25%2072%25)%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22hsl(283%2075%25%2086%25)%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%2296%22%20height%3D%2280%22%20fill%3D%22url(%23g)%22%2F%3E%3Ccircle%20cx%3D%2265%22%20cy%3D%2222%22%20r%3D%229%22%20fill%3D%22hsl(45%2095%25%2085%25)%22%2F%3E%3Cpath%20d%3D%22M0%2058%20Q24%2040%2048%2054%20T96%2050%20V80%20H0%20Z%22%20fill%3D%22hsl(33%2035%25%2038%25)%22%2F%3E%3Cpath%20d%3D%22M0%2068%20Q30%2056%2060%2066%20T96%2064%20V80%20H0%20Z%22%20fill%3D%22hsl(53%2040%25%2028%25)%22%2F%3E%3C%2Fsvg%3E"
     },
     {
       "item_id": "FDAF7FDD",
@@ -2467,7 +2467,7 @@
       "match_confidence": "ordinal",
       "location_decision": "none",
       "has_overlay": true,
-      "thumbnail_path": "mock-thumb:2028:photo"
+      "thumbnail": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2096%2080%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%220%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22hsl(276%2070%25%2072%25)%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22hsl(306%2075%25%2086%25)%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%2296%22%20height%3D%2280%22%20fill%3D%22url(%23g)%22%2F%3E%3Ccircle%20cx%3D%2242%22%20cy%3D%2222%22%20r%3D%229%22%20fill%3D%22hsl(45%2095%25%2085%25)%22%2F%3E%3Cpath%20d%3D%22M0%2058%20Q24%2040%2048%2054%20T96%2050%20V80%20H0%20Z%22%20fill%3D%22hsl(56%2035%25%2038%25)%22%2F%3E%3Cpath%20d%3D%22M0%2068%20Q30%2056%2060%2066%20T96%2064%20V80%20H0%20Z%22%20fill%3D%22hsl(76%2040%25%2028%25)%22%2F%3E%3C%2Fsvg%3E"
     },
     {
       "item_id": "704ED5B6",
@@ -2481,7 +2481,7 @@
       "match_confidence": "ordinal",
       "location_decision": "none",
       "has_overlay": false,
-      "thumbnail_path": "mock-thumb:2197:video"
+      "thumbnail": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2096%2080%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%220%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22hsl(299%2070%25%2072%25)%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22hsl(329%2075%25%2086%25)%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%2296%22%20height%3D%2280%22%20fill%3D%22url(%23g)%22%2F%3E%3Ccircle%20cx%3D%2219%22%20cy%3D%2222%22%20r%3D%229%22%20fill%3D%22hsl(45%2095%25%2085%25)%22%2F%3E%3Cpath%20d%3D%22M0%2058%20Q24%2040%2048%2054%20T96%2050%20V80%20H0%20Z%22%20fill%3D%22hsl(79%2035%25%2038%25)%22%2F%3E%3Cpath%20d%3D%22M0%2068%20Q30%2056%2060%2066%20T96%2064%20V80%20H0%20Z%22%20fill%3D%22hsl(99%2040%25%2028%25)%22%2F%3E%3Ccircle%20cx%3D%2248%22%20cy%3D%2240%22%20r%3D%2213%22%20fill%3D%22rgb(0%200%200%20%2F%200.55)%22%2F%3E%3Cpath%20d%3D%22M44%2033%20L56%2040%20L44%2047%20Z%22%20fill%3D%22%23fff%22%2F%3E%3C%2Fsvg%3E"
     },
     {
       "item_id": "E2EE2B8F",
@@ -2495,7 +2495,7 @@
       "match_confidence": "ordinal",
       "location_decision": "applied",
       "has_overlay": false,
-      "thumbnail_path": "mock-thumb:2366:photo"
+      "thumbnail": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2096%2080%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%220%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22hsl(322%2070%25%2072%25)%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22hsl(352%2075%25%2086%25)%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%2296%22%20height%3D%2280%22%20fill%3D%22url(%23g)%22%2F%3E%3Ccircle%20cx%3D%2256%22%20cy%3D%2222%22%20r%3D%229%22%20fill%3D%22hsl(45%2095%25%2085%25)%22%2F%3E%3Cpath%20d%3D%22M0%2058%20Q24%2040%2048%2054%20T96%2050%20V80%20H0%20Z%22%20fill%3D%22hsl(102%2035%25%2038%25)%22%2F%3E%3Cpath%20d%3D%22M0%2068%20Q30%2056%2060%2066%20T96%2064%20V80%20H0%20Z%22%20fill%3D%22hsl(122%2040%25%2028%25)%22%2F%3E%3C%2Fsvg%3E"
     },
     {
       "item_id": "558D8168",
@@ -2509,7 +2509,7 @@
       "match_confidence": "exact",
       "location_decision": "applied",
       "has_overlay": false,
-      "thumbnail_path": "mock-thumb:2535:photo"
+      "thumbnail": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2096%2080%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%220%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22hsl(345%2070%25%2072%25)%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22hsl(15%2075%25%2086%25)%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%2296%22%20height%3D%2280%22%20fill%3D%22url(%23g)%22%2F%3E%3Ccircle%20cx%3D%2233%22%20cy%3D%2222%22%20r%3D%229%22%20fill%3D%22hsl(45%2095%25%2085%25)%22%2F%3E%3Cpath%20d%3D%22M0%2058%20Q24%2040%2048%2054%20T96%2050%20V80%20H0%20Z%22%20fill%3D%22hsl(125%2035%25%2038%25)%22%2F%3E%3Cpath%20d%3D%22M0%2068%20Q30%2056%2060%2066%20T96%2064%20V80%20H0%20Z%22%20fill%3D%22hsl(145%2040%25%2028%25)%22%2F%3E%3C%2Fsvg%3E"
     },
     {
       "item_id": "BDA6BDCF",
@@ -2523,7 +2523,7 @@
       "match_confidence": "ordinal",
       "location_decision": "applied",
       "has_overlay": false,
-      "thumbnail_path": "mock-thumb:3966:photo"
+      "thumbnail": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2096%2080%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%220%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22hsl(282%2070%25%2072%25)%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22hsl(312%2075%25%2086%25)%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%2296%22%20height%3D%2280%22%20fill%3D%22url(%23g)%22%2F%3E%3Ccircle%20cx%3D%2236%22%20cy%3D%2222%22%20r%3D%229%22%20fill%3D%22hsl(45%2095%25%2085%25)%22%2F%3E%3Cpath%20d%3D%22M0%2058%20Q24%2040%2048%2054%20T96%2050%20V80%20H0%20Z%22%20fill%3D%22hsl(62%2035%25%2038%25)%22%2F%3E%3Cpath%20d%3D%22M0%2068%20Q30%2056%2060%2066%20T96%2064%20V80%20H0%20Z%22%20fill%3D%22hsl(82%2040%25%2028%25)%22%2F%3E%3C%2Fsvg%3E"
     },
     {
       "item_id": "304613A8",
@@ -2537,7 +2537,7 @@
       "match_confidence": "ordinal",
       "location_decision": "applied",
       "has_overlay": false,
-      "thumbnail_path": "mock-thumb:4135:video"
+      "thumbnail": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2096%2080%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%220%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22hsl(305%2070%25%2072%25)%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22hsl(335%2075%25%2086%25)%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%2296%22%20height%3D%2280%22%20fill%3D%22url(%23g)%22%2F%3E%3Ccircle%20cx%3D%2273%22%20cy%3D%2222%22%20r%3D%229%22%20fill%3D%22hsl(45%2095%25%2085%25)%22%2F%3E%3Cpath%20d%3D%22M0%2058%20Q24%2040%2048%2054%20T96%2050%20V80%20H0%20Z%22%20fill%3D%22hsl(85%2035%25%2038%25)%22%2F%3E%3Cpath%20d%3D%22M0%2068%20Q30%2056%2060%2066%20T96%2064%20V80%20H0%20Z%22%20fill%3D%22hsl(105%2040%25%2028%25)%22%2F%3E%3Ccircle%20cx%3D%2248%22%20cy%3D%2240%22%20r%3D%2213%22%20fill%3D%22rgb(0%200%200%20%2F%200.55)%22%2F%3E%3Cpath%20d%3D%22M44%2033%20L56%2040%20L44%2047%20Z%22%20fill%3D%22%23fff%22%2F%3E%3C%2Fsvg%3E"
     },
     {
       "item_id": "A2E56981",
@@ -2551,7 +2551,7 @@
       "match_confidence": "exact",
       "location_decision": "applied",
       "has_overlay": true,
-      "thumbnail_path": "mock-thumb:4304:video"
+      "thumbnail": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2096%2080%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%220%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22hsl(328%2070%25%2072%25)%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22hsl(358%2075%25%2086%25)%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%2296%22%20height%3D%2280%22%20fill%3D%22url(%23g)%22%2F%3E%3Ccircle%20cx%3D%2250%22%20cy%3D%2222%22%20r%3D%229%22%20fill%3D%22hsl(45%2095%25%2085%25)%22%2F%3E%3Cpath%20d%3D%22M0%2058%20Q24%2040%2048%2054%20T96%2050%20V80%20H0%20Z%22%20fill%3D%22hsl(108%2035%25%2038%25)%22%2F%3E%3Cpath%20d%3D%22M0%2068%20Q30%2056%2060%2066%20T96%2064%20V80%20H0%20Z%22%20fill%3D%22hsl(128%2040%25%2028%25)%22%2F%3E%3Ccircle%20cx%3D%2248%22%20cy%3D%2240%22%20r%3D%2213%22%20fill%3D%22rgb(0%200%200%20%2F%200.55)%22%2F%3E%3Cpath%20d%3D%22M44%2033%20L56%2040%20L44%2047%20Z%22%20fill%3D%22%23fff%22%2F%3E%3C%2Fsvg%3E"
     },
     {
       "item_id": "1584BF5A",
@@ -2565,7 +2565,7 @@
       "match_confidence": "exact",
       "location_decision": "applied",
       "has_overlay": false,
-      "thumbnail_path": "mock-thumb:4473:photo"
+      "thumbnail": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2096%2080%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%220%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22hsl(351%2070%25%2072%25)%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22hsl(21%2075%25%2086%25)%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%2296%22%20height%3D%2280%22%20fill%3D%22url(%23g)%22%2F%3E%3Ccircle%20cx%3D%2227%22%20cy%3D%2222%22%20r%3D%229%22%20fill%3D%22hsl(45%2095%25%2085%25)%22%2F%3E%3Cpath%20d%3D%22M0%2058%20Q24%2040%2048%2054%20T96%2050%20V80%20H0%20Z%22%20fill%3D%22hsl(131%2035%25%2038%25)%22%2F%3E%3Cpath%20d%3D%22M0%2068%20Q30%2056%2060%2066%20T96%2064%20V80%20H0%20Z%22%20fill%3D%22hsl(151%2040%25%2028%25)%22%2F%3E%3C%2Fsvg%3E"
     },
     {
       "item_id": "88241533",
@@ -2579,7 +2579,7 @@
       "match_confidence": "exact",
       "location_decision": "applied",
       "has_overlay": false,
-      "thumbnail_path": "mock-thumb:4642:photo"
+      "thumbnail": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2096%2080%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%220%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22hsl(14%2070%25%2072%25)%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22hsl(44%2075%25%2086%25)%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%2296%22%20height%3D%2280%22%20fill%3D%22url(%23g)%22%2F%3E%3Ccircle%20cx%3D%2264%22%20cy%3D%2222%22%20r%3D%229%22%20fill%3D%22hsl(45%2095%25%2085%25)%22%2F%3E%3Cpath%20d%3D%22M0%2058%20Q24%2040%2048%2054%20T96%2050%20V80%20H0%20Z%22%20fill%3D%22hsl(154%2035%25%2038%25)%22%2F%3E%3Cpath%20d%3D%22M0%2068%20Q30%2056%2060%2066%20T96%2064%20V80%20H0%20Z%22%20fill%3D%22hsl(174%2040%25%2028%25)%22%2F%3E%3C%2Fsvg%3E"
     },
     {
       "item_id": "FAC36B0C",
@@ -2593,7 +2593,7 @@
       "match_confidence": "exact",
       "location_decision": "none",
       "has_overlay": true,
-      "thumbnail_path": "mock-thumb:4811:photo"
+      "thumbnail": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2096%2080%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%220%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22hsl(37%2070%25%2072%25)%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22hsl(67%2075%25%2086%25)%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%2296%22%20height%3D%2280%22%20fill%3D%22url(%23g)%22%2F%3E%3Ccircle%20cx%3D%2241%22%20cy%3D%2222%22%20r%3D%229%22%20fill%3D%22hsl(45%2095%25%2085%25)%22%2F%3E%3Cpath%20d%3D%22M0%2058%20Q24%2040%2048%2054%20T96%2050%20V80%20H0%20Z%22%20fill%3D%22hsl(177%2035%25%2038%25)%22%2F%3E%3Cpath%20d%3D%22M0%2068%20Q30%2056%2060%2066%20T96%2064%20V80%20H0%20Z%22%20fill%3D%22hsl(197%2040%25%2028%25)%22%2F%3E%3C%2Fsvg%3E"
     }
   ],
   "clip_groups": [

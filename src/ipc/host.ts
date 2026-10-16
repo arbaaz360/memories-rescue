@@ -7,7 +7,6 @@
  */
 
 import type { Unlisten } from "./backend";
-import { mockThumbnailUrl } from "./mock/thumbs";
 
 export type Platform = "windows" | "macos" | "linux" | "other";
 
@@ -28,10 +27,7 @@ export interface Host {
   pickExportFolders(title: string): Promise<string[]>;
   pickDestination(title: string, current: string | null): Promise<string | null>;
   onDragDrop(handler: (e: DragDropEvent) => void): Promise<Unlisten>;
-  openUrl(url: string): Promise<void>;
   notify(title: string, body: string): Promise<void>;
-  /** URL an <img> can load for an engine-written thumbnail path. */
-  assetUrl(path: string): string;
 }
 
 export function detectPlatform(userAgent: string): Platform {
@@ -135,19 +131,11 @@ export class BrowserHost implements Host {
     };
   }
 
-  async openUrl(url: string): Promise<void> {
-    window.open(url, "_blank", "noopener,noreferrer");
-  }
-
   async notify(title: string, body: string): Promise<void> {
     if ("Notification" in window && Notification.permission === "granted") {
       new Notification(title, { body });
     } else {
       console.info(`[notification] ${title}: ${body}`);
     }
-  }
-
-  assetUrl(path: string): string {
-    return mockThumbnailUrl(path) ?? "";
   }
 }

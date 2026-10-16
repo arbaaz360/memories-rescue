@@ -255,7 +255,7 @@ export function Preview() {
                   <tr key={s.item_id}>
                     <td>
                       <span class="thumb">
-                        {s.thumbnail_path ? <img src={store.host.assetUrl(s.thumbnail_path)} alt="" width={64} height={53} /> : null}
+                        {s.thumbnail ? <img src={s.thumbnail} alt="" width={64} height={53} /> : null}
                         <span class="thumb-kind">
                           {s.media_type === "video" ? <IconVideo size={14} /> : <IconPhoto size={14} />}
                           <span class="visually-hidden">{t("preview-kind", { kind: s.media_type })}</span>

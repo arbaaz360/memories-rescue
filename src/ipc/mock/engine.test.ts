@@ -248,3 +248,32 @@ describe("licence and settings", () => {
     expect(jobs[0].state).toBe("paused");
   });
 });
+
+describe("links and thumbnails", () => {
+  it("open_link resolves only the app's own addresses, by name", async () => {
+    const m = engine();
+    const info = await m.call("app_info", {});
+    const want: [Parameters<typeof m.call<"open_link">>[1]["link"], string][] = [
+      ["website", info.website_url],
+      ["privacy", info.privacy_policy_url],
+      ["terms", info.terms_url],
+      ["faq", info.faq_url],
+      ["ffmpeg_source", info.ffmpeg_source_url],
+      ["support", `mailto:${info.support_email}`],
+      ["purchase", (await m.call("license_status", {})).product_url],
+    ];
+    for (const [link, url] of want) {
+      await m.call("open_link", { link });
+      expect(m.lastLink).toBe(url);
+    }
+  });
+
+  it("sends thumbnails as data: URLs, never paths", async () => {
+    const m = engine();
+    const { ids, options } = await setup(m);
+    const plan = await m.call("plan", { input_ids: ids, options });
+    const thumbs = plan.samples.map((s) => s.thumbnail).filter((t): t is string => t !== null);
+    expect(thumbs.length).toBeGreaterThan(0);
+    for (const t of thumbs) expect(t.startsWith("data:image/")).toBe(true);
+  });
+});

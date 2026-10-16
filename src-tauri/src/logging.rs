@@ -1,12 +1,21 @@
 //! FR-41: a rotating local log in the app's log folder.
 //!
 //! * At most [`FILES`] files of [`MAX_FILE`] bytes: 50 MB in all.
-//! * Every line goes through [`Redactor`] before it is written: the home
-//!   folder becomes `~`, web addresses become `[url]`, query strings
-//!   `[query]`, and item keys or export file IDs (a capture date and the
-//!   ID in the export's file names) `[item]`, so nothing that identifies a
-//!   person, an account or a memory reaches the disk (the export's links
-//!   carry `sid`/`mid` tokens).
+//! * Every line goes through [`Redactor`] before it is written, so nothing
+//!   that identifies a person, an account or a memory reaches the disk:
+//!   - the home folder becomes `~`, in every spelling: either separator, any
+//!     case, the `\\?\` long-path form, and the escaped form that JSON and
+//!     `{:?}` output use (`C:\\Users\\...`);
+//!   - web addresses become `[url]` and query strings `[query]` (the
+//!     export's links carry `sid`/`mid` tokens);
+//!   - export entry names (`memories/...`, any media file name) become
+//!     `[entry]`;
+//!   - item keys (`YYYY-MM-DD_<id>`, any case, UUID or not) become `[item]`
+//!     and any other UUID `[id]`, except a job id after `job=` or `job_id=`,
+//!     which is random and lets support follow a job through the log.
+//! * A panic is logged with its location before the default hook runs
+//!   ([`install_panic_hook`]), so a crash in the field leaves a trace in the
+//!   diagnostics ZIP.
 //! * `tracing` events from the app and `log` records from the engine crates
 //!   (mr-composite logs through `log`) end up in the same file.
 //!
@@ -35,8 +44,14 @@ pub struct Redactor {
     homes: Vec<String>,
     url: Regex,
     query: Regex,
+    entry: Regex,
     item: Regex,
+    media: Regex,
+    uuid: Regex,
 }
+
+/// Contexts in which a UUID is one of the app's own random job ids.
+const JOB_ID_CONTEXTS: [&str; 2] = ["job=", "job_id="];
 
 impl Redactor {
     /// For the current user's home folder (USERPROFILE on Windows, HOME elsewhere).
@@ -49,12 +64,20 @@ impl Redactor {
 
     pub fn new(home: &str) -> Redactor {
         let mut homes = Vec::new();
+        let home = home.trim_end_matches(['/', '\\']);
         if home.len() > 3 {
-            homes.push(home.to_string());
-            homes.push(home.replace('\\', "/"));
-            homes.push(home.replace('/', "\\"));
-            // `\\?\C:\Users\...` long-path form.
-            homes.push(format!(r"\\?\{}", home.replace('/', "\\")));
+            let back = home.replace('/', "\\");
+            for h in [
+                home.to_string(),
+                home.replace('\\', "/"),
+                back.clone(),
+                // `\\?\C:\Users\...` long-path form.
+                format!(r"\\?\{back}"),
+            ] {
+                // The same path as JSON and `{:?}` write it: every backslash doubled.
+                homes.push(h.replace('\\', "\\\\"));
+                homes.push(h);
+            }
         }
         homes.sort_by_key(|h| std::cmp::Reverse(h.len()));
         homes.dedup();
@@ -62,12 +85,18 @@ impl Redactor {
             homes,
             url: Regex::new(r#"(?i)\b[a-z][a-z0-9+.-]*://[^\s"'<>)]*"#).expect("url regex"),
             query: Regex::new(r#"\?[^\s"'<>?]*="#).expect("query regex"),
-            // Snapchat file IDs are upper-case UUIDs; mr-job keys prefix the capture date.
-            // Job ids (random, lower-case) stay readable for support.
-            item: Regex::new(
-                r"(?:\d{4}-\d{2}-\d{2}_)?[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}",
+            // Entries inside an export: `memories/...`, `chat_media/...`, `json/...`, `html/...`.
+            entry: Regex::new(r#"(?i)\b(?:memories|chat_media|json|html|media)/[^\s"'<>]+"#)
+                .expect("entry regex"),
+            // mr-job item keys and Snapchat file names: the capture date, `_`, the item id (any case).
+            item: Regex::new(r"\b\d{4}-\d{2}-\d{2}_[A-Za-z0-9][A-Za-z0-9_-]*").expect("item regex"),
+            // Any other media file name: it is the name of a memory.
+            media: Regex::new(
+                r#"(?i)[^\s"'<>/\\|:*?\[\]]+\.(?:jpe?g|png|gif|webp|heic|heif|mp4|mov|m4v|avi|3gp)\b"#,
             )
-            .expect("item regex"),
+            .expect("media regex"),
+            uuid: Regex::new(r"(?i)\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b")
+                .expect("uuid regex"),
         }
     }
 
@@ -84,7 +113,23 @@ impl Redactor {
         for home in &self.homes {
             out = replace_ignore_case(&out, home, "~");
         }
-        self.item.replace_all(&out, "[item]").into_owned()
+        let out = self.entry.replace_all(&out, "[entry]");
+        let out = self.item.replace_all(&out, "[item]");
+        let out = self.media.replace_all(&out, "[entry]");
+        let mut kept = String::with_capacity(out.len());
+        let mut last = 0;
+        for m in self.uuid.find_iter(&out) {
+            kept.push_str(&out[last..m.start()]);
+            let before = &out[..m.start()];
+            if JOB_ID_CONTEXTS.iter().any(|c| before.ends_with(c)) {
+                kept.push_str(m.as_str());
+            } else {
+                kept.push_str("[id]");
+            }
+            last = m.end();
+        }
+        kept.push_str(&out[last..]);
+        kept
     }
 }
 
@@ -264,6 +309,36 @@ pub fn filter() -> Targets {
         .with_target("little_exif", LevelFilter::OFF)
 }
 
+/// Logs a panic (message, location, thread) through `tracing`, so it is
+/// redacted and written like every other line, then runs the previous hook.
+/// The release profile may abort right after the hook; the event is written
+/// synchronously before that.
+pub fn install_panic_hook() {
+    let previous = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        log_panic(info);
+        previous(info);
+    }));
+}
+
+fn log_panic(info: &std::panic::PanicHookInfo<'_>) {
+    let message = info
+        .payload()
+        .downcast_ref::<&str>()
+        .map(|s| s.to_string())
+        .or_else(|| info.payload().downcast_ref::<String>().cloned())
+        .unwrap_or_else(|| "non-string panic payload".to_string());
+    let location = info
+        .location()
+        .map(|l| format!("{}:{}:{}", l.file(), l.line(), l.column()))
+        .unwrap_or_else(|| "unknown".to_string());
+    let thread = std::thread::current()
+        .name()
+        .unwrap_or("unnamed")
+        .to_string();
+    tracing::error!(target: "panic", location = %location, thread = %thread, "panic: {message}");
+}
+
 /// Starts logging to `dir`. Returns false if the folder cannot be written
 /// (the app then runs without a log rather than not at all).
 pub fn init(dir: &Path) -> bool {
@@ -299,12 +374,100 @@ mod tests {
         );
         assert!(out.contains("[url]") && out.contains("[query]"), "{out}");
         let mac = Redactor::new("/Users/adam");
-        assert_eq!(mac.redact("/Users/adam/Movies/a.mp4"), "~/Movies/a.mp4");
+        assert_eq!(mac.redact("/Users/adam/Movies/a.mp4"), "~/Movies/[entry]");
         assert_eq!(r.redact(r"\\?\C:\Users\Adam\x"), r"~\x");
         assert_eq!(
             r.redact("clip group 2019-07-14_CCB7781A-1F90-4612-BDFC-FDBCDCA2614E done; file 75103A0C-87F2-4B73-ABF7-A82A20C6D024-main.mp4; job da8fa300-7fe6-4f89-9a73-9e8260872ebf"),
-            "clip group [item] done; file [item]-main.mp4; job da8fa300-7fe6-4f89-9a73-9e8260872ebf"
+            "clip group [item] done; file [entry]; job [id]"
         );
+    }
+
+    #[test]
+    fn every_spelling_of_the_home_folder_is_redacted() {
+        let r = Redactor::new(r"C:\Users\Adam Smith");
+        for text in [
+            r"C:\Users\Adam Smith\Pictures",
+            r"c:\users\adam smith\pictures",
+            "C:/Users/Adam Smith/Pictures",
+            r"\\?\C:\Users\Adam Smith\Pictures",
+            // As serde_json and `{:?}` write it.
+            r#"{"destination":"C:\\Users\\Adam Smith\\Pictures"}"#,
+            r#"Some("\\\\?\\C:\\Users\\Adam Smith\\AppData")"#,
+        ] {
+            let out = r.redact(text);
+            assert!(!out.to_lowercase().contains("adam"), "{text} -> {out}");
+            assert!(out.contains('~'), "{text} -> {out}");
+        }
+    }
+
+    #[test]
+    fn item_keys_entry_names_and_ids_are_masked_but_job_ids_stay() {
+        let r = Redactor::new("/home/sam");
+        let cases = [
+            (
+                "item=2019-07-14_ccb7781a-1f90-4612-bdfc-fdbcdca2614e done",
+                "item=[item] done",
+            ),
+            ("item=2017-05-23_AbC123xyz failed", "item=[item] failed"),
+            (
+                "read memories/2019-07-14_CCB7781A-main.mp4 ok",
+                "read [entry] ok",
+            ),
+            ("entry json/memories_history.json", "entry [entry]"),
+            (
+                "wrote 2019-07-14_235000_CCB7781A-joined.mp4",
+                "wrote [item].mp4",
+            ),
+            (
+                "unrecognised IMG_1234.JPG and Snapchat-1234.mov",
+                "unrecognised [entry] and [entry]",
+            ),
+            ("file 75103a0c-87f2-4b73-abf7-a82a20c6d024", "file [id]"),
+            (
+                "job=da8fa300-7fe6-4f89-9a73-9e8260872ebf job_id=0f6e1c2a-1b2c-4d5e-8f90-123456789abc",
+                "job=da8fa300-7fe6-4f89-9a73-9e8260872ebf job_id=0f6e1c2a-1b2c-4d5e-8f90-123456789abc",
+            ),
+            (
+                "2026-10-16T10:45:11.176309Z INFO report.html written",
+                "2026-10-16T10:45:11.176309Z INFO report.html written",
+            ),
+        ];
+        for (text, want) in cases {
+            assert_eq!(r.redact(text), want, "{text}");
+        }
+    }
+
+    #[test]
+    fn a_panic_is_logged_with_its_location_and_redacted() {
+        let dir = std::env::temp_dir().join(format!("mr-log-panic-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        let log = SharedLog::new(
+            RotatingFile::open(&dir, MAX_FILE, FILES).unwrap(),
+            Redactor::new("/home/sam"),
+        );
+        install_panic_hook();
+        let writer = log.clone();
+        let joined = std::thread::Builder::new()
+            .name("job-test".into())
+            .spawn(move || {
+                let sub = tracing_subscriber::registry().with(
+                    tracing_subscriber::fmt::layer()
+                        .with_writer(writer)
+                        .with_ansi(false),
+                );
+                tracing::subscriber::with_default(sub, || {
+                    panic!("could not read /home/sam/x.zip");
+                });
+            })
+            .unwrap()
+            .join();
+        assert!(joined.is_err());
+        let text = fs::read_to_string(dir.join(BASE)).unwrap();
+        assert!(text.contains("panic: could not read ~/x.zip"), "{text}");
+        assert!(text.contains("logging.rs:"), "{text}");
+        assert!(text.contains("thread=job-test"), "{text}");
+        assert!(!text.contains("/home/sam"), "{text}");
+        let _ = fs::remove_dir_all(&dir);
     }
 
     #[test]

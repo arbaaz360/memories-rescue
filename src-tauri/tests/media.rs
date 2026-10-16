@@ -327,6 +327,7 @@ fn f08_clip_group_ids_survive_the_round_trip_through_the_window() {
         } else {
             assert_eq!(c.status, ClipStatus::Done, "{c:?}");
             let out = c.output_path.as_ref().unwrap();
+            assert!(env.engine.openable(out).is_ok(), "Open video: {out}");
             assert!(
                 out.ends_with("-joined.mp4") && Path::new(out).is_file(),
                 "{out}"
