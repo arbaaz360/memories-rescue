@@ -1,0 +1,24 @@
+{
+  "_comment": "Pinned release sidecars (SRS 10.4). The ffmpeg session fills in sha256 after publishing the minimal build as release `release` of `repo`; a null sha256 means not yet published. Read by tools/release/stage_sidecars.py.",
+  "repo": "arbaaz360/memories-rescue-releases",
+  "release": "sidecars-ffmpeg-9.0.2",
+  "ffmpeg_version": "9.0.2",
+  "targets": {
+    "x86_64-pc-windows-msvc": {
+      "asset": "ffmpeg-x86_64-pc-windows-msvc.exe",
+      "sha256": null
+    },
+    "universal-apple-darwin": {
+      "asset": "ffmpeg-universal-apple-darwin",
+      "sha256": null
+    }
+  },
+  "source_assets": [
+    "ffmpeg-9.0.2.tar.xz",
+    "ffmpeg-9.0.2.tar.xz.asc",
+    "build.sh",
+    "BUILDINFO-windows-x64.txt",
+    "BUILDINFO-macos.txt",
+    "COPYING.LGPLv2.1"
+  ]
+}

@@ -67,6 +67,12 @@ jobs:
       - name: Frontend tests
         run: npm test
 
+      # SRS 10.5 pre-build items: one version everywhere, changelog entry,
+      # THIRD_PARTY_NOTICES.md regenerated (tools/release/notices.py --check),
+      # release config overlay parses.
+      - name: Release checklist
+        run: python tools/release/check.py
+
       - name: cargo fmt
         run: cargo fmt --all --check
 
@@ -75,3 +81,15 @@ jobs:
 
       - name: cargo test
         run: cargo test --workspace
+
+  workflows:
+    name: workflow lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      # Static check of every workflow (expressions, inputs, shell scripts).
+      - name: actionlint
+        uses: docker://rhysd/actionlint:1.7.12
+        with:
+          args: -color

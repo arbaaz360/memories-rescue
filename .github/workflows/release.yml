@@ -1,0 +1,320 @@
+# Release: on a version tag (v1.0.0, v1.1.0-beta.1) build Windows x64 (NSIS +
+# MSI) and macOS universal (DMG), sign and notarize when the secrets exist,
+# produce updater artifacts and manifests, and leave a draft release on the
+# public releases repository for the owner to publish.
+#
+# Secrets (all optional except RELEASES_TOKEN; docs/release/README.md says
+# where each comes from and what happens without it):
+#   RELEASES_TOKEN                         fine-grained token, contents: write on arbaaz360/memories-rescue-releases
+#   TAURI_SIGNING_PRIVATE_KEY              updater signing key, TAURI_SIGNING_PRIVATE_KEY_PASSWORD its password
+#   APPLE_CERTIFICATE, APPLE_CERTIFICATE_PASSWORD, APPLE_SIGNING_IDENTITY, APPLE_TEAM_ID
+#   APPLE_API_ISSUER, APPLE_API_KEY, APPLE_API_KEY_CONTENT      notarytool (App Store Connect API key)
+#   ESIGNER_USERNAME, ESIGNER_PASSWORD, ESIGNER_CREDENTIAL_ID, ESIGNER_TOTP_SECRET   SSL.com eSigner (primary)
+#   AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET,
+#   TRUSTED_SIGNING_ENDPOINT, TRUSTED_SIGNING_ACCOUNT, TRUSTED_SIGNING_PROFILE   Azure Trusted Signing (alternative)
+#
+# Without signing secrets the build still runs and the release is labelled
+# "unsigned build"; without a pinned minimal ffmpeg the Windows build can use
+# the development ffmpeg only when dispatched by hand with allow_dev_ffmpeg.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to build and publish, e.g. v1.0.0"
+        required: true
+        type: string
+      allow_dev_ffmpeg:
+        description: "Windows only: stage the BtbN development ffmpeg when no minimal build is pinned (labelled, not for publishing)"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  RELEASES_REPO: arbaaz360/memories-rescue-releases
+  TAG: ${{ inputs.tag || github.ref_name }}
+  CARGO_TERM_COLOR: always
+
+jobs:
+  checks:
+    name: Checklist
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+      prerelease: ${{ steps.meta.outputs.prerelease }}
+      notes: ${{ steps.meta.outputs.notes }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ env.TAG }}
+
+      - name: Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Node 22
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Python 3.12
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: npm ci
+        run: npm ci
+
+      # Versions agree, the changelog has the entry, the notices are current,
+      # the release overlay parses (SRS 10.5).
+      - name: Release checklist
+        run: python tools/release/check.py --tag "$TAG"
+
+      - name: Version, channel and release notes
+        id: meta
+        run: |
+          version=$(python -c "import json; print(json.load(open('package.json'))['version'])")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if [[ "$TAG" == *-* ]]; then
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          fi
+          {
+            echo "notes<<MR_NOTES_EOF"
+            python tools/release/release_notes.py "$version"
+            echo "MR_NOTES_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+  build:
+    name: ${{ matrix.name }}
+    needs: checks
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows x64
+            os: windows-latest
+            target: x86_64-pc-windows-msvc
+            rust_targets: x86_64-pc-windows-msvc
+            tauri_args: ""
+            bundle_dir: target/release/bundle
+          - name: macOS universal
+            os: macos-latest
+            target: universal-apple-darwin
+            rust_targets: aarch64-apple-darwin,x86_64-apple-darwin
+            tauri_args: "--target universal-apple-darwin"
+            bundle_dir: target/universal-apple-darwin/release/bundle
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ env.TAG }}
+
+      - name: Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust_targets }}
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: release-${{ matrix.target }}
+
+      - name: Node 22
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Python 3.12
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: npm ci
+        run: npm ci
+
+      # The minimal LGPL ffmpeg pinned in tools/release/sidecars.lock.json,
+      # fetched from the sidecar release of the releases repository and
+      # verified by SHA-256; sets MR_FFMPEG_KIND.
+      - name: Stage sidecars
+        shell: bash
+        run: |
+          extra=""
+          if [[ "${{ inputs.allow_dev_ffmpeg }}" == "true" ]]; then extra="--allow-dev"; fi
+          python tools/release/stage_sidecars.py --target "${{ matrix.target }}" $extra
+
+      # Which signing path this runner can take, from which secrets exist.
+      - name: Decide signing
+        shell: bash
+        env:
+          ESIGNER_USERNAME: ${{ secrets.ESIGNER_USERNAME }}
+          TRUSTED_SIGNING_ENDPOINT: ${{ secrets.TRUSTED_SIGNING_ENDPOINT }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+        run: |
+          signed=true
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            if [[ -n "$ESIGNER_USERNAME" ]]; then
+              echo "WINDOWS_SIGNER=esigner" >> "$GITHUB_ENV"
+            elif [[ -n "$TRUSTED_SIGNING_ENDPOINT" ]]; then
+              echo "WINDOWS_SIGNER=azure" >> "$GITHUB_ENV"
+            else
+              echo "WINDOWS_SIGNER=none" >> "$GITHUB_ENV"
+              signed=false
+            fi
+          else
+            if [[ -z "$APPLE_CERTIFICATE" ]]; then signed=false; fi
+          fi
+          echo "MR_RELEASE_SIGNED=$signed" >> "$GITHUB_ENV"
+          echo "signing: $signed"
+
+      - name: Install CodeSignTool (SSL.com eSigner)
+        if: runner.os == 'Windows' && env.WINDOWS_SIGNER == 'esigner'
+        shell: pwsh
+        run: |
+          $zip = Join-Path $env:RUNNER_TEMP "CodeSignTool.zip"
+          Invoke-WebRequest -Uri "https://www.ssl.com/download/codesigntool-for-windows/" -OutFile $zip
+          Expand-Archive -Path $zip -DestinationPath (Join-Path $env:RUNNER_TEMP "CodeSignTool") -Force
+          $bat = Get-ChildItem -Path (Join-Path $env:RUNNER_TEMP "CodeSignTool") -Filter CodeSignTool.bat -Recurse | Select-Object -First 1
+          if (-not $bat) { throw "CodeSignTool.bat not found in the download" }
+          "CODESIGNTOOL_DIR=$($bat.DirectoryName)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Install Trusted Signing client (Azure)
+        if: runner.os == 'Windows' && env.WINDOWS_SIGNER == 'azure'
+        shell: pwsh
+        run: |
+          $out = Join-Path $env:RUNNER_TEMP "tsc"
+          nuget install Microsoft.Trusted.Signing.Client -x -OutputDirectory $out
+          $dlib = Get-ChildItem -Path $out -Filter Azure.CodeSigning.Dlib.dll -Recurse | Where-Object { $_.FullName -match '\\x64\\' } | Select-Object -First 1
+          if (-not $dlib) { throw "Azure.CodeSigning.Dlib.dll not found" }
+          "TRUSTED_SIGNING_DLIB=$($dlib.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      # notarytool wants the App Store Connect key as a file.
+      - name: Apple API key file
+        if: runner.os == 'macOS' && env.MR_RELEASE_SIGNED == 'true'
+        shell: bash
+        env:
+          APPLE_API_KEY_CONTENT: ${{ secrets.APPLE_API_KEY_CONTENT }}
+        run: |
+          if [[ -n "$APPLE_API_KEY_CONTENT" ]]; then
+            printf '%s' "$APPLE_API_KEY_CONTENT" > "$RUNNER_TEMP/AuthKey.p8"
+            echo "APPLE_API_KEY_PATH=$RUNNER_TEMP/AuthKey.p8" >> "$GITHUB_ENV"
+          fi
+
+      # tauri-action: npm run tauri build (frontend via beforeBuildCommand),
+      # signs the app and every externalBin, notarizes and staples on macOS,
+      # signs updater artifacts, and uploads everything plus latest.json to a
+      # draft release on the releases repository.
+      - name: Build, sign and upload
+        uses: tauri-apps/tauri-action@v1.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          ESIGNER_USERNAME: ${{ secrets.ESIGNER_USERNAME }}
+          ESIGNER_PASSWORD: ${{ secrets.ESIGNER_PASSWORD }}
+          ESIGNER_CREDENTIAL_ID: ${{ secrets.ESIGNER_CREDENTIAL_ID }}
+          ESIGNER_TOTP_SECRET: ${{ secrets.ESIGNER_TOTP_SECRET }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          TRUSTED_SIGNING_ENDPOINT: ${{ secrets.TRUSTED_SIGNING_ENDPOINT }}
+          TRUSTED_SIGNING_ACCOUNT: ${{ secrets.TRUSTED_SIGNING_ACCOUNT }}
+          TRUSTED_SIGNING_PROFILE: ${{ secrets.TRUSTED_SIGNING_PROFILE }}
+        with:
+          owner: arbaaz360
+          repo: memories-rescue-releases
+          tagName: ${{ env.TAG }}
+          releaseName: Memories Rescue ${{ needs.checks.outputs.version }}
+          releaseBody: ${{ needs.checks.outputs.notes }}
+          releaseDraft: true
+          prerelease: ${{ needs.checks.outputs.prerelease == 'true' }}
+          releaseCommitish: main
+          uploadUpdaterJson: true
+          updaterJsonPreferNsis: true
+          tauriScript: npm run tauri
+          args: --config src-tauri/tauri.release.conf.json ${{ matrix.tauri_args }}
+
+      - name: Post-build checks
+        shell: bash
+        run: python tools/release/check.py --bundles --bundle-dir "${{ matrix.bundle_dir }}"
+
+      - name: Build record
+        shell: bash
+        run: |
+          mkdir -p build-info
+          python - <<'PY'
+          import json, os
+          json.dump({
+              "target": os.environ["MATRIX_TARGET"],
+              "signed": os.environ.get("MR_RELEASE_SIGNED", "false") == "true",
+              "ffmpeg_kind": os.environ.get("MR_FFMPEG_KIND", "unknown"),
+              "ffmpeg_version": os.environ.get("MR_FFMPEG_VERSION", ""),
+          }, open(f"build-info/{os.environ['MATRIX_TARGET']}.json", "w"), indent=2)
+          PY
+        env:
+          MATRIX_TARGET: ${{ matrix.target }}
+
+      - name: Upload build record
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-info-${{ matrix.target }}
+          path: build-info/
+
+      - name: Upload bundles (for inspection)
+        uses: actions/upload-artifact@v4
+        with:
+          name: bundles-${{ matrix.target }}
+          path: |
+            ${{ matrix.bundle_dir }}/nsis/*
+            ${{ matrix.bundle_dir }}/msi/*
+            ${{ matrix.bundle_dir }}/dmg/*.dmg
+            ${{ matrix.bundle_dir }}/macos/*.tar.gz
+            ${{ matrix.bundle_dir }}/macos/*.sig
+          if-no-files-found: error
+
+  publish:
+    name: Finish draft release
+    needs: [checks, build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ env.TAG }}
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: build-info-*
+          path: build-info
+          merge-multiple: true
+
+      # SHA256SUMS.txt, latest-beta.json for prereleases, the ffmpeg source
+      # bundle, and the "unsigned build" label when it applies.
+      - name: Checksums, updater channel, labels
+        env:
+          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+        run: |
+          python tools/release/finish_release.py \
+            --repo "$RELEASES_REPO" --tag "$TAG" \
+            --prerelease "${{ needs.checks.outputs.prerelease }}" \
+            --build-info "build-info/*.json"
