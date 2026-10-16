@@ -241,10 +241,30 @@ pub struct PlanTotals {
     pub skipped_free_limit: usize,
 }
 
-/// Clip rejoin groups (FR-27); detection arrives with the media crate.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// A clip rejoin group (FR-27, SRS section 4.5): consecutive clips that
+/// are joined into one extra video; the clips are still written as items.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ClipGroup {
+    /// The first clip's item key; what `ClipRejoin::skip_groups` lists.
+    #[serde(default)]
+    pub id: String,
+    /// Item keys in order.
     pub items: Vec<String>,
+    #[serde(default)]
+    pub start_utc: Option<DateTime<Utc>>,
+    /// Sum of the clip durations: the joined video's length.
+    #[serde(default)]
+    pub total_secs: f64,
+    /// Planned output of the joined video, relative to the output root.
+    #[serde(default)]
+    pub output_rel: String,
+    /// False when the user unticked the group (FR-27 AC3).
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 /// The dry-run result (FR-29) and the starting point of a job.
@@ -406,6 +426,11 @@ pub(crate) fn plan_with(
     }
 
     assign_names(&mut items, &root, options, naming);
+
+    // Clip groups (FR-27) and the HEVC playback notice (FR-51) read the
+    // video entries where they lie; nothing is extracted.
+    let clip_groups = crate::clips::detect(&items, &d, options);
+    let hevc_notice = crate::clips::hevc_notice(&items, &d, options);
 
     // Report extras.
     let mut extras = Vec::new();
@@ -581,6 +606,7 @@ pub(crate) fn plan_with(
             ),
         });
     }
+    warnings.extend(hevc_notice);
     if t.with_overlay > 0 && options.overlay_mode.burns_in() {
         warnings.push(Warning {
             code: "COMPOSITE_PENDING".into(),
@@ -618,7 +644,7 @@ pub(crate) fn plan_with(
         totals: t,
         space,
         warnings,
-        clip_groups: Vec::new(),
+        clip_groups,
         date_range: summary.date_range,
         tz_data_version: resolver.boundary_data_version().to_string(),
         home_zone: resolver.home_zone().map(str::to_string),

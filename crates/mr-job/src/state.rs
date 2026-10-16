@@ -17,7 +17,7 @@ use crate::control::Stage;
 use crate::error::{JobError, Result};
 use crate::fingerprint::PartFingerprint;
 use crate::options::Options;
-use crate::plan::{ExtraRow, PlanPart, PlannedItem, Warning};
+use crate::plan::{ClipGroup, ExtraRow, PlanPart, PlannedItem, Warning};
 
 pub const SCHEMA_VERSION: i64 = 1;
 
@@ -44,6 +44,9 @@ CREATE TABLE IF NOT EXISTS extra (
     rowid INTEGER PRIMARY KEY, kind TEXT, json_index INTEGER, source_json TEXT,
     media_type TEXT, date_utc TEXT, detail TEXT);
 CREATE TABLE IF NOT EXISTS clip_group (group_id TEXT, item_id TEXT, seq INTEGER);
+CREATE TABLE IF NOT EXISTS clip_output (
+    group_id TEXT PRIMARY KEY, group_json TEXT, signature TEXT, stage TEXT, attempts INTEGER,
+    output_path TEXT, output_sha256 TEXT, error_code TEXT, error_detail TEXT, done_utc TEXT);
 CREATE TABLE IF NOT EXISTS journal (
     seq INTEGER PRIMARY KEY AUTOINCREMENT, item_id TEXT, event TEXT, at_utc TEXT);
 "#;
@@ -165,6 +168,20 @@ pub struct Finished {
     pub originals_overlay: Option<String>,
     pub composite_pending: bool,
     pub seconds: f64,
+}
+
+/// A clip group's join (FR-27) and where it stands. `stage` is `pending`,
+/// `done`, `failed`, `skipped` (unticked) or `declined` (no media support).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ClipRow {
+    pub group: ClipGroup,
+    pub stage: String,
+    pub attempts: u32,
+    pub output_path: Option<String>,
+    pub output_sha256: Option<String>,
+    pub error_code: Option<String>,
+    pub error_detail: Option<String>,
+    pub done_utc: Option<String>,
 }
 
 /// A journal event (`start`, `done`, `failed`, `requeue`, `adopted`).
@@ -606,6 +623,185 @@ impl Db {
         )?;
         tx.commit()?;
         Ok(())
+    }
+
+    /// Store the plan's clip groups. A group whose members, members' plans
+    /// and output name are unchanged keeps its state; a changed one goes
+    /// back to `pending` and keeps its earlier output for replacement; an
+    /// unticked one is `skipped`. `signature` summarises the members' plans.
+    pub fn replace_clip_groups(&mut self, groups: &[(ClipGroup, String)]) -> Result<()> {
+        let old: std::collections::HashMap<String, (ClipRow, String)> = self
+            .clip_rows_with_signature()?
+            .into_iter()
+            .map(|(r, sig)| (r.group.id.clone(), (r, sig)))
+            .collect();
+        let tx = self.conn.transaction()?;
+        tx.execute("DELETE FROM clip_group", [])?;
+        tx.execute("DELETE FROM clip_output", [])?;
+        for (g, sig) in groups {
+            for (seq, item) in g.items.iter().enumerate() {
+                tx.execute(
+                    "INSERT INTO clip_group(group_id, item_id, seq) VALUES (?1, ?2, ?3)",
+                    params![g.id, item, seq as i64],
+                )?;
+            }
+            let prev = old.get(&g.id);
+            let same = prev.is_some_and(|(r, s)| {
+                s == sig && r.group.items == g.items && r.group.output_rel == g.output_rel
+            });
+            let stage = if !g.enabled {
+                "skipped".to_string()
+            } else if same {
+                let st = &prev.expect("same implies prev").0.stage;
+                if st == "skipped" {
+                    "pending".to_string()
+                } else {
+                    st.clone()
+                }
+            } else {
+                "pending".to_string()
+            };
+            let (attempts, out, sha, code, detail, done) = match prev {
+                Some((r, _)) => (
+                    r.attempts,
+                    r.output_path.clone(),
+                    r.output_sha256.clone(),
+                    if same { r.error_code.clone() } else { None },
+                    if same { r.error_detail.clone() } else { None },
+                    if same { r.done_utc.clone() } else { None },
+                ),
+                None => (0, None, None, None, None, None),
+            };
+            tx.execute(
+                "INSERT INTO clip_output(group_id, group_json, signature, stage, attempts,
+                    output_path, output_sha256, error_code, error_detail, done_utc)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+                params![
+                    g.id,
+                    json(g),
+                    sig,
+                    stage,
+                    attempts,
+                    out,
+                    sha,
+                    code,
+                    detail,
+                    done
+                ],
+            )?;
+        }
+        tx.commit()?;
+        Ok(())
+    }
+
+    fn clip_rows_with_signature(&self) -> Result<Vec<(ClipRow, String)>> {
+        let mut st = self.conn.prepare(
+            "SELECT group_json, signature, stage, attempts, output_path, output_sha256,
+                    error_code, error_detail, done_utc
+             FROM clip_output ORDER BY group_id",
+        )?;
+        let raw = st.query_map([], |r| {
+            Ok((
+                r.get::<_, String>(0)?,
+                r.get::<_, Option<String>>(1)?.unwrap_or_default(),
+                r.get::<_, String>(2)?,
+                r.get::<_, Option<u32>>(3)?.unwrap_or(0),
+                r.get::<_, Option<String>>(4)?,
+                r.get::<_, Option<String>>(5)?,
+                r.get::<_, Option<String>>(6)?,
+                r.get::<_, Option<String>>(7)?,
+                r.get::<_, Option<String>>(8)?,
+            ))
+        })?;
+        let mut out = Vec::new();
+        for row in raw {
+            let (
+                gj,
+                sig,
+                stage,
+                attempts,
+                output_path,
+                output_sha256,
+                error_code,
+                error_detail,
+                done_utc,
+            ) = row?;
+            out.push((
+                ClipRow {
+                    group: from_json(&gj)?,
+                    stage,
+                    attempts,
+                    output_path,
+                    output_sha256,
+                    error_code,
+                    error_detail,
+                    done_utc,
+                },
+                sig,
+            ));
+        }
+        out.sort_by_key(|a| a.0.group.start_utc);
+        Ok(out)
+    }
+
+    /// Every clip group in capture order.
+    pub fn clip_rows(&self) -> Result<Vec<ClipRow>> {
+        Ok(self
+            .clip_rows_with_signature()?
+            .into_iter()
+            .map(|(r, _)| r)
+            .collect())
+    }
+
+    /// Record one join attempt.
+    pub fn finish_clip(
+        &mut self,
+        id: &str,
+        stage: &str,
+        output: Option<(&str, &str)>,
+        error: Option<(&str, &str)>,
+    ) -> Result<()> {
+        self.conn.execute(
+            "UPDATE clip_output SET stage = ?2, attempts = COALESCE(attempts, 0) + 1,
+                output_path = COALESCE(?3, output_path), output_sha256 = COALESCE(?4, output_sha256),
+                error_code = ?5, error_detail = ?6,
+                done_utc = CASE WHEN ?2 = 'done' THEN ?7 ELSE done_utc END
+             WHERE group_id = ?1",
+            params![
+                id,
+                stage,
+                output.map(|o| o.0),
+                output.map(|o| o.1),
+                error.map(|e| e.0),
+                error.map(|e| e.1),
+                now()
+            ],
+        )?;
+        self.journal_event(&format!("clip:{id}"), stage)?;
+        Ok(())
+    }
+
+    /// Warnings of each item's latest attempt (journal `warning:<code>|<detail>`
+    /// events after its last `start`).
+    pub fn item_warnings(&self) -> Result<BTreeMap<String, Vec<(String, String)>>> {
+        let mut st = self.conn.prepare(
+            "SELECT item_id, event FROM journal
+             WHERE event = 'start' OR event LIKE 'warning:%' ORDER BY seq",
+        )?;
+        let rows = st.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))?;
+        let mut out: BTreeMap<String, Vec<(String, String)>> = BTreeMap::new();
+        for row in rows {
+            let (item, event) = row?;
+            if event == "start" {
+                out.remove(&item);
+            } else if let Some(rest) = event.strip_prefix("warning:") {
+                let (code, detail) = rest.split_once('|').unwrap_or((rest, ""));
+                out.entry(item)
+                    .or_default()
+                    .push((code.to_string(), detail.to_string()));
+            }
+        }
+        Ok(out)
     }
 
     pub fn journal_event(&self, key: &str, event: &str) -> Result<()> {

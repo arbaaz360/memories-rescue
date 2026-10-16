@@ -23,7 +23,9 @@ use mr_core::zipindex::{EntryReader, ZipIndexError};
 use mr_meta::fields::Capture;
 use mr_meta::{native_jpeg, native_mp4, native_png};
 
-use crate::compositor::{CompositeOutcome, CompositeRequest, Compositor};
+use crate::compositor::{
+    CompositeRequest, Compositor, RejoinRequest, RejoinSegment, TranscodeRequest,
+};
 use crate::fingerprint::sha256_file;
 use crate::layout;
 use crate::options::{OverlayMode, TestHooks};
@@ -55,6 +57,29 @@ pub struct Written {
     /// FFMPEG_FAIL fallback): code and detail.
     pub kept_with_error: Option<(String, String)>,
     pub bytes: u64,
+    /// Report-worthy notes from the compositor (code, detail), e.g.
+    /// `overlay_aspect_mismatch`; the item still succeeded.
+    pub warnings: Vec<(String, String)>,
+}
+
+/// A clip group to join (FR-27, SRS section 4.5).
+#[derive(Debug, Clone)]
+pub struct GroupWork {
+    pub id: String,
+    /// Planned output, relative to the output root.
+    pub output_rel: String,
+    /// The clips in order; their own outputs are written as items.
+    pub members: Vec<ItemRow>,
+    /// This group's earlier output (path, hash), replaced when written again.
+    pub previous: Option<(String, Option<String>)>,
+}
+
+/// What joining a group wrote.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct GroupWritten {
+    pub output_rel: String,
+    pub output_sha256: String,
+    pub warnings: Vec<(String, String)>,
 }
 
 /// Why an item did not finish.
@@ -521,12 +546,50 @@ impl<'a> Worker<'a> {
                 item_key: &p.key,
             };
             match self.compositor.composite(&req) {
-                Ok(CompositeOutcome::Composited) if out.is_file() => {
+                Ok(o) if o.produced() && out.is_file() => {
+                    written.warnings.extend(
+                        o.warnings()
+                            .iter()
+                            .map(|w| (w.code.clone(), w.detail.clone())),
+                    );
                     base = out;
                     composited = true;
                 }
                 Ok(_) => written.composite_pending = true,
                 Err(e) => written.kept_with_error = Some((e.code, e.detail)),
+            }
+        }
+
+        // Windows compatibility (FR-51, section 4.4 "HEVC sources"): a video
+        // that was not composited (a composite is H.264 already) is made
+        // H.264 when the compositor says it needs it.
+        if s.windows_compat && p.is_video() && !composited {
+            let out = tmp.join(format!("compat.{ext}"));
+            let req = TranscodeRequest {
+                main: &base,
+                out: &out,
+                ext,
+                item_key: &p.key,
+            };
+            match self.compositor.compat_transcode(&req) {
+                Ok(o) if o.produced() && out.is_file() => {
+                    written.warnings.push((
+                        "h264_compat".into(),
+                        "converted to H.264 for Windows compatibility".into(),
+                    ));
+                    written.warnings.extend(
+                        o.warnings()
+                            .iter()
+                            .map(|w| (w.code.clone(), w.detail.clone())),
+                    );
+                    base = out;
+                }
+                Ok(_) => {}
+                Err(e) => {
+                    if written.kept_with_error.is_none() {
+                        written.kept_with_error = Some((e.code, e.detail));
+                    }
+                }
             }
         }
 
@@ -632,6 +695,113 @@ impl<'a> Worker<'a> {
         written.output_rel = main_rel;
         written.output_sha256 = sha;
         Ok(written)
+    }
+
+    /// Join one clip group (FR-27): extract every clip (and its overlay when
+    /// the mode burns in), let the compositor join them, write the first
+    /// clip's capture metadata onto the result (section 4.5), and place it
+    /// atomically. `Ok(None)` when the compositor declines. The clips' own
+    /// outputs are not touched.
+    pub fn process_group(&mut self, g: &GroupWork) -> Result<Option<GroupWritten>, Failure> {
+        let s = self.settings;
+        if !s.dest.exists() {
+            return Err(job("DEST_UNAVAILABLE", "the output drive is not available"));
+        }
+        let tmp = self.tmp_dir(&format!("group-{}", g.id));
+        let _ = fs::remove_dir_all(&tmp);
+        fs::create_dir_all(&tmp).map_err(|e| dest_error(e, s, "temp folder"))?;
+        let result = self.process_group_in(g, &tmp);
+        let _ = fs::remove_dir_all(&tmp);
+        result
+    }
+
+    fn process_group_in(
+        &mut self,
+        g: &GroupWork,
+        tmp: &Path,
+    ) -> Result<Option<GroupWritten>, Failure> {
+        let s = self.settings;
+        let first = g
+            .members
+            .first()
+            .ok_or_else(|| item("UNKNOWN", "empty clip group"))?;
+        let ext = first.plan.ext.as_str();
+        let mut paths: Vec<(PathBuf, Option<PathBuf>)> = Vec::new();
+        for (k, m) in g.members.iter().enumerate() {
+            let main = tmp.join(format!("seg{k}.{}", m.plan.ext));
+            self.extract(&m.plan.main, &main)?;
+            let overlay = match (&m.plan.overlay, s.overlay_mode.burns_in()) {
+                (Some(o), true) => {
+                    let path = tmp.join(format!("seg{k}-overlay.png"));
+                    self.extract(o, &path)?;
+                    Some(path)
+                }
+                _ => None,
+            };
+            paths.push((main, overlay));
+        }
+        let segments: Vec<RejoinSegment<'_>> = paths
+            .iter()
+            .map(|(main, overlay)| RejoinSegment {
+                main,
+                overlay: overlay.as_deref(),
+            })
+            .collect();
+        let joined = tmp.join(format!("joined.{ext}"));
+        let req = RejoinRequest {
+            group_id: &g.id,
+            segments: &segments,
+            out: &joined,
+        };
+        let mut warnings: Vec<(String, String)> = Vec::new();
+        match self.compositor.rejoin(&req) {
+            Ok(o) if o.produced() && joined.is_file() => warnings.extend(
+                o.warnings()
+                    .iter()
+                    .map(|w| (w.code.clone(), w.detail.clone())),
+            ),
+            Ok(_) => return Ok(None),
+            Err(e) => return Err(item(&e.code, e.detail)),
+        }
+
+        let cap = first.plan.capture();
+        let tagged = tmp.join(format!("joined-out.{ext}"));
+        if let Err(why) =
+            write_metadata(ext, &joined, &tagged, &cap).and_then(|()| verify(ext, &tagged, &cap))
+        {
+            let _ = fs::remove_file(&tagged);
+            self.copy_file(&joined, &tagged)?;
+            warnings.push(("METADATA_WRITE".into(), why));
+        }
+        self.seal(&tagged, &cap)?;
+        let sha = sha256_file(&tagged).map_err(|e| dest_error(e, s, "hash"))?;
+        let own: Vec<Owned> = g
+            .previous
+            .iter()
+            .map(|(rel, sha)| Owned {
+                rel: rel.clone(),
+                sha: sha.clone(),
+            })
+            .collect();
+        let (rel, place) = self.choose(&g.output_rel, &sha, &own)?;
+        self.place(&tagged, &rel, place)?;
+        if let Some((old, old_sha)) = &g.previous
+            && !old.eq_ignore_ascii_case(&rel)
+        {
+            let path = layout::to_fs(&self.root, old);
+            let ours = match old_sha {
+                Some(recorded) => sha256_file(&path).is_ok_and(|now| &now == recorded),
+                None => true,
+            };
+            if ours {
+                let _ = fs::remove_file(path);
+            }
+        }
+        Ok(Some(GroupWritten {
+            output_rel: rel,
+            output_sha256: sha,
+            warnings,
+        }))
     }
 }
 

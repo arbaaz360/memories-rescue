@@ -9,7 +9,7 @@ use std::time::{Duration, Instant};
 
 use chrono::Utc;
 use crossbeam_channel::{RecvTimeoutError, Sender};
-use mr_core::discover::discover;
+use mr_core::discover::{Discovery, discover};
 use mr_report::{PartInfo, ReportData, ReportFiles, Row, RowKind, Status, plain_message, redact};
 use serde::{Deserialize, Serialize};
 
@@ -19,11 +19,13 @@ use crate::error::{JobError, Result};
 use crate::fingerprint::{self, InputChange};
 use crate::layout;
 use crate::options::{FREE_TIER_ITEMS, Options};
-use crate::plan::{ExtraKind, ExtraRow, Naming, Plan, PlannedItem, estimate_space, plan_with};
+use crate::plan::{
+    ClipGroup, ExtraKind, ExtraRow, Naming, Plan, PlannedItem, estimate_space, plan_with,
+};
 use crate::platform::KeepAwake;
-use crate::process::{Failure, WorkSettings, Worker, Written, adopt_check};
+use crate::process::{Failure, GroupWork, WorkSettings, Worker, Written, adopt_check};
 use crate::space::{MIN_FREE_WHILE_RUNNING, SpaceEstimate, available_space, gb};
-use crate::state::{Db, Finished, ItemRow, JobRow, JournalEvent, OpenError, PartRow};
+use crate::state::{ClipRow, Db, Finished, ItemRow, JobRow, JournalEvent, OpenError, PartRow};
 
 pub const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
 const JOBS_DIR: &str = "jobs";
@@ -409,7 +411,33 @@ impl Job {
         });
         self.db.upsert_items(&rows)?;
         self.db.replace_extras(&plan.extras)?;
+        // Clip groups (FR-27): a group is joined again when a member's plan
+        // changed, so its signature is the members' signatures.
+        let sigs: HashMap<&str, String> = plan
+            .items
+            .iter()
+            .map(|p| (p.key.as_str(), p.signature()))
+            .collect();
+        let groups: Vec<(ClipGroup, String)> = plan
+            .clip_groups
+            .iter()
+            .map(|g| {
+                let sig = g
+                    .items
+                    .iter()
+                    .map(|k| sigs.get(k.as_str()).cloned().unwrap_or_default())
+                    .collect::<Vec<_>>()
+                    .join(";");
+                (g.clone(), sig)
+            })
+            .collect();
+        self.db.replace_clip_groups(&groups)?;
         Ok(())
+    }
+
+    /// Clip groups (FR-27) and their join state, in capture order.
+    pub fn clip_groups(&self) -> Result<Vec<ClipRow>> {
+        self.db.clip_rows()
     }
 
     /// Mark items whose planned output already exists and verifies as done.
@@ -831,7 +859,8 @@ impl Job {
                 return Ok(Outcome::InsufficientSpace(est));
             }
         }
-        if open.is_empty() {
+        let joins_pending = self.db.clip_rows()?.iter().any(|g| g.stage == "pending");
+        if open.is_empty() && !joins_pending {
             let stats = self.stats(0, started)?;
             self.db.set_status("completed")?;
             return Ok(Outcome::Completed(stats));
@@ -860,57 +889,67 @@ impl Job {
         let awake = KeepAwake::new("Memories Rescue is repairing your export");
         let awake_active = awake.active();
 
-        let outcome = std::thread::scope(|scope| -> Result<Outcome> {
-            let (job_tx, job_rx) = crossbeam_channel::bounded::<ItemRow>(workers);
-            let (res_tx, res_rx) = crossbeam_channel::unbounded::<(
-                String,
-                bool,
-                std::result::Result<Written, Failure>,
-                f64,
-            )>();
-            for _ in 0..workers {
-                let job_rx = job_rx.clone();
-                let res_tx = res_tx.clone();
-                let d = &d;
-                let part_by_path = &part_by_path;
-                let compositor = &*compositor;
-                let settings = &settings;
-                let root = root.clone();
-                scope.spawn(move || {
-                    let mut worker = Worker::new(d, part_by_path, root, compositor, settings);
-                    for row in job_rx.iter() {
-                        let t = Instant::now();
-                        let r = std::panic::catch_unwind(AssertUnwindSafe(|| worker.process(&row)))
-                            .unwrap_or_else(|_| {
-                                Err(Failure::Item {
-                                    code: "UNKNOWN".into(),
-                                    detail: "internal error while processing this item".into(),
-                                })
-                            });
-                        let _ = res_tx.send((
-                            row.plan.key.clone(),
-                            row.plan.is_video(),
-                            r,
-                            t.elapsed().as_secs_f64(),
-                        ));
-                    }
-                });
-            }
-            drop(res_tx);
-            drop(job_rx);
-            let result = self.coordinate(
-                &job_tx,
-                &res_rx,
-                sink,
-                control,
-                open,
-                workers,
-                awake_active,
-                started,
-            );
-            drop(job_tx);
-            result
-        });
+        let outcome = if open.is_empty() {
+            Ok(Outcome::Completed(self.stats(0, started)?))
+        } else {
+            std::thread::scope(|scope| -> Result<Outcome> {
+                let (job_tx, job_rx) = crossbeam_channel::bounded::<ItemRow>(workers);
+                let (res_tx, res_rx) = crossbeam_channel::unbounded::<(
+                    String,
+                    bool,
+                    std::result::Result<Written, Failure>,
+                    f64,
+                )>();
+                for _ in 0..workers {
+                    let job_rx = job_rx.clone();
+                    let res_tx = res_tx.clone();
+                    let d = &d;
+                    let part_by_path = &part_by_path;
+                    let compositor = &*compositor;
+                    let settings = &settings;
+                    let root = root.clone();
+                    scope.spawn(move || {
+                        let mut worker = Worker::new(d, part_by_path, root, compositor, settings);
+                        for row in job_rx.iter() {
+                            let t = Instant::now();
+                            let r =
+                                std::panic::catch_unwind(AssertUnwindSafe(|| worker.process(&row)))
+                                    .unwrap_or_else(|_| {
+                                        Err(Failure::Item {
+                                            code: "UNKNOWN".into(),
+                                            detail: "internal error while processing this item"
+                                                .into(),
+                                        })
+                                    });
+                            let _ = res_tx.send((
+                                row.plan.key.clone(),
+                                row.plan.is_video(),
+                                r,
+                                t.elapsed().as_secs_f64(),
+                            ));
+                        }
+                    });
+                }
+                drop(res_tx);
+                drop(job_rx);
+                let result = self.coordinate(
+                    &job_tx,
+                    &res_rx,
+                    sink,
+                    control,
+                    open,
+                    workers,
+                    awake_active,
+                    started,
+                );
+                drop(job_tx);
+                result
+            })
+        };
+        // FR-27: join the clip groups once every item has been processed.
+        if joins_pending && matches!(outcome, Ok(Outcome::Completed(_))) {
+            self.rejoin_pass(sink, control, &d, &part_by_path, &settings, &*compositor)?;
+        }
         drop(awake);
         let outcome = outcome?;
         self.db.set_status(outcome.status())?;
@@ -1128,6 +1167,9 @@ impl Job {
                                     seconds: secs,
                                 },
                             )?;
+                            for (c, d) in &w.warnings {
+                                self.db.journal_event(&key, &format!("warning:{c}|{d}"))?;
+                            }
                             if stage == Stage::Done {
                                 done += 1;
                             } else {
@@ -1304,9 +1346,141 @@ impl Job {
     }
 
     /// The report rows (FR-38): one per item and one per other entry.
+    /// FR-27: join every pending clip group whose clips are all done, one
+    /// group at a time on this thread (each join already runs ffmpeg). A
+    /// group with a failed clip is `failed` (`CLIP_INCOMPLETE`); one the
+    /// compositor declines is `declined`; a drive problem stops the pass and
+    /// leaves the rest pending for the next run.
+    #[allow(clippy::too_many_arguments)]
+    fn rejoin_pass(
+        &mut self,
+        sink: &dyn ProgressSink,
+        control: &Control,
+        d: &Discovery,
+        part_by_path: &HashMap<String, usize>,
+        settings: &WorkSettings,
+        compositor: &dyn Compositor,
+    ) -> Result<()> {
+        let groups: Vec<ClipRow> = self
+            .db
+            .clip_rows()?
+            .into_iter()
+            .filter(|g| g.stage == "pending")
+            .collect();
+        if groups.is_empty() {
+            return Ok(());
+        }
+        let items: HashMap<String, ItemRow> = self
+            .db
+            .items()?
+            .into_iter()
+            .map(|r| (r.key().to_string(), r))
+            .collect();
+        let mut worker = Worker::new(d, part_by_path, self.root.clone(), compositor, settings);
+        for g in groups {
+            if control.is_cancelled() || control.is_paused() {
+                break;
+            }
+            let id = g.group.id.clone();
+            let members: Option<Vec<ItemRow>> = g
+                .group
+                .items
+                .iter()
+                .map(|k| items.get(k).cloned())
+                .collect();
+            let Some(members) = members else {
+                self.db.finish_clip(
+                    &id,
+                    "failed",
+                    None,
+                    Some((
+                        "CLIP_INCOMPLETE",
+                        "a clip of this group is no longer in the export",
+                    )),
+                )?;
+                continue;
+            };
+            if members.iter().any(|m| m.stage.is_open()) {
+                continue;
+            }
+            if members.iter().any(|m| m.stage != Stage::Done) {
+                self.db.finish_clip(
+                    &id,
+                    "failed",
+                    None,
+                    Some(("CLIP_INCOMPLETE", "a clip of this group was not written")),
+                )?;
+                continue;
+            }
+            let work = GroupWork {
+                id: id.clone(),
+                output_rel: g.group.output_rel.clone(),
+                members,
+                previous: g.output_path.clone().map(|p| (p, g.output_sha256.clone())),
+            };
+            let t = Instant::now();
+            let result = std::panic::catch_unwind(AssertUnwindSafe(|| worker.process_group(&work)))
+                .unwrap_or_else(|_| {
+                    Err(Failure::Item {
+                        code: "UNKNOWN".into(),
+                        detail: "internal error while joining clips".into(),
+                    })
+                });
+            let (stage, output, code, detail) = match result {
+                Ok(Some(w)) => {
+                    for (c, dt) in &w.warnings {
+                        self.db
+                            .journal_event(&format!("clip:{id}"), &format!("warning:{c}|{dt}"))?;
+                    }
+                    self.db.finish_clip(
+                        &id,
+                        "done",
+                        Some((&w.output_rel, &w.output_sha256)),
+                        None,
+                    )?;
+                    (Stage::Done, Some(w.output_rel), None, None)
+                }
+                Ok(None) => {
+                    self.db.finish_clip(&id, "declined", None, None)?;
+                    continue;
+                }
+                Err(Failure::Item { code, detail }) => {
+                    self.db
+                        .finish_clip(&id, "failed", None, Some((&code, &detail)))?;
+                    (Stage::Failed, None, Some(code), Some(detail))
+                }
+                Err(Failure::Job { code, detail }) => {
+                    sink.issue(&code, &detail);
+                    break;
+                }
+            };
+            sink.item(&ItemOutcome {
+                id: format!("clip:{id}"),
+                stage,
+                media_type: Some("video".into()),
+                output_path: output,
+                error_code: code,
+                error_detail: detail,
+                seconds: t.elapsed().as_secs_f64(),
+            });
+        }
+        Ok(())
+    }
+
     pub fn report_data(&self) -> Result<ReportData> {
         let mut rows = Vec::new();
-        for r in self.db.items()? {
+        let warnings = self.db.item_warnings()?;
+        let items = self.db.items()?;
+        let local_of: HashMap<String, String> = items
+            .iter()
+            .map(|r| {
+                (
+                    r.plan.key.clone(),
+                    r.plan.local().format("%Y-%m-%d %H:%M:%S %:z").to_string(),
+                )
+            })
+            .collect();
+        for r in items {
             let p = &r.plan;
             let status = match r.stage {
                 Stage::Done => match p.status.as_str() {
@@ -1332,6 +1506,24 @@ impl Job {
                     Some(plain_message("LOCATION_UNCERTAIN").to_string())
                 }
                 _ => None,
+            };
+            // Compositor notes (overlay_aspect_mismatch, h264_compat, ...).
+            let message = match (message, warnings.get(&p.key)) {
+                (m, None) => m,
+                (m, Some(w)) => {
+                    let mut texts: Vec<&str> = Vec::new();
+                    for (code, _) in w {
+                        let t = plain_message(&code.to_ascii_uppercase());
+                        if !texts.contains(&t) {
+                            texts.push(t);
+                        }
+                    }
+                    let notes = texts.join(" ");
+                    Some(match m {
+                        Some(m) => format!("{m} {notes}"),
+                        None => notes,
+                    })
+                }
             };
             let local = p.local();
             rows.push(Row {
@@ -1366,6 +1558,42 @@ impl Job {
                 message,
                 attempts: Some(r.attempts),
                 composite_pending: r.composite_pending,
+            });
+        }
+        for g in self.db.clip_rows()? {
+            let (status, message) = match g.stage.as_str() {
+                "done" => (
+                    Status::Done,
+                    format!(
+                        "{} ({} clips, {:.0} s)",
+                        plain_message("CLIP_JOINED"),
+                        g.group.items.len(),
+                        g.group.total_secs
+                    ),
+                ),
+                "failed" => (
+                    Status::Failed,
+                    match (&g.error_code, &g.error_detail) {
+                        (Some(c), Some(d)) => format!("{} ({})", plain_message(c), redact(d)),
+                        (Some(c), None) => plain_message(c).to_string(),
+                        _ => plain_message("UNKNOWN").to_string(),
+                    },
+                ),
+                "declined" => (Status::Failed, plain_message("CLIP_DECLINED").to_string()),
+                "skipped" => continue,
+                _ => (Status::Pending, plain_message("CLIP_PENDING").to_string()),
+            };
+            rows.push(Row {
+                status: Some(status),
+                kind: Some(RowKind::JoinedClip),
+                item: Some(g.group.id.clone()),
+                media_type: Some("video".into()),
+                output_path: g.output_path.clone(),
+                capture_local: local_of.get(&g.group.id).cloned(),
+                error_code: g.error_code.clone(),
+                message: Some(message),
+                attempts: Some(g.attempts),
+                ..Row::default()
             });
         }
         for e in self.db.extras()? {
