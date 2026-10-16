@@ -1,0 +1,216 @@
+{
+  "job_id": "job-1",
+  "overall_pct": 17.774647887323944,
+  "items_done": 631,
+  "items_total": 3550,
+  "bytes_done": 1242156081,
+  "bytes_total": 7187119089,
+  "stage": "writing",
+  "throughput_items_per_s": 2.524,
+  "eta_seconds": 1291,
+  "warnings": 43,
+  "failures": 1,
+  "recent_items": [
+    {
+      "item_id": "FABCF347",
+      "name": "2017-10-16_FABCF347-main.mp4",
+      "media_type": "video",
+      "status": "done",
+      "error_code": null,
+      "message": null,
+      "output_path": "D:\\Memories\\Memories Rescue\\2017\\10\\2017-10-16_122248_FABCF347.mp4",
+      "finished_at": "2026-10-16T12:00:00.000Z"
+    },
+    {
+      "item_id": "5C857996",
+      "name": "2017-10-12_5C857996-main.mp4",
+      "media_type": "video",
+      "status": "done",
+      "error_code": null,
+      "message": null,
+      "output_path": "D:\\Memories\\Memories Rescue\\2017\\10\\2017-10-12_080327_5C857996.mp4",
+      "finished_at": "2026-10-16T12:00:00.000Z"
+    },
+    {
+      "item_id": "BE4DFFE5",
+      "name": "2017-10-15_BE4DFFE5-main.mp4",
+      "media_type": "video",
+      "status": "done",
+      "error_code": null,
+      "message": null,
+      "output_path": "D:\\Memories\\Memories Rescue\\2017\\10\\2017-10-15_164016_BE4DFFE5.mp4",
+      "finished_at": "2026-10-16T12:00:00.000Z"
+    },
+    {
+      "item_id": "20168634",
+      "name": "2017-10-25_20168634-main.jpg",
+      "media_type": "photo",
+      "status": "done",
+      "error_code": null,
+      "message": null,
+      "output_path": "D:\\Memories\\Memories Rescue\\2017\\10\\2017-10-25_173236_20168634.jpg",
+      "finished_at": "2026-10-16T12:00:00.000Z"
+    },
+    {
+      "item_id": "81DF0C83",
+      "name": "2017-10-24_81DF0C83-main.jpg",
+      "media_type": "photo",
+      "status": "done",
+      "error_code": null,
+      "message": null,
+      "output_path": "D:\\Memories\\Memories Rescue\\2017\\10\\2017-10-24_182121_81DF0C83.jpg",
+      "finished_at": "2026-10-16T12:00:00.000Z"
+    },
+    {
+      "item_id": "E3A792D2",
+      "name": "2017-10-11_E3A792D2-main.jpg",
+      "media_type": "photo",
+      "status": "done",
+      "error_code": null,
+      "message": null,
+      "output_path": "D:\\Memories\\Memories Rescue\\2017\\10\\2017-10-11_100411_E3A792D2.jpg",
+      "finished_at": "2026-10-16T12:00:00.000Z"
+    },
+    {
+      "item_id": "45701921",
+      "name": "2017-10-05_45701921-main.jpg",
+      "media_type": "photo",
+      "status": "done",
+      "error_code": null,
+      "message": null,
+      "output_path": "D:\\Memories\\Memories Rescue\\2017\\10\\2017-10-05_101505_45701921.jpg",
+      "finished_at": "2026-10-16T12:00:00.000Z"
+    },
+    {
+      "item_id": "A7389F70",
+      "name": "2017-10-14_A7389F70-main.mp4",
+      "media_type": "video",
+      "status": "done",
+      "error_code": null,
+      "message": null,
+      "output_path": "D:\\Memories\\Memories Rescue\\2017\\10\\2017-10-14_185517_A7389F70.mp4",
+      "finished_at": "2026-10-16T12:00:00.000Z"
+    },
+    {
+      "item_id": "090125BF",
+      "name": "2017-10-14_090125BF-main.jpg",
+      "media_type": "photo",
+      "status": "done",
+      "error_code": null,
+      "message": null,
+      "output_path": "D:\\Memories\\Memories Rescue\\2017\\10\\2017-10-14_141852_090125BF.jpg",
+      "finished_at": "2026-10-16T12:00:00.000Z"
+    },
+    {
+      "item_id": "6AC9AC0E",
+      "name": "2017-10-24_6AC9AC0E-main.jpg",
+      "media_type": "photo",
+      "status": "done",
+      "error_code": null,
+      "message": null,
+      "output_path": "D:\\Memories\\Memories Rescue\\2017\\10\\2017-10-24_201925_6AC9AC0E.jpg",
+      "finished_at": "2026-10-16T12:00:00.000Z"
+    },
+    {
+      "item_id": "CC92325D",
+      "name": "2017-10-02_CC92325D-main.jpg",
+      "media_type": "photo",
+      "status": "done",
+      "error_code": null,
+      "message": null,
+      "output_path": "D:\\Memories\\Memories Rescue\\2017\\10\\2017-10-02_201638_CC92325D.jpg",
+      "finished_at": "2026-10-16T12:00:00.000Z"
+    },
+    {
+      "item_id": "2E5AB8AC",
+      "name": "2017-10-27_2E5AB8AC-main.mp4",
+      "media_type": "video",
+      "status": "done",
+      "error_code": null,
+      "message": null,
+      "output_path": "D:\\Memories\\Memories Rescue\\2017\\10\\2017-10-27_151641_2E5AB8AC.mp4",
+      "finished_at": "2026-10-16T12:00:00.000Z"
+    },
+    {
+      "item_id": "90233EFB",
+      "name": "2017-10-02_90233EFB-main.jpg",
+      "media_type": "photo",
+      "status": "done",
+      "error_code": null,
+      "message": null,
+      "output_path": "D:\\Memories\\Memories Rescue\\2017\\10\\2017-10-02_150235_90233EFB.jpg",
+      "finished_at": "2026-10-16T12:00:00.000Z"
+    },
+    {
+      "item_id": "F1EBC54A",
+      "name": "2017-10-15_F1EBC54A-main.mp4",
+      "media_type": "video",
+      "status": "done",
+      "error_code": null,
+      "message": null,
+      "output_path": "D:\\Memories\\Memories Rescue\\2017\\10\\2017-10-15_192925_F1EBC54A.mp4",
+      "finished_at": "2026-10-16T12:00:00.000Z"
+    },
+    {
+      "item_id": "53B44B99",
+      "name": "2017-10-03_53B44B99-main.jpg",
+      "media_type": "photo",
+      "status": "done",
+      "error_code": null,
+      "message": null,
+      "output_path": "D:\\Memories\\Memories Rescue\\2017\\10\\2017-10-03_210032_53B44B99.jpg",
+      "finished_at": "2026-10-16T12:00:00.000Z"
+    },
+    {
+      "item_id": "B57CD1E8",
+      "name": "2017-10-17_B57CD1E8-main.jpg",
+      "media_type": "photo",
+      "status": "done",
+      "error_code": null,
+      "message": null,
+      "output_path": "D:\\Memories\\Memories Rescue\\2017\\10\\2017-10-17_175918_B57CD1E8.jpg",
+      "finished_at": "2026-10-16T12:00:00.000Z"
+    },
+    {
+      "item_id": "17455837",
+      "name": "2017-10-25_17455837-main.jpg",
+      "media_type": "photo",
+      "status": "done",
+      "error_code": null,
+      "message": null,
+      "output_path": "D:\\Memories\\Memories Rescue\\2017\\10\\2017-10-25_125653_17455837.jpg",
+      "finished_at": "2026-10-16T12:00:00.000Z"
+    },
+    {
+      "item_id": "790DDE86",
+      "name": "2017-10-08_790DDE86-main.jpg",
+      "media_type": "photo",
+      "status": "done",
+      "error_code": null,
+      "message": null,
+      "output_path": "D:\\Memories\\Memories Rescue\\2017\\10\\2017-10-08_184959_790DDE86.jpg",
+      "finished_at": "2026-10-16T12:00:00.000Z"
+    },
+    {
+      "item_id": "DAD664D5",
+      "name": "2017-10-22_DAD664D5-main.mp4",
+      "media_type": "video",
+      "status": "done",
+      "error_code": null,
+      "message": null,
+      "output_path": "D:\\Memories\\Memories Rescue\\2017\\10\\2017-10-22_091352_DAD664D5.mp4",
+      "finished_at": "2026-10-16T12:00:00.000Z"
+    },
+    {
+      "item_id": "3C9EEB24",
+      "name": "2017-10-24_3C9EEB24-main.mp4",
+      "media_type": "video",
+      "status": "done",
+      "error_code": null,
+      "message": null,
+      "output_path": "D:\\Memories\\Memories Rescue\\2017\\10\\2017-10-24_100529_3C9EEB24.mp4",
+      "finished_at": "2026-10-16T12:00:00.000Z"
+    }
+  ],
+  "sleep_prevented": true
+}

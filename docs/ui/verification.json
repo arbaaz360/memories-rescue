@@ -1,0 +1,297 @@
+{
+  "url": "http://localhost:1420/",
+  "when": "2026-10-16T07:48:49.058Z",
+  "modes": {
+    "light": {
+      "s0-welcome": {
+        "h1": "Put the dates and places back into your memories",
+        "axe": []
+      },
+      "s1-add-files": {
+        "h1": "Add your export files",
+        "axe": []
+      },
+      "s2-summary": {
+        "h1": "Check your export",
+        "axe": []
+      },
+      "s3-options": {
+        "h1": "Choose how to save your memories",
+        "axe": []
+      },
+      "s3-options-short": {
+        "h1": "Choose how to save your memories",
+        "axe": []
+      },
+      "s4-preview": {
+        "h1": "Preview",
+        "axe": []
+      },
+      "unlock-free-limit": {
+        "h1": "Free limit reached",
+        "axe": []
+      },
+      "s5-processing": {
+        "h1": "Rescuing your memories",
+        "axe": []
+      },
+      "s6-results": {
+        "h1": "Finished, with a few things to check",
+        "axe": []
+      },
+      "settings": {
+        "h1": "Settings",
+        "axe": []
+      },
+      "about": {
+        "h1": "About Memories Rescue",
+        "axe": []
+      }
+    },
+    "dark": {
+      "s0-welcome": {
+        "h1": "Put the dates and places back into your memories",
+        "axe": []
+      },
+      "s1-add-files": {
+        "h1": "Add your export files",
+        "axe": []
+      },
+      "s2-summary": {
+        "h1": "Check your export",
+        "axe": []
+      },
+      "s3-options": {
+        "h1": "Choose how to save your memories",
+        "axe": []
+      },
+      "s3-options-short": {
+        "h1": "Choose how to save your memories",
+        "axe": []
+      },
+      "s4-preview": {
+        "h1": "Preview",
+        "axe": []
+      },
+      "unlock-free-limit": {
+        "h1": "Free limit reached",
+        "axe": []
+      },
+      "s5-processing": {
+        "h1": "Rescuing your memories",
+        "axe": []
+      },
+      "s6-results": {
+        "h1": "Finished, with a few things to check",
+        "axe": []
+      },
+      "settings": {
+        "h1": "Settings",
+        "axe": []
+      },
+      "about": {
+        "h1": "About Memories Rescue",
+        "axe": []
+      }
+    },
+    "zoom200": {
+      "s0-welcome": {
+        "h1": "Put the dates and places back into your memories",
+        "axe": [],
+        "overflow": null
+      },
+      "s1-add-files": {
+        "h1": "Add your export files",
+        "axe": [],
+        "overflow": null
+      },
+      "s2-summary": {
+        "h1": "Check your export",
+        "axe": [],
+        "overflow": null
+      },
+      "s3-options": {
+        "h1": "Choose how to save your memories",
+        "axe": [],
+        "overflow": null
+      },
+      "s3-options-short": {
+        "h1": "Choose how to save your memories",
+        "axe": [],
+        "overflow": null
+      },
+      "s4-preview": {
+        "h1": "Preview",
+        "axe": [],
+        "overflow": null
+      },
+      "unlock-free-limit": {
+        "h1": "Free limit reached",
+        "axe": [],
+        "overflow": null
+      },
+      "s5-processing": {
+        "h1": "Rescuing your memories",
+        "axe": [],
+        "overflow": null
+      },
+      "s6-results": {
+        "h1": "Finished, with a few things to check",
+        "axe": [],
+        "overflow": null
+      },
+      "settings": {
+        "h1": "Settings",
+        "axe": [],
+        "overflow": null
+      },
+      "about": {
+        "h1": "About Memories Rescue",
+        "axe": [],
+        "overflow": null
+      }
+    },
+    "forced": {
+      "s0-welcome": {
+        "h1": "Put the dates and places back into your memories",
+        "axe": [],
+        "motion": "n/a"
+      },
+      "s1-add-files": {
+        "h1": "Add your export files",
+        "axe": [],
+        "motion": "n/a"
+      },
+      "s2-summary": {
+        "h1": "Check your export",
+        "axe": [],
+        "motion": "n/a"
+      },
+      "s3-options": {
+        "h1": "Choose how to save your memories",
+        "axe": [],
+        "motion": "n/a"
+      },
+      "s3-options-short": {
+        "h1": "Choose how to save your memories",
+        "axe": [],
+        "motion": "n/a"
+      },
+      "s4-preview": {
+        "h1": "Preview",
+        "axe": [],
+        "motion": "n/a"
+      },
+      "unlock-free-limit": {
+        "h1": "Free limit reached",
+        "axe": [],
+        "motion": "none / 1e-06s"
+      },
+      "s5-processing": {
+        "h1": "Rescuing your memories",
+        "axe": [],
+        "motion": "none / 1e-06s"
+      },
+      "s6-results": {
+        "h1": "Finished, with a few things to check",
+        "axe": [],
+        "motion": "n/a"
+      },
+      "settings": {
+        "h1": "Settings",
+        "axe": [],
+        "motion": "n/a"
+      },
+      "about": {
+        "h1": "About Memories Rescue",
+        "axe": [],
+        "motion": "n/a"
+      }
+    }
+  },
+  "keyboard": {
+    "log": [
+      {
+        "screen": "Add your export files",
+        "action": "Get started",
+        "tabs": 1
+      },
+      {
+        "screen": "Add your export files",
+        "action": "Add files…",
+        "tabs": 1
+      },
+      {
+        "screen": "Check your export",
+        "action": "Continue",
+        "tabs": 7
+      },
+      {
+        "screen": "Choose how to save your memories",
+        "action": "Continue anyway",
+        "tabs": 2
+      },
+      {
+        "screen": "Choose how to save your memories",
+        "action": "Apply uncertain locations",
+        "tabs": 9
+      },
+      {
+        "screen": "Preview",
+        "action": "Preview first",
+        "tabs": 6
+      },
+      {
+        "screen": "Preview",
+        "action": "Start",
+        "tabs": 17
+      },
+      {
+        "screen": "Rescuing your memories",
+        "action": "Pause",
+        "tabs": 2
+      },
+      {
+        "screen": "Paused",
+        "action": "Resume",
+        "tabs": 8
+      },
+      {
+        "screen": "Finished, with a few things to check",
+        "action": "Retry",
+        "tabs": 2
+      },
+      {
+        "screen": "All done",
+        "action": "New job",
+        "tabs": 5
+      },
+      {
+        "screen": "Add your export files",
+        "action": "Back",
+        "tabs": 20
+      }
+    ],
+    "h1FocusedOnScreenChange": [
+      true,
+      true,
+      true,
+      true,
+      true
+    ],
+    "checkboxToggledBySpace": true,
+    "dialogInitialFocus": {
+      "text": "License key",
+      "tag": "input",
+      "visible": true,
+      "inDialog": true
+    },
+    "focusAfterPause": {
+      "text": "Resume",
+      "tag": "button",
+      "visible": true,
+      "inDialog": false
+    },
+    "elementsWithoutVisibleFocus": []
+  }
+}

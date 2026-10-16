@@ -33,3 +33,6 @@ __pycache__/
 .idea/
 .DS_Store
 Thumbs.db
+
+# UI verification screenshots (scripts/ui-verify.mjs); published on the pr-assets branch, not here
+/docs/ui/screenshots/

@@ -1,0 +1,6 @@
+{
+  "job_id": "job-1",
+  "code": "LOCATION_UNCERTAIN",
+  "message": "Location not applied for 36 items.",
+  "count": 36
+}

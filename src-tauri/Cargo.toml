@@ -18,5 +18,27 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 serde.workspace = true
-tauri = { version = "2", features = [] }
+# protocol-asset: the window loads engine-written thumbnails through the asset
+# protocol, scoped in tauri.conf.json to the app cache's thumbnails folder.
+tauri = { version = "2", features = ["protocol-asset"] }
 tauri-plugin-shell = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-opener = "2"
+tauri-plugin-notification = "2"
+serde_json.workspace = true
+chrono = { workspace = true, features = ["clock"] }
+mr-core = { path = "../crates/mr-core" }
+mr-job = { path = "../crates/mr-job" }
+mr-report = { path = "../crates/mr-report" }
+uuid = { version = "1", features = ["v4"] }
+fs4 = "1"
+iana-time-zone = "0.1"
+sha2 = "0.11"
+zip.workspace = true
+# Licence checks with Gumroad (SRS 9); reqwest is already in the tree through tauri.
+reqwest = { version = "0.13", default-features = false, features = ["native-tls", "blocking", "form", "json"] }
+# OS keychain for the licence key and the per-install secret (NFR-PRV-05).
+keyring = "4"
+
+[dev-dependencies]
+zip.workspace = true

@@ -22,7 +22,13 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; connect-src ipc: http://ipc.localhost ws://localhost:1420; style-src 'self' 'unsafe-inline'; img-src 'self' data:"
+      "csp": "default-src 'self'; connect-src ipc: http://ipc.localhost ws://localhost:1420; style-src 'self' 'unsafe-inline'; img-src 'self' data: asset: http://asset.localhost",
+      "assetProtocol": {
+        "enable": true,
+        "scope": [
+          "$APPCACHE/thumbnails/**"
+        ]
+      }
     }
   },
   "bundle": {
@@ -37,7 +43,8 @@
       "binaries/exiftool"
     ],
     "resources": {
-      "binaries/exiftool_files/": "exiftool_files/"
+      "binaries/exiftool_files/": "exiftool_files/",
+      "../THIRD_PARTY_NOTICES.md": "THIRD_PARTY_NOTICES.md"
     },
     "windows": {
       "webviewInstallMode": {

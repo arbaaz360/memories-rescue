@@ -1,0 +1,51 @@
+## Plain-language copy for every error code of SRS §8 (NFR-USE-02).
+## The value is the summary, .next is the next step. Raw codes appear only under "Technical details".
+
+error-detail-summary = Technical details
+
+error-input-not-export = This doesn't look like a Snapchat export
+    .next = Remove it, or choose the ZIP files from your Snapchat download.
+error-part-missing = A part of your export appears to be missing
+    .next = Continue without it if you like; you can add the part later and only its memories are processed.
+error-part-truncated = A part of your export is incomplete
+    .next = Download it again if your link still works, then add it again. Everything that can be read is still used.
+error-zip-entry-crc = One file in the export is damaged
+    .next = Retry it. If it fails again, download that part again.
+error-json-missing = Exact times aren't available, so dates from the file names are used
+    .next = Add the first part of the export, the one without a number, for exact times.
+error-json-parse = The export's data file is damaged, so file names are used where possible
+    .next = Download the first part again if your link still works.
+error-legacy-links-only = This export contains links instead of photos and videos
+    .next = Please request a new export from Snapchat. { -product } doesn't download from these links.
+error-match-partial = The exact time isn't known for some memories
+    .next = They're saved with their date only. If you used an extracted folder, add the original ZIP files instead.
+error-location-uncertain = Location left out where the match was uncertain
+    .next = Accept this, or turn on “Apply uncertain locations” in Settings and retry those memories.
+error-media-decode = This photo or video can't be read
+    .next = The original is copied as it is. Retry, or export diagnostics and email support.
+error-ffmpeg-fail = Couldn't add the caption to this video
+    .next = The video is saved without it, with the caption as a separate file. Retry to try again.
+error-encoder-unavailable = Adding captions to videos needs an extra Windows component
+    .next = Install the Media Feature Pack from Windows Settings, then retry. Dates and places are fixed either way.
+error-metadata-write = Couldn't save the date into this file
+    .next = The file is saved and its file date is set. Retry to try again.
+error-disk-full = There isn't enough space on the destination
+    .next = Free up space or choose another folder, then resume.
+error-disk-full-imminent = The destination is almost full, so the job paused
+    .next = Free up at least 2 GB or choose another folder, then resume.
+error-dest-unavailable = The output drive was disconnected
+    .next = Reconnect it, then resume. Nothing already saved is lost.
+error-permission-denied = { -product } can't write to this folder
+    .next = Choose another folder, or allow access in your system's privacy settings, then resume.
+error-path-too-long = A file path was too long and was shortened
+    .next = Nothing to do: this was handled automatically.
+error-free-limit = You've reached the free limit
+    .next = Unlock to finish the rest. Nothing already done is redone.
+error-license-invalid = That key wasn't recognized
+    .next = Check it against your Gumroad receipt, or contact support.
+error-license-offline = Connect to the internet once to activate
+    .next = The free version keeps working in the meantime. Try again when you're online.
+error-job-state-corrupt = Saved progress was damaged and is being rebuilt from the output folder
+    .next = Nothing to do: this happens automatically.
+error-unknown = Something went wrong
+    .next = Try again. If it keeps happening, export diagnostics and email support.

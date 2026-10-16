@@ -14,11 +14,13 @@ Not affiliated with, endorsed by, or sponsored by Snap Inc. "Snapchat", "Memorie
 | `crates/mr-job` | The engine: dry run (FR-29), resumable jobs in SQLite (FR-33), worker pool, metadata writes, atomic output (FR-35), free tier (FR-44), retry, add part, compositor seam. API: `docs/api/mr-job.md`. |
 | `crates/mr-report` | `_report/report.html`, `report.csv`, `failed_items.json` (FR-38). |
 | `crates/mr-cli` | Command line: `analyze`, `order-check`, `plan`, `run`, `resume`, `retry`, `add-part`, `report`, `jobs` (see below). |
-| `src-tauri` | Tauri 2 shell: placeholder window, ffmpeg and exiftool sidecars (`bundle.externalBin`), NSIS and MSI bundles. |
+| `src-tauri` | Tauri 2 shell: the 25 commands of `docs/ipc-contract.md` (`src/commands.rs`) over an adapter onto mr-job (`src/engine/`, testable without a window), the licence check with Gumroad and the OS keychain, ffmpeg and exiftool sidecars run from Rust (`bundle.externalBin`), dialog, opener and notification plugins with capabilities limited to what the screens use, NSIS and MSI bundles. |
 | `third_party/` | Sidecar binaries, gitignored; `third_party/README.md` records source, version, SHA-256 and license. `python tools/sidecars.py fetch` stages them. |
 | `docs/decisions/` | Decision records: `Q-02-metadata-writer.md`, `signing.md`. |
 | `docs/api/` | `mr-job.md`: the engine API the app layer drives. |
-| `src` | Frontend placeholder: plain TypeScript + Vite, no UI framework yet. |
+| `docs/ipc-contract.md` | The commands and events between the window and the engine; `src/ipc/types.ts` holds the same shapes. |
+| `src` | User interface: Preact + TypeScript + Vite, every screen of SRS §7.2, strings in `src/locales/en-US/*.ftl` (Fluent). Talks to the engine through `src/ipc/backend.ts`; without the engine it runs on a built-in mock (`src/ipc/mock/`). |
+| `docs/ui/verification.md` | What was checked on the UI (accessibility, zoom, keyboard, Tauri smoke) and how to repeat it with `scripts/ui-verify.mjs`. |
 | `tools/make_fixture` | Python generator for synthetic test exports with `truth.json` ground truth (SRS §11.2). See `tools/README.md`. |
 | `fixtures/` | Generated fixtures (gitignored). |
 
@@ -27,6 +29,8 @@ Not affiliated with, endorsed by, or sponsored by Snap Inc. "Snapchat", "Memorie
 ```bash
 npm ci
 npm run build                      # frontend; must run before cargo, src-tauri embeds dist/
+npm test                           # frontend unit tests (Vitest)
+npm run dev                        # the UI in a browser at http://localhost:1420 on the mock engine
 npm run fixtures                   # python tools/make_fixture --all (needs Python 3 + Pillow; ffmpeg optional)
 python tools/sidecars.py fetch     # ffmpeg + exiftool into third_party/ and src-tauri/binaries/ (Windows x64 pins)
 cargo fmt --check
