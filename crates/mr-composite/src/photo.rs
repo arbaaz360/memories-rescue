@@ -20,7 +20,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::Error;
 use crate::probe::{Container, probe};
-use crate::video::{Placement, Warning, aspect_difference, place_overlay};
+use crate::video::{Placement, Warning, aspect_difference, checked_placement};
 
 /// Photo compositing settings.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -97,7 +97,7 @@ pub fn composite_photo(
     let size = (photo.width(), photo.height());
 
     let ov = decode(overlay, "overlay")?.into_rgba8();
-    let placement = place_overlay(size, ov.dimensions(), opts.aspect_tolerance);
+    let placement = checked_placement(size, ov.dimensions(), opts.aspect_tolerance)?;
     let mut warnings = Vec::new();
     if placement.aspect_mismatch {
         let w = Warning::OverlayAspectMismatch {
@@ -315,5 +315,27 @@ mod tests {
         let ov = RgbaImage::from_pixel(1, 1, Rgba([255, 0, 0, 128]));
         blend_rgba(&mut base, &ov, 0, 0);
         assert_eq!(base.get_pixel(0, 0), &Rgba([255, 0, 0, 128]));
+    }
+
+    /// A 1x100000 overlay on a photo used to ask `resize` for hundreds of
+    /// gigabytes, and a failed allocation aborts the process. Now it is a
+    /// `MEDIA_DECODE` for that one item.
+    #[test]
+    fn absurd_overlay_is_refused_before_resizing() {
+        let dir = std::env::temp_dir().join(format!("mr-composite-absurd-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let main = dir.join("main.jpg");
+        let overlay = dir.join("overlay.png");
+        let out = dir.join("out.jpg");
+        RgbImage::from_pixel(64, 48, Rgb([10, 20, 30]))
+            .save(&main)
+            .unwrap();
+        RgbaImage::from_pixel(1, 100_000, Rgba([255, 255, 255, 255]))
+            .save(&overlay)
+            .unwrap();
+        let e = composite_photo(&main, &overlay, &out, &PhotoOptions::default()).unwrap_err();
+        assert_eq!(e.code(), "MEDIA_DECODE", "{e}");
+        assert!(!out.exists());
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }
