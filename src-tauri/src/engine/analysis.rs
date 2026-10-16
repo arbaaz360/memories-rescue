@@ -26,6 +26,10 @@ pub struct CachedPlan {
 
 const SAMPLES: usize = 22;
 
+/// No compositor is wired yet (mr-composite, PR #2): mr-job's pass-through
+/// saves overlays beside the files. Flip together with `Job::set_compositor`.
+pub const COMPOSITOR_INSTALLED: bool = false;
+
 impl Engine {
     fn plan_for(&self, inputs: &[PathBuf], options: &mr_job::Options) -> IpcResult<Plan> {
         mr_job::plan(inputs, options).map_err(job_error)
@@ -156,7 +160,9 @@ impl Engine {
         let plan_id = uuid::Uuid::new_v4().to_string();
         let samples = pick_samples(&plan);
         let thumbs = self.write_thumbnails(&plan_id, &inputs, &samples);
-        let burn_in = opts.overlay_mode.burns_in();
+        // Captions are burned in only once a compositor is installed; until
+        // then they are saved beside the files and the preview says so.
+        let burn_in = opts.overlay_mode.burns_in() && COMPOSITOR_INSTALLED;
         let t = &plan.totals;
         let mut location = LocationBreakdown::default();
         for it in &plan.items {

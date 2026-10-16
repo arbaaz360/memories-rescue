@@ -110,6 +110,8 @@ export class AppStore {
 
   private readonly throttle = new AnnounceThrottle();
   private unlisteners: Unlisten[] = [];
+  /** Latest job_state per job, including events that arrive before `start` has returned the id. */
+  private readonly lastStates = new Map<string, { state: NonNullable<FlowState["jobState"]>; error: IpcError | null }>();
   private estimateTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(
@@ -136,7 +138,10 @@ export class AppStore {
         next[e.item.status as ItemStatus] += 1;
         this.tally.value = next;
       }),
-      await this.backend.on("job_state", (e) => void this.onJobState(e.job_id, e.state, e.error)),
+      await this.backend.on("job_state", (e) => {
+        this.lastStates.set(e.job_id, { state: e.state, error: e.error });
+        void this.onJobState(e.job_id, e.state, e.error);
+      }),
       await this.backend.on("warning", (w) => {
         this.notices.value = [...this.notices.value.filter((n) => n.code !== w.code), w];
       }),
@@ -163,6 +168,7 @@ export class AppStore {
 
   applyLanguage(setting: string): void {
     this.i18n.value = createI18n(setting, navigator.languages ?? [navigator.language]);
+    if (typeof document === "undefined") return;
     document.documentElement.lang = this.i18n.value.language;
     document.documentElement.dir = this.i18n.value.dir;
   }
@@ -473,6 +479,7 @@ export class AppStore {
         this.outputPath.value = joinPath(options.destination, "Memories Rescue");
       });
       this.dispatch({ type: "job_started", jobId });
+      this.replayState(jobId);
       if (this.settings.value && this.settings.value.destination !== options.destination) {
         this.settings.value = { ...this.settings.value, destination: options.destination };
       }
@@ -505,6 +512,15 @@ export class AppStore {
         eta: eta === null ? "" : (formatDuration(eta, i18n.formatLocale) ?? ""),
       }),
     );
+  }
+
+  /**
+   * The engine runs the job on its own thread and may report a state (even
+   * `done`, for a tiny job) before `start` returns the id; apply it now.
+   */
+  private replayState(jobId: string): void {
+    const last = this.lastStates.get(jobId);
+    if (last && last.state !== "running") void this.onJobState(jobId, last.state, last.error);
   }
 
   private async onJobState(jobId: string, state: FlowState["jobState"], error: IpcError | null): Promise<void> {

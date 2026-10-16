@@ -58,7 +58,7 @@ Add missing part from Results, Check in job mode, Rescue these memories, and a
 final result of 4,812 accounted for with nothing left "not in your export". No
 console errors.
 
-## Inside Tauri (`npm run tauri dev`, Windows 11)
+## Inside Tauri before the engine was wired (feat/ui, `npm run tauri dev`, Windows 11)
 
 Read over the WebView2 debugging port (`scripts/tauri-probe.mjs`):
 
@@ -71,9 +71,41 @@ Read over the WebView2 debugging port (`scripts/tauri-probe.mjs`):
 | Refused: opener with another URL, opener `open_path`, dialog save and message, shell execute and spawn | "not allowed" from the ACL |
 | Absent: http and fs plugins | "Plugin not found" |
 
+## With the real engine (feat/engine-wiring, `npm run tauri dev`, Windows 11)
+
+`scripts/tauri-walk.mjs` drives the wired app over the WebView2 debugging
+port on fixture F-05 (`fixtures/missing-part`: parts 1, 2 and 4 of a 1,000-item
+export). Inputs and the destination go in through the dev-only
+`window.__mrStore` because native pickers cannot be scripted; everything else
+is the real buttons.
+
+| Step | What the window showed |
+|---|---|
+| Startup | `backend: tauri`, `reason: engine`, no mock badge; About lists ffmpeg n9.0.2 and ExifTool 13.59 |
+| Add files | Three ZIPs: Primary, Part 2 (the renamed `mydata (1).zip`, numbered from its content), Part 4 |
+| Check | "Part 3 appears to be missing", 250 memories in that part; profile 2026b, 750 by file order |
+| Options | Live space gauge on the destination drive |
+| Preview | 750 to rescue, 250 not in the export; 11 photo thumbnails loaded through the asset protocol; warnings for part 3, 7 uncertain locations, and captions that cannot be burned in until the compositor is installed |
+| Start | Stopped at 100 of 100 with the Unlock dialog (free tier) |
+| Finish for now | Results: 93 done, 7 saved without a location, 250 not in your export (part 3), 650 waiting for unlock; `report.html` written; 2017 and 2018 folders in the output |
+
+Screenshots: `docs/ui/screenshots/engine/` (published on the assets branch).
+The walk's job, settings and thumbnails were removed from app data afterwards.
+
+The engine adapter also has its own tests (`src-tauri/tests/engine.rs`, on the
+fixtures, no window): F-05's 250 missing mains and 77 orphan overlays, a
+links-only export blocked, a consistent preview, the free tier stopping at
+exactly 100 and finishing partial after "Later", activation against a fake
+Gumroad unlocking the remaining 150 without redoing the first 100 (and
+re-checks sending `increment_uses_count=false`), adding the missing part
+processing only what it brings, settings persisting, and diagnostics holding
+no export content. `tests/ipc_samples.rs` round-trips JSON produced by the
+TypeScript mock through the Rust contract types.
+
 ## Not verified here
 
 - macOS (no Mac on hand): WKWebView rendering, VoiceOver, the real picker and notification permission prompt.
 - Narrator or NVDA with a person listening; the structure (landmarks, headings, labels, live region) is what they read.
 - Real pickers and drag-and-drop with real files inside Tauri: the plugins are registered and allowed, and the browser stand-in exercised the same code paths, but nothing was dropped onto the Tauri window.
-- Anything the engine does: all numbers on screen come from the mock.
+- Compositing (captions burned in) and clip rejoin: not in the engine yet.
+- A real Gumroad product: activation was tested against a fake on loopback; the product id is not configured in this build.

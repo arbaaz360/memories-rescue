@@ -189,7 +189,10 @@ are then saved beside their files instead of burned in.
 ## Events
 
 The engine emits these with `app.emit(name, payload)`. The window subscribes
-with `listen(name)` for the life of the app and filters on `job_id`.
+with `listen(name)` for the life of the app and filters on `job_id`. A job
+runs on its own thread, so `job_state` (even `done`, for a tiny job) can
+arrive before `start` has returned the id: the window keeps the latest state
+per job id and applies it once the id is known.
 
 | Event | Payload | Cadence |
 |---|---|---|

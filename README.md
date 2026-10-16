@@ -14,7 +14,7 @@ Not affiliated with, endorsed by, or sponsored by Snap Inc. "Snapchat", "Memorie
 | `crates/mr-job` | The engine: dry run (FR-29), resumable jobs in SQLite (FR-33), worker pool, metadata writes, atomic output (FR-35), free tier (FR-44), retry, add part, compositor seam. API: `docs/api/mr-job.md`. |
 | `crates/mr-report` | `_report/report.html`, `report.csv`, `failed_items.json` (FR-38). |
 | `crates/mr-cli` | Command line: `analyze`, `order-check`, `plan`, `run`, `resume`, `retry`, `add-part`, `report`, `jobs` (see below). |
-| `src-tauri` | Tauri 2 shell: the window, ffmpeg and exiftool sidecars run from Rust (`bundle.externalBin`), dialog, opener and notification plugins with capabilities limited to what the screens use, NSIS and MSI bundles. |
+| `src-tauri` | Tauri 2 shell: the 25 commands of `docs/ipc-contract.md` (`src/commands.rs`) over an adapter onto mr-job (`src/engine/`, testable without a window), the licence check with Gumroad and the OS keychain, ffmpeg and exiftool sidecars run from Rust (`bundle.externalBin`), dialog, opener and notification plugins with capabilities limited to what the screens use, NSIS and MSI bundles. |
 | `third_party/` | Sidecar binaries, gitignored; `third_party/README.md` records source, version, SHA-256 and license. `python tools/sidecars.py fetch` stages them. |
 | `docs/decisions/` | Decision records: `Q-02-metadata-writer.md`, `signing.md`. |
 | `docs/api/` | `mr-job.md`: the engine API the app layer drives. |

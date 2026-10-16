@@ -310,6 +310,8 @@ fn plan_preview_is_consistent_and_writes_only_thumbnails() {
         "{:?}",
         p.warnings
     );
+    // ...and those overlays are not counted as captions added.
+    assert_eq!((t.overlays_to_composite, t.originals_kept), (0, 0));
     // FR-29 AC1: nothing in the output folder but the preview report, and only on request.
     assert_eq!(std::fs::read_dir(&env.dest).unwrap().count(), 0);
     let report = env.engine.export_preview_report(&p.plan_id).unwrap();
@@ -631,19 +633,11 @@ fn settings_persist_and_diagnostics_hold_no_export_content() {
         .map(|i| z.by_index(i).unwrap().name().unwrap().to_string())
         .collect();
     assert!(names.contains(&"app.json".to_string()) && names.contains(&"jobs.json".to_string()));
-    for i in 0..z.len() {
+    for (i, name) in names.iter().enumerate() {
         let mut text = String::new();
         z.by_index(i).unwrap().read_to_string(&mut text).unwrap();
-        assert!(
-            !text.contains("memories/"),
-            "{}: names an export entry",
-            names[i]
-        );
-        assert!(
-            !text.contains("Download Link"),
-            "{}: JSON content",
-            names[i]
-        );
+        assert!(!text.contains("memories/"), "{name}: names an export entry");
+        assert!(!text.contains("Download Link"), "{name}: JSON content");
     }
     let info = env.engine.app_info();
     assert_eq!(info.support_email, "support@novabyteworks.com");
