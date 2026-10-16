@@ -1,0 +1,83 @@
+{
+  "job_id": "job-1",
+  "state": "partial",
+  "output_path": "D:\\Memories\\Memories Rescue",
+  "report_html_path": "D:\\Memories\\Memories Rescue\\_report\\report.html",
+  "report_csv_path": "D:\\Memories\\Memories Rescue\\_report\\report.csv",
+  "started_at": "2026-10-16T12:00:00.000Z",
+  "finished_at": "2026-10-16T12:00:00.000Z",
+  "items_total": 4812,
+  "bytes_done": 7187119089,
+  "counts": {
+    "done": 3299,
+    "metadata_partial": 212,
+    "location_uncertain": 36,
+    "missing_media": 1262,
+    "failed": 3,
+    "skipped_free_limit": 0
+  },
+  "missing_parts": [
+    3
+  ],
+  "failures": [
+    {
+      "item_id": "7C3C1046",
+      "name": "2016-03-16_7C3C1046-main.mp4",
+      "media_type": "video",
+      "status": "failed",
+      "error_code": "ZIP_ENTRY_CRC",
+      "message": "CRC mismatch on memories/ entry",
+      "output_path": null,
+      "finished_at": "2026-10-16T12:00:00.000Z"
+    },
+    {
+      "item_id": "1464F0CE",
+      "name": "2018-02-02_1464F0CE-main.mp4",
+      "media_type": "video",
+      "status": "failed",
+      "error_code": "FFMPEG_FAIL",
+      "message": "ffmpeg exited with code 1 after the software retry",
+      "output_path": null,
+      "finished_at": "2026-10-16T12:00:00.000Z"
+    },
+    {
+      "item_id": "830A8877",
+      "name": "2019-07-01_830A8877-main.mp4",
+      "media_type": "video",
+      "status": "failed",
+      "error_code": "METADATA_WRITE",
+      "message": "EXIF write failed: APP1 segment too large",
+      "output_path": null,
+      "finished_at": "2026-10-16T12:00:00.000Z"
+    }
+  ],
+  "issues": [
+    {
+      "code": "PART_MISSING",
+      "message": "Part 3 appears to be missing.",
+      "count": 1262,
+      "part_number": 3
+    }
+  ],
+  "can_retry": true,
+  "can_unlock": false,
+  "can_add_part": true,
+  "options": {
+    "destination": "D:\\Memories",
+    "overlay_mode": "burn_in_keep_originals",
+    "keep_originals": true,
+    "clip_rejoin": true,
+    "clip_rejoin_years": {
+      "from": 2017,
+      "to": 2021
+    },
+    "apply_uncertain_locations": false,
+    "windows_compatibility": false,
+    "zip_output": false,
+    "zip_volume_bytes": null,
+    "home_timezone": "Europe/London",
+    "metadata_only": false,
+    "workers": null,
+    "excluded_clip_groups": []
+  }
+}

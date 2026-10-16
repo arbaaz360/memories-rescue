@@ -1,0 +1,21 @@
+{
+  "destination": "C:\\Users\\you\\Pictures",
+  "home_timezone": "Europe/London",
+  "overlay_mode": "burn_in_keep_originals",
+  "keep_originals": true,
+  "clip_rejoin": true,
+  "clip_rejoin_years": {
+    "from": 2017,
+    "to": 2021
+  },
+  "apply_uncertain_locations": false,
+  "windows_compatibility": false,
+  "workers": null,
+  "output_template": "{date}_{time}_{shortid}.{ext}",
+  "zip_output": false,
+  "zip_volume_bytes": null,
+  "update_checks": true,
+  "update_channel": "stable",
+  "telemetry": false,
+  "language": "system"
+}

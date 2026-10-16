@@ -1,0 +1,10 @@
+{
+  "tier": "licensed",
+  "key_masked": "MOCK-****-****-9ABC",
+  "verified_at": "2026-10-16T12:00:00.000Z",
+  "last_check_at": "2026-10-16T12:00:00.000Z",
+  "grace_until": null,
+  "product_url": "https://novabyteworks.gumroad.com/l/memories-rescue",
+  "price_display": null,
+  "free_limit": 100
+}

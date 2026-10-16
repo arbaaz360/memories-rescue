@@ -1,0 +1,11 @@
+{
+  "output_bytes": 7511383494,
+  "originals_bytes": 2195309621,
+  "temp_bytes": 1456000000,
+  "zip_bytes": 0,
+  "total_bytes": 11162693115,
+  "free_bytes": 412700000000,
+  "sufficient": true,
+  "shortfall_bytes": 0,
+  "volume": "D:"
+}

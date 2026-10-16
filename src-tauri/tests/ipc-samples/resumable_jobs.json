@@ -1,0 +1,15 @@
+[
+  {
+    "job_id": "job-previous",
+    "output_path": "D:\\Memories\\Memories Rescue",
+    "created_at": "2026-10-14T07:00:00.000Z",
+    "state": "paused",
+    "items_done": 1950,
+    "items_total": 3550,
+    "input_names": [
+      "mydata~1729000000000.zip",
+      "mydata~1729000000000-2.zip",
+      "mydata~1729000000000-4.zip"
+    ]
+  }
+]

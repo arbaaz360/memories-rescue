@@ -1,0 +1,2661 @@
+{
+  "plan_id": "plan-1",
+  "totals": {
+    "items": 3550,
+    "photos": 2425,
+    "videos": 1125,
+    "overlays_to_composite": 892,
+    "originals_kept": 892,
+    "missing_media": 1262,
+    "unrecognised": 0
+  },
+  "confidence": {
+    "exact": 1375,
+    "ordinal": 1963,
+    "none": 212
+  },
+  "location": {
+    "applied": 2701,
+    "none": 813,
+    "uncertain": 36
+  },
+  "tree": {
+    "name": "Memories Rescue",
+    "file_count": 0,
+    "sample_files": [],
+    "children": [
+      {
+        "name": "2016",
+        "file_count": 0,
+        "sample_files": [],
+        "children": [
+          {
+            "name": "01",
+            "file_count": 18,
+            "sample_files": [
+              "2016-01-19_103109_9E3779B1.mp4",
+              "2016-01-02_210503_3C6EF362.mp4",
+              "2016-01-05_175817_DAA66D13.jpg"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 4,
+                "sample_files": [
+                  "2016-01-04_8FF34739-main.jpg",
+                  "2016-01-02_6A99B44C-main.jpg"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "02",
+            "file_count": 17,
+            "sample_files": [
+              "2016-02-07_140833_BE1E0823.jpg",
+              "2016-02-19_120000_5C5581D4.jpg",
+              "2016-02-22_214813_FA8CFB85.jpg"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 12,
+                "sample_files": [
+                  "2016-02-19_5C5581D4-main.jpg",
+                  "2016-02-10_36FBEEE7-main.jpg"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "03",
+            "file_count": 18,
+            "sample_files": [
+              "2016-03-13_210621_3FCD1CE4.mp4",
+              "2016-03-19_171641_DE049695.mp4",
+              "2016-03-16_173118_7C3C1046.mp4"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 8,
+                "sample_files": [
+                  "2016-03-13_3FCD1CE4-main.mp4",
+                  "2016-03-10_56E27D59-main.jpg"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "04",
+            "file_count": 17,
+            "sample_files": [
+              "2016-04-25_161927_5FB3AB56.mp4",
+              "2016-04-23_180912_FDEB2507.jpg",
+              "2016-04-16_111530_9C229EB8.mp4"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 8,
+                "sample_files": [
+                  "2016-04-23_FDEB2507-main.jpg",
+                  "2016-04-16_9C229EB8-main.mp4"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "05",
+            "file_count": 18,
+            "sample_files": [
+              "2016-05-27_085742_E162C017.jpg",
+              "2016-05-01_153834_7F9A39C8.jpg",
+              "2016-05-25_143252_1DD1B379.jpg"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 8,
+                "sample_files": [
+                  "2016-05-01_7F9A39C8-main.jpg",
+                  "2016-05-27_26A2E176-main.mp4"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "06",
+            "file_count": 17,
+            "sample_files": [
+              "2016-06-19_175348_01494E89.jpg",
+              "2016-06-13_201150_9F80C83A.jpg",
+              "2016-06-06_133232_3DB841EB.jpg"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 6,
+                "sample_files": [
+                  "2016-06-26_B69628AF-main.jpg",
+                  "2016-06-21_CDAB8924-main.mp4"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "07",
+            "file_count": 18,
+            "sample_files": [
+              "2016-07-06_200621_82F8634A.mp4",
+              "2016-07-08_100538_212FDCFB.jpg",
+              "2016-07-25_133857_BF6756AC.mp4"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 18,
+                "sample_files": [
+                  "2016-07-08_212FDCFB-main.jpg",
+                  "2016-07-24_9A0DC3BF-main.jpg"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "08",
+            "file_count": 17,
+            "sample_files": [
+              "2016-08-12_203006_A2DEF1BC.mp4",
+              "2016-08-14_092831_41166B6D.mp4",
+              "2016-08-27_164933_DF4DE51E.jpg"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 2,
+                "sample_files": [
+                  "2016-08-02_32D238F5-main.jpg"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "09",
+            "file_count": 18,
+            "sample_files": [
+              "2016-09-26_120000_248E067D.jpg",
+              "2016-09-03_112919_C2C5802E.jpg",
+              "2016-09-22_094356_60FCF9DF.jpg"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 8,
+                "sample_files": [
+                  "2016-09-26_248E067D-main.jpg",
+                  "2016-09-14_3BA366F2-main.jpg"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "10",
+            "file_count": 17,
+            "sample_files": [
+              "2016-10-02_124707_447494EF.jpg",
+              "2016-10-06_172728_E2AC0EA0.mp4",
+              "2016-10-04_120000_80E38851.jpg"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 6,
+                "sample_files": [
+                  "2016-10-16_1F1B0202-main.mp4",
+                  "2016-10-15_5B89F564-main.jpg"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "11",
+            "file_count": 18,
+            "sample_files": [
+              "2016-11-22_175026_C623A9B0.jpg",
+              "2016-11-24_173038_645B2361.jpg",
+              "2016-11-07_114521_02929D12.mp4"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 6,
+                "sample_files": [
+                  "2016-11-22_C623A9B0-main.jpg",
+                  "2016-11-20_F44E6A9A-main.mp4"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "12",
+            "file_count": 17,
+            "sample_files": [
+              "2016-12-02_145337_E60A3822.mp4",
+              "2016-12-26_100143_8441B1D3.jpg",
+              "2016-12-17_114614_22792B84.jpg"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 6,
+                "sample_files": [
+                  "2016-12-24_D7C605AA-main.mp4",
+                  "2016-12-12_50A3EC6E-main.jpg"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "2017",
+        "file_count": 0,
+        "sample_files": [],
+        "children": [
+          {
+            "name": "01",
+            "file_count": 44,
+            "sample_files": [
+              "2017-01-26_180422_67B94CE3.jpg",
+              "2017-01-03_210905_05F0C694.jpg",
+              "2017-01-07_120000_A4284045.jpg"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 12,
+                "sample_files": [
+                  "2017-01-03_05F0C694-main.jpg",
+                  "2017-01-22_E09733A7-main.mp4"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "02",
+            "file_count": 43,
+            "sample_files": [
+              "2017-02-28_173813_9942374F.jpg",
+              "2017-02-20_204831_3779B100.mp4",
+              "2017-02-17_162909_D5B12AB1.mp4"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 26,
+                "sample_files": [
+                  "2017-02-20_3779B100-main.mp4",
+                  "2017-02-06_ECC68B26-main.jpg"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "03",
+            "file_count": 43,
+            "sample_files": [
+              "2017-03-05_184802_2C93A80A.mp4",
+              "2017-03-26_163506_CACB21BB.jpg",
+              "2017-03-23_164211_69029B6C.mp4"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 18,
+                "sample_files": [
+                  "2017-03-28_1E4F7592-main.jpg",
+                  "2017-03-15_5ABE68F4-main.jpg"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "04",
+            "file_count": 44,
+            "sample_files": [
+              "2017-04-03_081302_BFE518C5.jpg",
+              "2017-04-25_083831_5E1C9276.mp4",
+              "2017-04-27_172501_FC540C27.mp4"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 22,
+                "sample_files": [
+                  "2017-04-25_5E1C9276-main.mp4",
+                  "2017-04-12_38C2FF89-main.mp4"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "05",
+            "file_count": 43,
+            "sample_files": [
+              "2017-05-23_111247_F16E0331.jpg",
+              "2017-05-10_185525_8FA57CE2.jpg",
+              "2017-05-24_094826_2DDCF693.jpg"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 8,
+                "sample_files": [
+                  "2017-05-23_F16E0331-main.jpg",
+                  "2017-05-21_BDD03DCC-main.mp4"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "06",
+            "file_count": 43,
+            "sample_files": [
+              "2017-06-09_082700_84BF73EC.jpg",
+              "2017-06-05_122254_22F6ED9D.mp4",
+              "2017-06-19_122612_C12E674E.jpg"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 20,
+                "sample_files": [
+                  "2017-06-05_22F6ED9D-main.mp4",
+                  "2017-06-19_FD9D5AB0-main.mp4"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "07",
+            "file_count": 44,
+            "sample_files": [
+              "2017-07-10_211632_1810E4A7.jpg",
+              "2017-07-07_080710_B6485E58.mp4",
+              "2017-07-19_111932_547FD809.jpg"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 18,
+                "sample_files": [
+                  "2017-07-07_B6485E58-main.mp4",
+                  "2017-07-06_463BA591-main.jpg"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "08",
+            "file_count": 43,
+            "sample_files": [
+              "2017-08-22_203016_4999CF13.mp4",
+              "2017-08-11_132601_E7D148C4.jpg",
+              "2017-08-06_130517_8608C275.jpg"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 24,
+                "sample_files": [
+                  "2017-08-22_4999CF13-main.mp4",
+                  "2017-08-17_FEE6A939-main.jpg"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "09",
+            "file_count": 43,
+            "sample_files": [
+              "2017-09-13_125518_DCEB3FCE.jpg",
+              "2017-09-04_132136_7B22B97F.jpg",
+              "2017-09-26_204907_195A3330.jpg"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 14,
+                "sample_files": [
+                  "2017-09-03_B791ACE1-main.mp4",
+                  "2017-09-01_A94D7A69-main.mp4"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "10",
+            "file_count": 44,
+            "sample_files": [
+              "2017-10-18_165133_703CB089.jpg",
+              "2017-10-04_193819_0E742A3A.mp4",
+              "2017-10-04_173546_ACABA3EB.mp4"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 16,
+                "sample_files": [
+                  "2017-10-04_ACABA3EB-main.mp4",
+                  "2017-10-14_A7389F70-main.mp4"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "11",
+            "file_count": 43,
+            "sample_files": [
+              "2017-11-26_172816_A1C59AF5.jpg",
+              "2017-11-17_120000_3FFD14A6.mp4",
+              "2017-11-02_105556_DE348E57.mp4"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 18,
+                "sample_files": [
+                  "2017-11-26_A1C59AF5-main.jpg",
+                  "2017-11-02_DE348E57-main.mp4"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "12",
+            "file_count": 43,
+            "sample_files": [
+              "2017-12-07_175343_35170BB0.mp4",
+              "2017-12-19_211442_D34E8561.jpg",
+              "2017-12-16_094809_7185FF12.jpg"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 24,
+                "sample_files": [
+                  "2017-12-07_35170BB0-main.mp4",
+                  "2017-12-19_D34E8561-main.jpg"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "2018",
+        "file_count": 0,
+        "sample_files": [],
+        "children": [
+          {
+            "name": "01",
+            "file_count": 48,
+            "sample_files": [
+              "2018-01-14_120000_C8687C6B.jpg",
+              "2018-01-20_183239_669FF61C.jpg",
+              "2018-01-25_203228_04D76FCD.jpg"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 22,
+                "sample_files": [
+                  "2018-01-01_7DB55691-main.jpg",
+                  "2018-01-14_BA2449F3-main.jpg"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "02",
+            "file_count": 48,
+            "sample_files": [
+              "2018-02-10_180242_72CF4D9B.jpg",
+              "2018-02-03_153529_1106C74C.mp4",
+              "2018-02-16_152601_AF3E40FD.jpg"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 30,
+                "sample_files": [
+                  "2018-02-03_1106C74C-main.mp4",
+                  "2018-02-28_281C27C1-main.jpg"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "03",
+            "file_count": 48,
+            "sample_files": [
+              "2018-03-09_131511_1D361ECB.jpg",
+              "2018-03-21_173324_BB6D987C.jpg",
+              "2018-03-05_084704_59A5122D.mp4"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 36,
+                "sample_files": [
+                  "2018-03-02_D282F8F1-main.jpg",
+                  "2018-03-20_70BA72A2-main.mp4"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "04",
+            "file_count": 48,
+            "sample_files": [
+              "2018-04-04_090312_C79CEFFB.jpg",
+              "2018-04-08_154240_65D469AC.jpg",
+              "2018-04-26_081124_040BE35D.jpg"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 26,
+                "sample_files": [
+                  "2018-04-08_65D469AC-main.jpg",
+                  "2018-04-11_B958BD83-main.jpg"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "05",
+            "file_count": 48,
+            "sample_files": [
+              "2018-05-11_114408_7203C12B.jpg",
+              "2018-05-02_124644_103B3ADC.jpg",
+              "2018-05-06_125138_AE72B48D.jpg"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 32,
+                "sample_files": [
+                  "2018-05-06_AE72B48D-main.jpg",
+                  "2018-05-03_4CAA2E3E-main.mp4"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "06",
+            "file_count": 48,
+            "sample_files": [
+              "2018-06-19_124616_1C6A925B.jpg",
+              "2018-06-03_184556_BAA20C0C.jpg",
+              "2018-06-25_101334_58D985BD.jpg"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 24,
+                "sample_files": [
+                  "2018-06-04_D1B76C81-main.mp4",
+                  "2018-06-12_AC5DD994-main.jpg"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "07",
+            "file_count": 48,
+            "sample_files": [
+              "2018-07-18_084309_C6D1638B.jpg",
+              "2018-07-09_112928_6508DD3C.jpg",
+              "2018-07-28_120000_034056ED.mp4"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 18,
+                "sample_files": [
+                  "2018-07-22_4880784C-main.jpg",
+                  "2018-07-15_84EF6BAE-main.mp4"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "08",
+            "file_count": 48,
+            "sample_files": [
+              "2018-08-19_173051_713834BB.jpg",
+              "2018-08-01_102524_0F6FAE6C.mp4",
+              "2018-08-03_184527_ADA7281D.mp4"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 22,
+                "sample_files": [
+                  "2018-08-21_62F40243-main.jpg",
+                  "2018-08-18_012B7BF4-main.jpg"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "09",
+            "file_count": 48,
+            "sample_files": [
+              "2018-09-05_181449_1B9F05EB.jpg",
+              "2018-09-22_135043_B9D67F9C.jpg",
+              "2018-09-15_124621_580DF94D.mp4"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 28,
+                "sample_files": [
+                  "2018-09-28_6F2359C2-main.jpg",
+                  "2018-09-21_0D5AD373-main.mp4"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "10",
+            "file_count": 48,
+            "sample_files": [
+              "2018-10-17_170200_C605D71B.mp4",
+              "2018-10-02_104924_643D50CC.jpg",
+              "2018-10-02_103914_0274CA7D.jpg"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 24,
+                "sample_files": [
+                  "2018-10-02_0274CA7D-main.jpg",
+                  "2018-10-13_A0AC442E-main.jpg"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "11",
+            "file_count": 48,
+            "sample_files": [
+              "2018-11-12_103903_706CA84B.jpg",
+              "2018-11-20_130511_0EA421FC.jpg",
+              "2018-11-26_083449_ACDB9BAD.jpg"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 16,
+                "sample_files": [
+                  "2018-11-07_4B13155E-main.mp4",
+                  "2018-11-10_E94A8F0F-main.jpg"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "12",
+            "file_count": 47,
+            "sample_files": [
+              "2018-12-21_081454_1AD3797B.jpg",
+              "2018-12-25_125015_B90AF32C.jpg",
+              "2018-12-17_115040_57426CDD.jpg"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 14,
+                "sample_files": [
+                  "2018-12-08_7728FB4F-main.jpg",
+                  "2018-12-16_15607500-main.mp4"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "2019",
+        "file_count": 0,
+        "sample_files": [],
+        "children": [
+          {
+            "name": "01",
+            "file_count": 58,
+            "sample_files": [
+              "2019-01-24_163755_2702D0FA.jpg",
+              "2019-01-20_145744_C53A4AAB.jpg",
+              "2019-01-25_184005_6371C45C.jpg"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 34,
+                "sample_files": [
+                  "2019-01-24_2702D0FA-main.jpg",
+                  "2019-01-02_3E18316F-main.jpg"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "02",
+            "file_count": 57,
+            "sample_files": [
+              "2019-02-22_091053_FF946314.jpg",
+              "2019-02-04_203006_9DCBDCC5.jpg",
+              "2019-02-28_135310_3C035676.jpg"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 26,
+                "sample_files": [
+                  "2019-02-04_9DCBDCC5-main.jpg",
+                  "2019-02-26_787249D8-main.jpg"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "03",
+            "file_count": 58,
+            "sample_files": [
+              "2019-03-25_123408_39EE7B7D.jpg",
+              "2019-03-20_155341_D825F52E.jpg",
+              "2019-03-04_211614_765D6EDF.jpg"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 36,
+                "sample_files": [
+                  "2019-03-25_39EE7B7D-main.jpg",
+                  "2019-03-20_B2CC6241-main.mp4"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "04",
+            "file_count": 57,
+            "sample_files": [
+              "2019-04-27_081256_12800D97.jpg",
+              "2019-04-02_120000_B0B78748.jpg",
+              "2019-04-19_114228_4EEF00F9.mp4"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 32,
+                "sample_files": [
+                  "2019-04-08_ED267AAA-main.jpg",
+                  "2019-04-08_6604616E-main.mp4"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "05",
+            "file_count": 58,
+            "sample_files": [
+              "2019-05-13_100419_4CDA2600.mp4",
+              "2019-05-10_212950_EB119FB1.jpg",
+              "2019-05-06_120000_89491962.jpg"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 22,
+                "sample_files": [
+                  "2019-05-10_EB119FB1-main.jpg",
+                  "2019-05-19_C5B80CC4-main.jpg"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "06",
+            "file_count": 57,
+            "sample_files": [
+              "2019-06-21_122331_256BB81A.jpg",
+              "2019-06-10_132308_C3A331CB.mp4",
+              "2019-06-02_192157_61DAAB7C.mp4"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 22,
+                "sample_files": [
+                  "2019-06-27_9E499EDE-main.mp4",
+                  "2019-06-14_172785A2-main.jpg"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "07",
+            "file_count": 58,
+            "sample_files": [
+              "2019-07-27_120000_5FC5D083.jpg",
+              "2019-07-02_164803_FDFD4A34.jpg",
+              "2019-07-14_133957_9C34C3E5.mp4"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 24,
+                "sample_files": [
+                  "2019-07-27_5FC5D083-main.jpg",
+                  "2019-07-08_8DF0916D-main.jpg"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "08",
+            "file_count": 57,
+            "sample_files": [
+              "2019-08-01_173101_3857629D.jpg",
+              "2019-08-16_112813_D68EDC4E.jpg",
+              "2019-08-16_173816_74C655FF.mp4"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 32,
+                "sample_files": [
+                  "2019-08-16_D68EDC4E-main.jpg",
+                  "2019-08-23_4F6CC312-main.jpg"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "09",
+            "file_count": 58,
+            "sample_files": [
+              "2019-09-10_171229_72B17B06.jpg",
+              "2019-09-28_121501_10E8F4B7.mp4",
+              "2019-09-07_120000_AF206E68.mp4"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 28,
+                "sample_files": [
+                  "2019-09-24_27FE552C-main.jpg",
+                  "2019-09-08_A0DC3BF0-main.jpg"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "10",
+            "file_count": 57,
+            "sample_files": [
+              "2019-10-20_143704_4B430D20.jpg",
+              "2019-10-05_180224_E97A86D1.jpg",
+              "2019-10-26_184007_87B20082.mp4"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 18,
+                "sample_files": [
+                  "2019-10-03_9EC760F7-main.jpg",
+                  "2019-10-18_3CFEDAA8-main.mp4"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "11",
+            "file_count": 58,
+            "sample_files": [
+              "2019-11-28_140128_859D2589.jpg",
+              "2019-11-24_150447_23D49F3A.jpg",
+              "2019-11-02_141300_C20C18EB.jpg"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 22,
+                "sample_files": [
+                  "2019-11-28_859D2589-main.jpg",
+                  "2019-11-25_FE7B0C4D-main.jpg"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "12",
+            "file_count": 57,
+            "sample_files": [
+              "2019-12-09_200917_5E2EB7A3.mp4",
+              "2019-12-18_143725_FC663154.jpg",
+              "2019-12-26_210436_9A9DAB05.jpg"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 32,
+                "sample_files": [
+                  "2019-12-09_5E2EB7A3-main.mp4",
+                  "2019-12-20_D70C9E67-main.jpg"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "2020",
+        "file_count": 0,
+        "sample_files": [],
+        "children": [
+          {
+            "name": "01",
+            "file_count": 50,
+            "sample_files": [
+              "2020-01-26_160708_9888D00C.jpg",
+              "2020-01-11_105510_36C049BD.jpg",
+              "2020-01-13_092513_D4F7C36E.jpg"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 26,
+                "sample_files": [
+                  "2020-01-13_D4F7C36E-main.jpg",
+                  "2020-01-23_A159FE09-main.mp4"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "02",
+            "file_count": 50,
+            "sample_files": [
+              "2020-02-21_160435_7F5E949E.jpg",
+              "2020-02-10_150535_1D960E4F.mp4",
+              "2020-02-01_174420_BBCD8800.jpg"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 16,
+                "sample_files": [
+                  "2020-02-22_34AB6EC4-main.jpg",
+                  "2020-02-04_D2E2E875-main.mp4"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "03",
+            "file_count": 50,
+            "sample_files": [
+              "2020-03-26_204034_66345930.jpg",
+              "2020-03-05_082254_046BD2E1.jpg",
+              "2020-03-27_112031_A2A34C92.mp4"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 30,
+                "sample_files": [
+                  "2020-03-05_046BD2E1-main.jpg",
+                  "2020-03-16_7D49B9A5-main.jpg"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "04",
+            "file_count": 50,
+            "sample_files": [
+              "2020-04-22_091426_4D0A1DC2.jpg",
+              "2020-04-26_210543_EB419773.jpg",
+              "2020-04-20_183941_89791124.jpg"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 20,
+                "sample_files": [
+                  "2020-04-22_4D0A1DC2-main.jpg",
+                  "2020-04-08_27B08AD5-main.jpg"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "05",
+            "file_count": 50,
+            "sample_files": [
+              "2020-05-16_145416_33DFE254.jpg",
+              "2020-05-23_094410_D2175C05.jpg",
+              "2020-05-03_104236_704ED5B6.mp4"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 32,
+                "sample_files": [
+                  "2020-05-23_D2175C05-main.jpg",
+                  "2020-05-05_0E864F67-main.jpg"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "06",
+            "file_count": 50,
+            "sample_files": [
+              "2020-06-09_190733_1AB5A6E6.jpg",
+              "2020-06-01_191029_B8ED2097.mp4",
+              "2020-06-07_182809_57249A48.mp4"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 22,
+                "sample_files": [
+                  "2020-06-09_1AB5A6E6-main.jpg",
+                  "2020-06-07_57249A48-main.mp4"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "07",
+            "file_count": 50,
+            "sample_files": [
+              "2020-07-24_081951_018B6B78.mp4",
+              "2020-07-24_185023_9FC2E529.jpg",
+              "2020-07-12_212346_3DFA5EDA.jpg"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 20,
+                "sample_files": [
+                  "2020-07-09_DC31D88B-main.jpg",
+                  "2020-07-11_18A0CBED-main.jpg"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "08",
+            "file_count": 50,
+            "sample_files": [
+              "2020-08-10_124938_E861300A.mp4",
+              "2020-08-18_214450_8698A9BB.jpg",
+              "2020-08-20_102806_24D0236C.jpg"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 22,
+                "sample_files": [
+                  "2020-08-13_9DAE0A30-main.mp4",
+                  "2020-08-15_3BE583E1-main.mp4"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "09",
+            "file_count": 50,
+            "sample_files": [
+              "2020-09-06_194119_CF36F49C.jpg",
+              "2020-09-11_193645_6D6E6E4D.mp4",
+              "2020-09-09_121849_0BA5E7FE.jpg"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 20,
+                "sample_files": [
+                  "2020-09-09_0BA5E7FE-main.jpg",
+                  "2020-09-02_4814DB60-main.jpg"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "10",
+            "file_count": 50,
+            "sample_files": [
+              "2020-10-12_091354_B60CB92E.jpg",
+              "2020-10-05_195743_544432DF.mp4",
+              "2020-10-10_134350_F27BAC90.mp4"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 24,
+                "sample_files": [
+                  "2020-10-12_B60CB92E-main.jpg",
+                  "2020-10-27_2EEA9FF2-main.jpg"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "11",
+            "file_count": 50,
+            "sample_files": [
+              "2020-11-10_183811_9CE27DC0.mp4",
+              "2020-11-03_134127_3B19F771.mp4",
+              "2020-11-22_182117_D9517122.jpg"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 24,
+                "sample_files": [
+                  "2020-11-07_15C06484-main.jpg",
+                  "2020-11-18_522F57E6-main.jpg"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "12",
+            "file_count": 50,
+            "sample_files": [
+              "2020-12-05_205709_83B84252.mp4",
+              "2020-12-12_090401_21EFBC03.mp4",
+              "2020-12-24_090549_C02735B4.jpg"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 16,
+                "sample_files": [
+                  "2020-12-10_39051C78-main.jpg",
+                  "2020-12-23_75740FDA-main.mp4"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "2023",
+        "file_count": 0,
+        "sample_files": [],
+        "children": [
+          {
+            "name": "01",
+            "file_count": 25,
+            "sample_files": [
+              "2023-01-26_114934_6007ED72.jpg",
+              "2023-01-17_163753_FE3F6723.jpg",
+              "2023-01-20_164127_9C76E0D4.jpg"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 18,
+                "sample_files": [
+                  "2023-01-26_6007ED72-main.jpg",
+                  "2023-01-17_FE3F6723-main.jpg"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "02",
+            "file_count": 25,
+            "sample_files": [
+              "2023-02-06_120106_D372CFBB.jpg",
+              "2023-02-23_113732_71AA496C.jpg",
+              "2023-02-08_182011_0FE1C31D.jpg"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 16,
+                "sample_files": [
+                  "2023-02-08_0FE1C31D-main.jpg",
+                  "2023-02-24_C52E9D43-main.mp4"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "03",
+            "file_count": 25,
+            "sample_files": [
+              "2023-03-10_081940_46DDB204.mp4",
+              "2023-03-04_091439_E5152BB5.jpg",
+              "2023-03-26_120000_834CA566.jpg"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 20,
+                "sample_files": [
+                  "2023-03-04_FC2A8C2A-main.mp4",
+                  "2023-03-02_38997F8C-main.mp4"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "04",
+            "file_count": 25,
+            "sample_files": [
+              "2023-04-09_122821_BA48944D.mp4",
+              "2023-04-02_174806_58800DFE.jpg",
+              "2023-04-22_115514_F6B787AF.mp4"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 20,
+                "sample_files": [
+                  "2023-04-09_BA48944D-main.mp4",
+                  "2023-04-03_D15DF4C2-main.mp4"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "05",
+            "file_count": 25,
+            "sample_files": [
+              "2023-05-08_112651_2DB37696.jpg",
+              "2023-05-13_095127_CBEAF047.jpg",
+              "2023-05-19_123104_6A2269F8.mp4"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 20,
+                "sample_files": [
+                  "2023-05-08_2DB37696-main.jpg",
+                  "2023-05-19_6A2269F8-main.mp4"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "06",
+            "file_count": 25,
+            "sample_files": [
+              "2023-06-23_090717_A11E58DF.jpg",
+              "2023-06-18_181057_3F55D290.jpg",
+              "2023-06-26_094922_DD8D4C41.jpg"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 16,
+                "sample_files": [
+                  "2023-06-23_A11E58DF-main.jpg",
+                  "2023-06-08_7BC4C5F2-main.mp4"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "07",
+            "file_count": 25,
+            "sample_files": [
+              "2023-07-23_084920_14893B28.mp4",
+              "2023-07-13_083222_B2C0B4D9.jpg",
+              "2023-07-28_103113_50F82E8A.mp4"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 26,
+                "sample_files": [
+                  "2023-07-13_B2C0B4D9-main.jpg",
+                  "2023-07-07_8D6721EC-main.mp4"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "08",
+            "file_count": 25,
+            "sample_files": [
+              "2023-08-10_130234_87F41D71.mp4",
+              "2023-08-08_143451_262B9722.jpg",
+              "2023-08-06_094616_C46310D3.jpg"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 18,
+                "sample_files": [
+                  "2023-08-10_87F41D71-main.mp4",
+                  "2023-08-08_DB787148-main.mp4"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "09",
+            "file_count": 25,
+            "sample_files": [
+              "2023-09-21_192233_FB5EFFBA.mp4",
+              "2023-09-15_094242_9996796B.jpg",
+              "2023-09-05_112700_37CDF31C.jpg"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 8,
+                "sample_files": [
+                  "2023-09-05_37CDF31C-main.jpg",
+                  "2023-09-10_1274602F-main.jpg"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "10",
+            "file_count": 25,
+            "sample_files": [
+              "2023-10-19_160052_6EC9E203.jpg",
+              "2023-10-06_095102_0D015BB4.mp4",
+              "2023-10-18_171902_AB38D565.mp4"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 16,
+                "sample_files": [
+                  "2023-10-19_6EC9E203-main.jpg",
+                  "2023-10-11_49704F16-main.mp4"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "11",
+            "file_count": 25,
+            "sample_files": [
+              "2023-11-20_155711_E234C44C.jpg",
+              "2023-11-03_185812_806C3DFD.jpg",
+              "2023-11-04_161356_1EA3B7AE.jpg"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 6,
+                "sample_files": [
+                  "2023-11-03_806C3DFD-main.jpg",
+                  "2023-11-26_35B91823-main.jpg"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "12",
+            "file_count": 25,
+            "sample_files": [
+              "2023-12-03_084951_559FA695.jpg",
+              "2023-12-15_193352_F3D72046.jpg",
+              "2023-12-11_195534_920E99F7.mp4"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 10,
+                "sample_files": [
+                  "2023-12-28_475B741D-main.mp4",
+                  "2023-12-16_5E70D492-main.jpg"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "2024",
+        "file_count": 0,
+        "sample_files": [],
+        "children": [
+          {
+            "name": "01",
+            "file_count": 24,
+            "sample_files": [
+              "2024-01-03_120000_C90A88DE.jpg",
+              "2024-01-25_102443_6742028F.jpg",
+              "2024-01-27_170107_05797C40.jpg"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 18,
+                "sample_files": [
+                  "2024-01-27_05797C40-main.jpg",
+                  "2024-01-25_E01FE953-main.jpg"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "02",
+            "file_count": 23,
+            "sample_files": [
+              "2024-02-17_143012_9E3DF176.jpg",
+              "2024-02-01_114548_3C756B27.jpg",
+              "2024-02-01_095519_DAACE4D8.jpg"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 14,
+                "sample_files": [
+                  "2024-02-17_9E3DF176-main.jpg",
+                  "2024-02-01_3C756B27-main.jpg"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "03",
+            "file_count": 23,
+            "sample_files": [
+              "2024-03-04_205045_D539E05D.mp4",
+              "2024-03-24_152403_73715A0E.jpg",
+              "2024-03-24_115633_11A8D3BF.mp4"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 16,
+                "sample_files": [
+                  "2024-03-24_11A8D3BF-main.mp4",
+                  "2024-03-18_AFE04D70-main.jpg"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "04",
+            "file_count": 24,
+            "sample_files": [
+              "2024-04-06_184019_0C35CF44.jpg",
+              "2024-04-19_172334_AA6D48F5.mp4",
+              "2024-04-02_112816_48A4C2A6.mp4"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 10,
+                "sample_files": [
+                  "2024-04-06_0C35CF44-main.jpg",
+                  "2024-04-19_AA6D48F5-main.mp4"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "05",
+            "file_count": 23,
+            "sample_files": [
+              "2024-05-25_082126_E16937DC.jpg",
+              "2024-05-25_103000_7FA0B18D.jpg",
+              "2024-05-05_183528_1DD82B3E.mp4"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 14,
+                "sample_files": [
+                  "2024-05-25_E16937DC-main.jpg",
+                  "2024-05-25_F87E9851-main.jpg"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "06",
+            "file_count": 23,
+            "sample_files": [
+              "2024-06-20_163336_186526C3.jpg",
+              "2024-06-14_120000_B69CA074.jpg",
+              "2024-06-03_174431_54D41A25.jpg"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 20,
+                "sample_files": [
+                  "2024-06-20_186526C3-main.jpg",
+                  "2024-06-18_91430D87-main.jpg"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "07",
+            "file_count": 24,
+            "sample_files": [
+              "2024-07-09_130717_4F6115AA.mp4",
+              "2024-07-12_092033_ED988F5B.jpg",
+              "2024-07-02_120000_8BD0090C.jpg"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 10,
+                "sample_files": [
+                  "2024-07-12_ED988F5B-main.jpg",
+                  "2024-07-10_A2E56981-main.mp4"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "08",
+            "file_count": 23,
+            "sample_files": [
+              "2024-08-11_152604_24947E42.mp4",
+              "2024-08-21_122622_C2CBF7F3.mp4",
+              "2024-08-02_080136_610371A4.mp4"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 12,
+                "sample_files": [
+                  "2024-08-10_FF3AEB55-main.mp4",
+                  "2024-08-20_F0F6B8DD-main.mp4"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "09",
+            "file_count": 23,
+            "sample_files": [
+              "2024-09-27_120339_5B906D29.mp4",
+              "2024-09-19_134911_F9C7E6DA.jpg",
+              "2024-09-21_173227_97FF608B.jpg"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 10,
+                "sample_files": [
+                  "2024-09-21_97FF608B-main.jpg",
+                  "2024-09-22_10DD474F-main.mp4"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "10",
+            "file_count": 24,
+            "sample_files": [
+              "2024-10-24_213922_928C5C10.mp4",
+              "2024-10-01_120000_30C3D5C1.jpg",
+              "2024-10-28_195700_CEFB4F72.mp4"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 16,
+                "sample_files": [
+                  "2024-10-17_0B6A42D4-main.jpg",
+                  "2024-10-13_5EEE96AB-main.jpg"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "11",
+            "file_count": 23,
+            "sample_files": [
+              "2024-11-18_124129_67BFC4A8.mp4",
+              "2024-11-02_193725_05F73E59.jpg",
+              "2024-11-18_215819_A42EB80A.mp4"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 12,
+                "sample_files": [
+                  "2024-11-18_67BFC4A8-main.mp4",
+                  "2024-11-18_A42EB80A-main.mp4"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "12",
+            "file_count": 23,
+            "sample_files": [
+              "2024-12-07_101123_9EBBB38F.jpg",
+              "2024-12-13_120000_3CF32D40.jpg",
+              "2024-12-24_184807_DB2AA6F1.mp4"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 16,
+                "sample_files": [
+                  "2024-12-24_DB2AA6F1-main.mp4",
+                  "2024-12-21_17999A53-main.jpg"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "2025",
+        "file_count": 0,
+        "sample_files": [],
+        "children": [
+          {
+            "name": "01",
+            "file_count": 20,
+            "sample_files": [
+              "2025-01-14_124533_D5B7A276.mp4",
+              "2025-01-07_143900_73EF1C27.mp4",
+              "2025-01-24_120000_122695D8.mp4"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 14,
+                "sample_files": [
+                  "2025-01-14_D5B7A276-main.mp4",
+                  "2025-01-07_73EF1C27-main.mp4"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "02",
+            "file_count": 19,
+            "sample_files": [
+              "2025-02-15_093154_320D244A.jpg",
+              "2025-02-21_113544_D0449DFB.jpg",
+              "2025-02-02_120000_6E7C17AC.jpg"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 8,
+                "sample_files": [
+                  "2025-02-10_AAEB0B0E-main.jpg",
+                  "2025-02-02_23C8F1D2-main.mp4"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "03",
+            "file_count": 19,
+            "sample_files": [
+              "2025-03-03_110711_F02B2C6D.mp4",
+              "2025-03-07_162456_8E62A61E.jpg",
+              "2025-03-24_171538_2C9A1FCF.mp4"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 16,
+                "sample_files": [
+                  "2025-03-03_F02B2C6D-main.mp4",
+                  "2025-03-11_43AF8044-main.jpg"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "04",
+            "file_count": 19,
+            "sample_files": [
+              "2025-04-01_185727_AE493490.mp4",
+              "2025-04-27_203405_4C80AE41.jpg",
+              "2025-04-07_120000_EAB827F2.mp4"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 4,
+                "sample_files": [
+                  "2025-04-09_A0050218-main.mp4",
+                  "2025-04-21_7AAB6F2B-main.jpg"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "05",
+            "file_count": 19,
+            "sample_files": [
+              "2025-05-24_132610_6C673CB3.mp4",
+              "2025-05-08_120000_0A9EB664.mp4",
+              "2025-05-27_172341_A8D63015.jpg"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 12,
+                "sample_files": [
+                  "2025-05-28_837C9D28-main.jpg",
+                  "2025-05-20_9A91FD9D-main.mp4"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "06",
+            "file_count": 19,
+            "sample_files": [
+              "2025-06-01_112643_2A8544D6.mp4",
+              "2025-06-14_173919_C8BCBE87.jpg",
+              "2025-06-25_184715_66F43838.jpg"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 10,
+                "sample_files": [
+                  "2025-06-01_2A8544D6-main.mp4",
+                  "2025-06-14_C8BCBE87-main.jpg"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "07",
+            "file_count": 20,
+            "sample_files": [
+              "2025-07-11_212158_E8A34CF9.jpg",
+              "2025-07-12_182917_86DAC6AA.jpg",
+              "2025-07-10_092047_2512405B.jpg"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 14,
+                "sample_files": [
+                  "2025-07-10_2512405B-main.jpg",
+                  "2025-07-16_C349BA0C-main.jpg"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "08",
+            "file_count": 19,
+            "sample_files": [
+              "2025-08-01_161107_44F8CECD.jpg",
+              "2025-08-09_183635_E330487E.mp4",
+              "2025-08-02_120000_8167C22F.mp4"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 10,
+                "sample_files": [
+                  "2025-08-10_36B49C55-main.jpg",
+                  "2025-08-08_73238FB7-main.jpg"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "09",
+            "file_count": 19,
+            "sample_files": [
+              "2025-09-02_093929_0316D6F0.jpg",
+              "2025-09-24_131342_A14E50A1.mp4",
+              "2025-09-21_104442_3F85CA52.jpg"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 12,
+                "sample_files": [
+                  "2025-09-02_0316D6F0-main.jpg",
+                  "2025-09-21_DDBD4403-main.jpg"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "10",
+            "file_count": 19,
+            "sample_files": [
+              "2025-10-11_142435_C134DF13.mp4",
+              "2025-10-18_165752_5F6C58C4.jpg",
+              "2025-10-26_142923_FDA3D275.jpg"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 16,
+                "sample_files": [
+                  "2025-10-11_C134DF13-main.mp4",
+                  "2025-10-04_7681B939-main.mp4"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "11",
+            "file_count": 19,
+            "sample_files": [
+              "2025-11-22_154840_7F52E736.jpg",
+              "2025-11-03_211842_1D8A60E7.jpg",
+              "2025-11-03_101444_BBC1DA98.mp4"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 12,
+                "sample_files": [
+                  "2025-11-03_1D8A60E7-main.jpg",
+                  "2025-11-23_59F95449-main.mp4"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "12",
+            "file_count": 19,
+            "sample_files": [
+              "2025-12-24_192243_3D70EF59.jpg",
+              "2025-12-26_100250_DBA8690A.mp4",
+              "2025-12-16_120000_79DFE2BB.jpg"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 4,
+                "sample_files": [
+                  "2025-12-24_3D70EF59-main.jpg",
+                  "2025-12-19_A80AA3A5-main.mp4"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "2026",
+        "file_count": 0,
+        "sample_files": [],
+        "children": [
+          {
+            "name": "01",
+            "file_count": 13,
+            "sample_files": [
+              "2026-01-18_120000_FB8EF77C.mp4",
+              "2026-01-20_111348_99C6712D.mp4",
+              "2026-01-18_203148_37FDEADE.jpg"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 8,
+                "sample_files": [
+                  "2026-01-18_FB8EF77C-main.mp4",
+                  "2026-01-20_99C6712D-main.mp4"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "02",
+            "file_count": 12,
+            "sample_files": [
+              "2026-02-01_093245_04602579.jpg",
+              "2026-02-25_135051_A2979F2A.jpg",
+              "2026-02-19_091247_40CF18DB.jpg"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 10,
+                "sample_files": [
+                  "2026-02-25_A2979F2A-main.jpg",
+                  "2026-02-19_40CF18DB-main.jpg"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "03",
+            "file_count": 12,
+            "sample_files": [
+              "2026-03-16_092943_6EF9D9C5.mp4",
+              "2026-03-22_135936_0D315376.jpg",
+              "2026-03-07_142101_AB68CD27.jpg"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 6,
+                "sample_files": [
+                  "2026-03-07_AB68CD27-main.jpg",
+                  "2026-03-16_2446B3EB-main.mp4"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "04",
+            "file_count": 12,
+            "sample_files": [
+              "2026-04-20_094538_D9938E11.jpg",
+              "2026-04-01_120000_77CB07C2.jpg",
+              "2026-04-19_210339_16028173.mp4"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 6,
+                "sample_files": [
+                  "2026-04-20_D9938E11-main.jpg",
+                  "2026-04-13_CB4F5B99-main.jpg"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "05",
+            "file_count": 12,
+            "sample_files": [
+              "2026-05-18_083858_442D425D.jpg",
+              "2026-05-01_184048_E264BC0E.jpg",
+              "2026-05-12_125048_809C35BF.jpg"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 8,
+                "sample_files": [
+                  "2026-05-15_BD0B2921-main.jpg",
+                  "2026-05-11_97B19634-main.jpg"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "06",
+            "file_count": 12,
+            "sample_files": [
+              "2026-06-06_090335_AEC6F6A9.jpg",
+              "2026-06-04_131647_4CFE705A.jpg",
+              "2026-06-12_155407_EB35EA0B.jpg"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 4,
+                "sample_files": [
+                  "2026-06-06_AEC6F6A9-main.jpg",
+                  "2026-06-25_DCF1B793-main.jpg"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "07",
+            "file_count": 12,
+            "sample_files": [
+              "2026-07-07_095414_1960AAF5.mp4",
+              "2026-07-21_094654_B79824A6.mp4",
+              "2026-07-15_201813_55CF9E57.jpg"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 4,
+                "sample_files": [
+                  "2026-07-21_B79824A6-main.mp4",
+                  "2026-07-09_F4071808-main.jpg"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "08",
+            "file_count": 12,
+            "sample_files": [
+              "2026-08-26_171933_83FA5F41.jpg",
+              "2026-08-26_090421_2231D8F2.mp4",
+              "2026-08-08_204630_C06952A3.mp4"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 10,
+                "sample_files": [
+                  "2026-08-11_9B0FBFB6-main.jpg",
+                  "2026-08-16_39473967-main.mp4"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "09",
+            "file_count": 12,
+            "sample_files": [
+              "2026-09-23_135234_EE94138D.jpg",
+              "2026-09-12_181111_8CCB8D3E.mp4",
+              "2026-09-09_175312_2B0306EF.jpg"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 6,
+                "sample_files": [
+                  "2026-09-23_EE94138D-main.jpg",
+                  "2026-09-22_A3E0EDB3-main.jpg"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "10",
+            "file_count": 12,
+            "sample_files": [
+              "2026-10-14_120000_592DC7D9.jpg",
+              "2026-10-20_153653_F765418A.mp4",
+              "2026-10-09_090501_959CBB3B.jpg"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 10,
+                "sample_files": [
+                  "2026-10-14_592DC7D9-main.jpg",
+                  "2026-10-09_959CBB3B-main.jpg"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "11",
+            "file_count": 12,
+            "sample_files": [
+              "2026-11-06_123308_C3C77C25.mp4",
+              "2026-11-11_144119_61FEF5D6.jpg",
+              "2026-11-18_132511_00366F87.mp4"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 4,
+                "sample_files": [
+                  "2026-11-06_C3C77C25-main.mp4",
+                  "2026-11-12_174BCFFC-main.jpg"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "12",
+            "file_count": 12,
+            "sample_files": [
+              "2026-12-28_132036_2E613071.jpg",
+              "2026-12-21_185441_CC98AA22.jpg",
+              "2026-12-05_130232_6AD023D3.mp4"
+            ],
+            "children": [
+              {
+                "name": "originals",
+                "children": [],
+                "file_count": 10,
+                "sample_files": [
+                  "2026-12-28_2E613071-main.jpg",
+                  "2026-12-22_A73F1735-main.mp4"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "_report",
+        "children": [],
+        "file_count": 3,
+        "sample_files": [
+          "report.html",
+          "report.csv",
+          "failed_items.json"
+        ]
+      }
+    ]
+  },
+  "samples": [
+    {
+      "item_id": "9E3779B1",
+      "media_type": "video",
+      "source_name": "2016-01-19_9E3779B1-main.mp4",
+      "planned_path": "2016/01/2016-01-19_103109_9E3779B1.mp4",
+      "capture_time": "2016-01-19T10:31:09-06:00",
+      "time_precision": "second",
+      "latitude": 19.4326,
+      "longitude": -99.1332,
+      "match_confidence": "ordinal",
+      "location_decision": "applied",
+      "has_overlay": false,
+      "thumbnail_path": "mock-thumb:0:video"
+    },
+    {
+      "item_id": "4540215F",
+      "media_type": "photo",
+      "source_name": "2016-01-28_4540215F-main.jpg",
+      "planned_path": "2016/01/2016-01-28_120000_4540215F.jpg",
+      "capture_time": "2016-01-28T12:00:00+00:00",
+      "time_precision": "day",
+      "latitude": null,
+      "longitude": null,
+      "match_confidence": "none",
+      "location_decision": "none",
+      "has_overlay": false,
+      "thumbnail_path": "mock-thumb:14:photo"
+    },
+    {
+      "item_id": "D109B2A6",
+      "media_type": "photo",
+      "source_name": "2016-08-17_D109B2A6-main.jpg",
+      "planned_path": "2016/08/2016-08-17_214146_D109B2A6.jpg",
+      "capture_time": "2016-08-17T21:41:46+01:00",
+      "time_precision": "day",
+      "latitude": 38.7223,
+      "longitude": -9.1393,
+      "match_confidence": "ordinal",
+      "location_decision": "uncertain",
+      "has_overlay": false,
+      "thumbnail_path": "mock-thumb:133:photo"
+    },
+    {
+      "item_id": "10D6CF8A",
+      "media_type": "photo",
+      "source_name": "2016-10-28_10D6CF8A-main.jpg",
+      "planned_path": "2016/10/2016-10-28_151007_10D6CF8A.jpg",
+      "capture_time": "2016-10-28T15:10:07+02:00",
+      "time_precision": "second",
+      "latitude": -33.9249,
+      "longitude": 18.4241,
+      "match_confidence": "ordinal",
+      "location_decision": "applied",
+      "has_overlay": false,
+      "thumbnail_path": "mock-thumb:169:photo"
+    },
+    {
+      "item_id": "83762563",
+      "media_type": "photo",
+      "source_name": "2017-03-25_83762563-main.jpg",
+      "planned_path": "2017/03/2017-03-25_084855_83762563.jpg",
+      "capture_time": "2017-03-25T08:48:55-04:00",
+      "time_precision": "second",
+      "latitude": 40.7128,
+      "longitude": -74.006,
+      "match_confidence": "exact",
+      "location_decision": "applied",
+      "has_overlay": false,
+      "thumbnail_path": "mock-thumb:338:photo"
+    },
+    {
+      "item_id": "F6157B3C",
+      "media_type": "video",
+      "source_name": "2017-07-07_F6157B3C-main.mp4",
+      "planned_path": "2017/07/2017-07-07_123920_F6157B3C.mp4",
+      "capture_time": "2017-07-07T12:39:20-03:00",
+      "time_precision": "second",
+      "latitude": -23.5505,
+      "longitude": -46.6333,
+      "match_confidence": "ordinal",
+      "location_decision": "applied",
+      "has_overlay": false,
+      "thumbnail_path": "mock-thumb:507:video"
+    },
+    {
+      "item_id": "68B4D115",
+      "media_type": "video",
+      "source_name": "2017-11-18_68B4D115-main.mp4",
+      "planned_path": "2017/11/2017-11-18_214456_68B4D115.mp4",
+      "capture_time": "2017-11-18T21:44:56+01:00",
+      "time_precision": "second",
+      "latitude": 38.7223,
+      "longitude": -9.1393,
+      "match_confidence": "ordinal",
+      "location_decision": "applied",
+      "has_overlay": false,
+      "thumbnail_path": "mock-thumb:676:video"
+    },
+    {
+      "item_id": "DB5426EE",
+      "media_type": "photo",
+      "source_name": "2018-03-28_DB5426EE-main.jpg",
+      "planned_path": "2018/03/2018-03-28_085130_DB5426EE.jpg",
+      "capture_time": "2018-03-28T08:51:30+01:00",
+      "time_precision": "second",
+      "latitude": 38.7223,
+      "longitude": -9.1393,
+      "match_confidence": "ordinal",
+      "location_decision": "applied",
+      "has_overlay": true,
+      "thumbnail_path": "mock-thumb:845:photo"
+    },
+    {
+      "item_id": "4DF37CC7",
+      "media_type": "photo",
+      "source_name": "2018-06-27_4DF37CC7-main.jpg",
+      "planned_path": "2018/06/2018-06-27_084410_4DF37CC7.jpg",
+      "capture_time": "2018-06-27T08:44:10+05:30",
+      "time_precision": "second",
+      "latitude": 19.076,
+      "longitude": 72.8777,
+      "match_confidence": "exact",
+      "location_decision": "applied",
+      "has_overlay": true,
+      "thumbnail_path": "mock-thumb:1014:photo"
+    },
+    {
+      "item_id": "C092D2A0",
+      "media_type": "photo",
+      "source_name": "2018-10-04_C092D2A0-main.jpg",
+      "planned_path": "2018/10/2018-10-04_200507_C092D2A0.jpg",
+      "capture_time": "2018-10-04T20:05:07+00:00",
+      "time_precision": "second",
+      "latitude": null,
+      "longitude": null,
+      "match_confidence": "ordinal",
+      "location_decision": "none",
+      "has_overlay": false,
+      "thumbnail_path": "mock-thumb:1183:photo"
+    },
+    {
+      "item_id": "33322879",
+      "media_type": "photo",
+      "source_name": "2019-01-19_33322879-main.jpg",
+      "planned_path": "2019/01/2019-01-19_080652_33322879.jpg",
+      "capture_time": "2019-01-19T08:06:52+02:00",
+      "time_precision": "second",
+      "latitude": 52.52,
+      "longitude": 13.405,
+      "match_confidence": "exact",
+      "location_decision": "applied",
+      "has_overlay": false,
+      "thumbnail_path": "mock-thumb:1352:photo"
+    },
+    {
+      "item_id": "A5D17E52",
+      "media_type": "photo",
+      "source_name": "2019-04-25_A5D17E52-main.jpg",
+      "planned_path": "2019/04/2019-04-25_155935_A5D17E52.jpg",
+      "capture_time": "2019-04-25T15:59:35+01:00",
+      "time_precision": "second",
+      "latitude": 38.7223,
+      "longitude": -9.1393,
+      "match_confidence": "exact",
+      "location_decision": "applied",
+      "has_overlay": true,
+      "thumbnail_path": "mock-thumb:1521:photo"
+    },
+    {
+      "item_id": "1870D42B",
+      "media_type": "photo",
+      "source_name": "2019-07-18_1870D42B-main.jpg",
+      "planned_path": "2019/07/2019-07-18_214529_1870D42B.jpg",
+      "capture_time": "2019-07-18T21:45:29+09:00",
+      "time_precision": "second",
+      "latitude": 35.6762,
+      "longitude": 139.6503,
+      "match_confidence": "ordinal",
+      "location_decision": "applied",
+      "has_overlay": false,
+      "thumbnail_path": "mock-thumb:1690:photo"
+    },
+    {
+      "item_id": "8B102A04",
+      "media_type": "photo",
+      "source_name": "2019-10-16_8B102A04-main.jpg",
+      "planned_path": "2019/10/2019-10-16_183732_8B102A04.jpg",
+      "capture_time": "2019-10-16T18:37:32+00:00",
+      "time_precision": "second",
+      "latitude": null,
+      "longitude": null,
+      "match_confidence": "ordinal",
+      "location_decision": "none",
+      "has_overlay": false,
+      "thumbnail_path": "mock-thumb:1859:photo"
+    },
+    {
+      "item_id": "FDAF7FDD",
+      "media_type": "photo",
+      "source_name": "2020-01-06_FDAF7FDD-main.jpg",
+      "planned_path": "2020/01/2020-01-06_131326_FDAF7FDD.jpg",
+      "capture_time": "2020-01-06T13:13:26+00:00",
+      "time_precision": "second",
+      "latitude": null,
+      "longitude": null,
+      "match_confidence": "ordinal",
+      "location_decision": "none",
+      "has_overlay": true,
+      "thumbnail_path": "mock-thumb:2028:photo"
+    },
+    {
+      "item_id": "704ED5B6",
+      "media_type": "video",
+      "source_name": "2020-05-03_704ED5B6-main.mp4",
+      "planned_path": "2020/05/2020-05-03_104236_704ED5B6.mp4",
+      "capture_time": "2020-05-03T10:42:36+00:00",
+      "time_precision": "second",
+      "latitude": null,
+      "longitude": null,
+      "match_confidence": "ordinal",
+      "location_decision": "none",
+      "has_overlay": false,
+      "thumbnail_path": "mock-thumb:2197:video"
+    },
+    {
+      "item_id": "E2EE2B8F",
+      "media_type": "photo",
+      "source_name": "2020-08-20_E2EE2B8F-main.jpg",
+      "planned_path": "2020/08/2020-08-20_160424_E2EE2B8F.jpg",
+      "capture_time": "2020-08-20T16:04:24+02:00",
+      "time_precision": "second",
+      "latitude": -33.9249,
+      "longitude": 18.4241,
+      "match_confidence": "ordinal",
+      "location_decision": "applied",
+      "has_overlay": false,
+      "thumbnail_path": "mock-thumb:2366:photo"
+    },
+    {
+      "item_id": "558D8168",
+      "media_type": "photo",
+      "source_name": "2020-11-10_558D8168-main.jpg",
+      "planned_path": "2020/11/2020-11-10_124828_558D8168.jpg",
+      "capture_time": "2020-11-10T12:48:28-04:00",
+      "time_precision": "second",
+      "latitude": 40.7128,
+      "longitude": -74.006,
+      "match_confidence": "exact",
+      "location_decision": "applied",
+      "has_overlay": false,
+      "thumbnail_path": "mock-thumb:2535:photo"
+    },
+    {
+      "item_id": "BDA6BDCF",
+      "media_type": "photo",
+      "source_name": "2023-05-24_BDA6BDCF-main.jpg",
+      "planned_path": "2023/05/2023-05-24_205326_BDA6BDCF.jpg",
+      "capture_time": "2023-05-24T20:53:26+01:00",
+      "time_precision": "second",
+      "latitude": 51.5074,
+      "longitude": -0.1278,
+      "match_confidence": "ordinal",
+      "location_decision": "applied",
+      "has_overlay": false,
+      "thumbnail_path": "mock-thumb:3966:photo"
+    },
+    {
+      "item_id": "304613A8",
+      "media_type": "video",
+      "source_name": "2023-12-23_304613A8-main.mp4",
+      "planned_path": "2023/12/2023-12-23_133137_304613A8.mp4",
+      "capture_time": "2023-12-23T13:31:37-03:00",
+      "time_precision": "second",
+      "latitude": -23.5505,
+      "longitude": -46.6333,
+      "match_confidence": "ordinal",
+      "location_decision": "applied",
+      "has_overlay": false,
+      "thumbnail_path": "mock-thumb:4135:video"
+    },
+    {
+      "item_id": "A2E56981",
+      "media_type": "video",
+      "source_name": "2024-07-10_A2E56981-main.mp4",
+      "planned_path": "2024/07/2024-07-10_100534_A2E56981.mp4",
+      "capture_time": "2024-07-10T10:05:34-03:00",
+      "time_precision": "second",
+      "latitude": -23.5505,
+      "longitude": -46.6333,
+      "match_confidence": "exact",
+      "location_decision": "applied",
+      "has_overlay": true,
+      "thumbnail_path": "mock-thumb:4304:video"
+    },
+    {
+      "item_id": "1584BF5A",
+      "media_type": "photo",
+      "source_name": "2025-02-01_1584BF5A-main.jpg",
+      "planned_path": "2025/02/2025-02-01_100415_1584BF5A.jpg",
+      "capture_time": "2025-02-01T10:04:15+01:00",
+      "time_precision": "second",
+      "latitude": 38.7223,
+      "longitude": -9.1393,
+      "match_confidence": "exact",
+      "location_decision": "applied",
+      "has_overlay": false,
+      "thumbnail_path": "mock-thumb:4473:photo"
+    },
+    {
+      "item_id": "88241533",
+      "media_type": "photo",
+      "source_name": "2025-11-07_88241533-main.jpg",
+      "planned_path": "2025/11/2025-11-07_124631_88241533.jpg",
+      "capture_time": "2025-11-07T12:46:31+10:00",
+      "time_precision": "second",
+      "latitude": -33.8688,
+      "longitude": 151.2093,
+      "match_confidence": "exact",
+      "location_decision": "applied",
+      "has_overlay": false,
+      "thumbnail_path": "mock-thumb:4642:photo"
+    },
+    {
+      "item_id": "FAC36B0C",
+      "media_type": "photo",
+      "source_name": "2026-12-11_FAC36B0C-main.jpg",
+      "planned_path": "2026/12/2026-12-11_125557_FAC36B0C.jpg",
+      "capture_time": "2026-12-11T12:55:57+00:00",
+      "time_precision": "second",
+      "latitude": null,
+      "longitude": null,
+      "match_confidence": "exact",
+      "location_decision": "none",
+      "has_overlay": true,
+      "thumbnail_path": "mock-thumb:4811:photo"
+    }
+  ],
+  "clip_groups": [
+    {
+      "group_id": "clip-2018-06-02-7C1E9A40",
+      "item_ids": [
+        "7C1E9A40",
+        "7C1E9A41",
+        "7C1E9A42"
+      ],
+      "total_seconds": 24,
+      "planned_path": "2018/06/2018-06-02_140311_7C1E9A40_joined.mp4",
+      "start_time": "2018-06-02T14:03:11+01:00"
+    },
+    {
+      "group_id": "clip-2019-12-24-B3D0F218",
+      "item_ids": [
+        "B3D0F218",
+        "B3D0F219",
+        "B3D0F21A",
+        "B3D0F21B"
+      ],
+      "total_seconds": 37.6,
+      "planned_path": "2019/12/2019-12-24_194205_B3D0F218_joined.mp4",
+      "start_time": "2019-12-24T19:42:05-05:00"
+    }
+  ],
+  "warnings": [
+    {
+      "code": "PART_MISSING",
+      "message": "Part 3 appears to be missing.",
+      "count": 1262,
+      "part_number": 3
+    },
+    {
+      "code": "MATCH_PARTIAL",
+      "message": "Exact time unknown for 212 items.",
+      "count": 212,
+      "part_number": null
+    },
+    {
+      "code": "LOCATION_UNCERTAIN",
+      "message": "Location not applied for 36 items because the match was uncertain.",
+      "count": 36,
+      "part_number": null
+    }
+  ],
+  "space": {
+    "output_bytes": 7511383494,
+    "originals_bytes": 2195309621,
+    "temp_bytes": 1456000000,
+    "zip_bytes": 0,
+    "total_bytes": 11162693115,
+    "free_bytes": 412700000000,
+    "sufficient": true,
+    "shortfall_bytes": 0,
+    "volume": "D:"
+  },
+  "estimated_seconds": 1457,
+  "free_limit": {
+    "applies": true,
+    "limit": 100,
+    "items_beyond": 3450
+  }
+}

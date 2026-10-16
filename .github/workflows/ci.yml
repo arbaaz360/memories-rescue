@@ -62,6 +62,11 @@ jobs:
       - name: Frontend build
         run: npm run build
 
+      # Vitest: formatting, the screen flow, backend selection, the mock
+      # engine, catalogue completeness and contract-document sync.
+      - name: Frontend tests
+        run: npm test
+
       - name: cargo fmt
         run: cargo fmt --all --check
 
